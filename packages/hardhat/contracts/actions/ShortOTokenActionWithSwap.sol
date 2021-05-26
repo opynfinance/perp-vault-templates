@@ -91,20 +91,16 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev owner only function to mint options with "assets"
+   * @dev owner only function to mint options with "assets" and sell otokens in this contract 
+   * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
-  function mintOToken(uint256 _collateralAmount, uint256 _otokenAmount) external onlyOwner onlyActivated {
-    _mintOTokens(_collateralAmount, _otokenAmount);
-  }
-
-  /**
-   * @dev owner only function to sell otokens in this contract by filling an order on AirSwap.
-   */
-  function swapSell(SwapTypes.Order memory _order) external onlyOwner onlyActivated {
+  function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
     require(_order.signer.token == asset, 'Can only sell for asset');
+
+    _mintOTokens(_collateralAmount, _otokenAmount);
 
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 

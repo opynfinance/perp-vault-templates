@@ -181,24 +181,20 @@ describe('ShortActionWithSwap Tests', function () {
         false
       );
     });
-    it('should revert if calling mint in idle phase', async () => {
+    it('should revert if calling mint + sell in idle phase', async () => {
       const collateral = utils.parseUnits('10');
       const amountOTokenToMint = 10 * 1e8;
-      await expect(
-        action.connect(owner).mintOToken(collateral, amountOTokenToMint)
-      ).to.be.revertedWith('!Activated');
-    });
-    it('should revert if calling sell in idle phase', async () => {
-      const amountOTokenToSell = 10 * 1e8;
       const order = await getOrder(
         action.address,
         otoken1.address,
-        amountOTokenToSell,
+        amountOTokenToMint,
         token.address,
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).swapSell(order)).to.be.revertedWith('!Activated');
+      await expect(
+        action.connect(owner).mintAndSellOToken(collateral, amountOTokenToMint, order)
+      ).to.be.revertedWith('!Activated');
     });
     it('should be able to commit next token', async () => {
       await action.connect(owner).commitOToken(otoken1.address);
@@ -231,14 +227,9 @@ describe('ShortActionWithSwap Tests', function () {
       const collateralAmount = utils.parseUnits('10');
       expect((await action.currentValue()).eq(collateralAmount)).to.be.true;
     });
-    it('should be able to mint in this phase', async () => {
+    it('should be able to mint and sell in this phase', async () => {
       const collateralAmount = utils.parseUnits('10');
       const otokenBalanceBefore = await otoken1.balanceOf(action.address);
-      await action.connect(owner).mintOToken(collateralAmount, mintOTokenAmount);
-      const otokenBalanceAfter = await otoken1.balanceOf(action.address);
-      expect(otokenBalanceAfter.sub(otokenBalanceBefore).eq(mintOTokenAmount)).to.be.true;
-    });
-    it('should be able to sell in this phase', async () => {
       const sellAmount = 10 * 1e8;
       const order = await getOrder(
         action.address,
@@ -248,9 +239,12 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await action.connect(owner).swapSell(order);
+      await action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, order);
+      const otokenBalanceAfter = await otoken1.balanceOf(action.address);
+      expect(otokenBalanceAfter.sub(otokenBalanceBefore).eq('0')).to.be.true;
     });
     it('should revert when trying to fill wrong order', async () => {
+      const collateralAmount = utils.parseUnits('10');
       const badOrder1 = await getOrder(
         action.address,
         ethers.constants.AddressZero,
@@ -259,7 +253,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).swapSell(badOrder1)).to.be.revertedWith(
+      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, badOrder1)).to.be.revertedWith(
         'Can only sell otoken'
       );
 
@@ -271,7 +265,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).swapSell(badOrder2)).to.be.revertedWith(
+      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, badOrder2)).to.be.revertedWith(
         'Can only sell for asset'
       );
     });
@@ -306,21 +300,17 @@ describe('ShortActionWithSwap Tests', function () {
     it('should revert if calling mint in idle phase', async () => {
       const collateral = utils.parseUnits('10');
       const amountOTokenToMint = 10 * 1e8;
-      await expect(
-        action.connect(owner).mintOToken(collateral, amountOTokenToMint)
-      ).to.be.revertedWith('!Activated');
-    });
-    it('should revert if calling sell in idle phase', async () => {
-      const amountOTokenToSell = 10 * 1e8;
       const order = await getOrder(
         action.address,
         otoken1.address,
-        amountOTokenToSell,
+        amountOTokenToMint,
         token.address,
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).swapSell(order)).to.be.revertedWith('!Activated');
+      await expect(
+        action.connect(owner).mintAndSellOToken(collateral, amountOTokenToMint, order)
+      ).to.be.revertedWith('!Activated');
     });
   });
 });
