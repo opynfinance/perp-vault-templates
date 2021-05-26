@@ -288,7 +288,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev redistribute all funds to diff actions
    */
-  function _distribute(uint256[] memory _percentages) internal {
+  function _distribute(uint256[] memory _percentages) internal nonReentrant {
     uint256 cacheTotalAsset = _totalAsset();
     uint256 cacheBase = BASE;
 
@@ -303,6 +303,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
       uint256 newAmount = cacheTotalAsset.mul(_percentages[i]).div(cacheBase);
 
       if (newAmount > 0) IERC20(cacheAsset).safeTransfer(actions[i], newAmount);
+      IAction(actions[i]).rolloverPosition();
     }
   }
 
