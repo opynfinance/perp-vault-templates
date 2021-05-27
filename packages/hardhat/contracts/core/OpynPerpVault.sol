@@ -357,7 +357,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
     // todo: add fee model
     // currently fixed at 0.5% 
-    return _withdrawAmount.mul(5).div(BASE);
+    return _withdrawAmount.mul(50).div(BASE);
   }
 
   /**
