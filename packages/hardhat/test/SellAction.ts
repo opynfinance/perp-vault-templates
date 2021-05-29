@@ -10,6 +10,7 @@ import {
   MockController,
   MockPool,
   MockOToken,
+  MockOracle,
 } from '../typechain';
 import * as fs from 'fs';
 
@@ -39,17 +40,20 @@ describe('ShortActionWithSwap Tests', function () {
   let swap: MockSwap;
   let whitelist: MockWhitelist;
   let controller: MockController;
+  let oracle: MockOracle;
 
   let accounts: SignerWithAddress[] = [];
 
   let owner: SignerWithAddress;
   let vault: SignerWithAddress;
 
+  let otokenBad: MockOToken;
   let otoken1: MockOToken;
   let otoken2: MockOToken;
 
-  const otoken1StrikePrice = 4000 * 1e8;
-  const otoken2StrikePrice = 5000 * 1e8;
+  const otokenBadStrikePrice = 10 * 1e8; 
+  const otoken1StrikePrice = 4000 * 1e8; // 4000 
+  const otoken2StrikePrice = 5000 * 1e8; // 5000 
 
   // 7 days from now
   const otoken1Expiry = BigNumber.from(parseInt((Date.now() / 1000).toString()) + 86400 * 7);
@@ -91,6 +95,9 @@ describe('ShortActionWithSwap Tests', function () {
     const Controller = await ethers.getContractFactory('MockController');
     controller = (await Controller.deploy()) as MockController;
     await controller.setPool(pool.address);
+
+    const MockOracle = await ethers.getContractFactory('MockOracle');
+    oracle = (await MockOracle.deploy()) as MockOracle; 
   });
 
   describe('deployment test', () => {
@@ -102,6 +109,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         whitelist.address,
         controller.address,
+        oracle.address,
         0 // type 0 vault
       )) as ShortOTokenActionWithSwap;
 
@@ -131,6 +139,7 @@ describe('ShortActionWithSwap Tests', function () {
           ethers.constants.AddressZero,
           whitelist.address,
           controller.address,
+          oracle.address,
           0 // type 0 vault
         )
       ).to.be.revertedWith('Invalid airswap address');
@@ -143,6 +152,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         whitelist.address,
         controller.address,
+        oracle.address,
         1 // type 0 vault
       );
       expect((await action.owner()) == owner.address).to.be.true;
@@ -180,6 +190,19 @@ describe('ShortActionWithSwap Tests', function () {
         otoken2Expiry,
         false
       );
+
+      otokenBad = (await MockOToken.deploy()) as MockOToken;
+      await otokenBad.init('oWETHUSDC', 'oWETHUSDC', 18);
+      await otokenBad.initMockOTokenDetail(
+        token.address,
+        usdc.address,
+        token.address,
+        otokenBadStrikePrice,
+        otoken2Expiry,
+        false
+      );
+
+      await oracle.setData(1, 10000000000, 1, 1, 1);
     });
     it('should revert if calling mint + sell in idle phase', async () => {
       const collateral = utils.parseUnits('10');
@@ -195,6 +218,9 @@ describe('ShortActionWithSwap Tests', function () {
       await expect(
         action.connect(owner).mintAndSellOToken(collateral, amountOTokenToMint, order)
       ).to.be.revertedWith('!Activated');
+    });
+    it('should not be able to token with invalid strike price', async () => {
+      await expect(action.connect(owner).commitOToken(otokenBad.address)).to.be.revertedWith('Strike Price Too Low');
     });
     it('should be able to commit next token', async () => {
       await action.connect(owner).commitOToken(otoken1.address);
