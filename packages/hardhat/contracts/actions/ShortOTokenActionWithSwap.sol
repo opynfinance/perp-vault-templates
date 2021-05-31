@@ -25,7 +25,9 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /// @dev the minimum strike price of the option chosen needs to be at least 105% of spot. 
   /// This is set expecting the contract to be a strategy selling calls. For puts should change this. 
   uint256 constant public MIN_STRIKE = 10500;
+  uint256 constant public MIN_PROFITS = 100; // 1% 
   uint256 public lockedAsset;
+  uint256 public rolloverTime;
 
   address public immutable vault;
   address public immutable asset;
@@ -82,7 +84,10 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * @dev the function that the vault will call when the round is over
    */
   function closePosition() external onlyVault override {
-    _settleVault();
+    require(canClosePosition(), "Cannot close position");
+    // if(_canSettleVault()) {
+        _settleVault();
+    // }
 
     // this function can only be called when it's `Activated`
     // go to the next step, which will enable owner to commit next oToken
@@ -98,6 +103,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     
     // this function can only be called when it's `Committed`
     _rollOverNextOTokenAndActivate();
+    rolloverTime = block.timestamp;
   }
 
   /**
@@ -109,12 +115,24 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
     require(_order.signer.token == asset, 'Can only sell for asset');
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
     _mintOTokens(_collateralAmount, _otokenAmount);
 
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
     _fillAirswapOrder(_order);
+  }
+
+  /**
+   * @notice the function will return when someone can close a position. 1 day after rollover, 
+   * if the option wasn't sold, anyone can close the position. 
+   */
+  function canClosePosition() public view returns(bool) {
+    if (otoken != address(0) && lockedAsset != 0) { 
+      return _canSettleVault();
+    }
+    return block.timestamp > rolloverTime + 1 days; 
   }
 
   /**
@@ -198,6 +216,18 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
 
     controller.operate(actions);
   }
+
+  /**
+   * @dev checks if the current vault can be settled
+   */
+  function _canSettleVault() internal view returns (bool) {
+    if (lockedAsset != 0 && otoken != address(0)) {
+      return controller.isSettlementAllowed(otoken);
+    }
+
+    return false; 
+  }
+
   
   /**
    * @dev funtion to add some custom logic to check the next otoken is valid to this strategy

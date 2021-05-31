@@ -183,9 +183,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev close out the previous round by calling "closePositions" on all actions
+   * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
    */
-  function closePositions() external onlyOwner unlocker {
+  function closePositions() public unlocker {
     _closeAndWithdraw();
   }
 

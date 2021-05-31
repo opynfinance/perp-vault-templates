@@ -40,4 +40,18 @@ contract MockOToken is MockERC20 {
     expiryTimestamp = _expiryTimestamp;
     isPut = _isPut;
   }
+
+   function getOtokenDetails()
+    external
+    view
+    returns (
+        address,
+        address,
+        address,
+        uint256,
+        uint256,
+        bool
+    ){
+      return (underlyingAsset, strikeAsset, collateralAsset, strikePrice, expiryTimestamp, isPut);
+    }
 }

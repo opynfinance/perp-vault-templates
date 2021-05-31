@@ -2,6 +2,7 @@ import { ethers, waffle } from 'hardhat';
 import { BigNumber, utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { getOrder } from './utils/orders';
 import {
   ShortOTokenActionWithSwap,
   MockERC20,
@@ -13,6 +14,7 @@ import {
   MockOracle,
 } from '../typechain';
 import * as fs from 'fs';
+import { parseUnits } from '@ethersproject/units';
 
 const { createOrder, signTypedDataOrder } = require('@airswap/utils');
 
@@ -207,11 +209,14 @@ describe('ShortActionWithSwap Tests', function () {
     it('should revert if calling mint + sell in idle phase', async () => {
       const collateral = utils.parseUnits('10');
       const amountOTokenToMint = 10 * 1e8;
+      const premium = parseUnits('1');
       const order = await getOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,
+        counterpartyWallet.address,
         token.address,
+        premium.toString(),
         swap.address,
         counterpartyWallet.privateKey
       );
@@ -253,15 +258,34 @@ describe('ShortActionWithSwap Tests', function () {
       const collateralAmount = utils.parseUnits('10');
       expect((await action.currentValue()).eq(collateralAmount)).to.be.true;
     });
-    it('should be able to mint and sell in this phase', async () => {
+    it('should not be able to mint and sell if less than min premium', async () => {
       const collateralAmount = utils.parseUnits('10');
-      const otokenBalanceBefore = await otoken1.balanceOf(action.address);
       const sellAmount = 10 * 1e8;
+      const premium = utils.parseUnits('0');
       const order = await getOrder(
         action.address,
         otoken1.address,
         sellAmount,
+        counterpartyWallet.address,
         token.address,
+        premium.toString(),
+        swap.address,
+        counterpartyWallet.privateKey
+      );
+      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, order)).revertedWith('Need minimum option premium');
+    })
+    it('should be able to mint and sell in this phase', async () => {
+      const collateralAmount = utils.parseUnits('10');
+      const otokenBalanceBefore = await otoken1.balanceOf(action.address);
+      const sellAmount = 10 * 1e8;
+      const premium = utils.parseUnits('1');
+      const order = await getOrder(
+        action.address,
+        otoken1.address,
+        sellAmount,
+        counterpartyWallet.address,
+        token.address,
+        premium.toString(),
         swap.address,
         counterpartyWallet.privateKey
       );
@@ -275,7 +299,9 @@ describe('ShortActionWithSwap Tests', function () {
         action.address,
         ethers.constants.AddressZero,
         mintOTokenAmount,
+        counterpartyWallet.address,
         token.address,
+        '1',
         swap.address,
         counterpartyWallet.privateKey
       );
@@ -287,7 +313,9 @@ describe('ShortActionWithSwap Tests', function () {
         action.address,
         otoken1.address,
         mintOTokenAmount,
+        counterpartyWallet.address,
         ethers.constants.AddressZero,
+        '1',
         swap.address,
         counterpartyWallet.privateKey
       );
@@ -326,11 +354,14 @@ describe('ShortActionWithSwap Tests', function () {
     it('should revert if calling mint in idle phase', async () => {
       const collateral = utils.parseUnits('10');
       const amountOTokenToMint = 10 * 1e8;
+      const premium = utils.parseUnits('1');
       const order = await getOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,
+        counterpartyWallet.address,
         token.address,
+        premium.toString(),
         swap.address,
         counterpartyWallet.privateKey
       );
@@ -341,29 +372,4 @@ describe('ShortActionWithSwap Tests', function () {
   });
 });
 
-const getOrder = async (
-  sender: string,
-  senderToken: string,
-  senderTokenAmount: BigNumber | number,
-  signerToken: string,
-  swapContract: string,
-  privateKey: any
-) => {
-  const order = createOrder({
-    signer: {
-      wallet: ethers.constants.AddressZero,
-      token: signerToken,
-      amount: 0,
-    },
-    sender: {
-      wallet: sender,
-      token: senderToken,
-      amount: senderTokenAmount,
-    },
-    affiliate: {
-      wallet: ethers.constants.AddressZero,
-    },
-  });
-  const signedOrder = await signTypedDataOrder(order, privateKey, swapContract);
-  return signedOrder;
-};
+

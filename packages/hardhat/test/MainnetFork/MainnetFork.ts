@@ -60,6 +60,7 @@ describe('Mainnet Fork Tests', function () {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+  const chainlinkAddres = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419';
 
   /** 
    * 
@@ -99,6 +100,7 @@ describe('Mainnet Fork Tests', function () {
       swapAddress, 
       whitelistAddress,
       controllerAddress,
+      chainlinkAddres,
       0 // type 0 vault
     )) as ShortOTokenActionWithSwap;
 

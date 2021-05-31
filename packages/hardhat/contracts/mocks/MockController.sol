@@ -50,6 +50,12 @@ contract MockController {
     pool = IPool(_pool);
   }
 
+  function isSettlementAllowed(
+    address otoken
+  ) external view returns (bool) {
+    return true;
+  }
+
   function operate(ActionArgs[] memory _actions) external {
     
     for (uint8 i =0; i < _actions.length ; i = i+1) {
