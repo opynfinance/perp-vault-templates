@@ -305,6 +305,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
       if (newAmount > 0) IERC20(cacheAsset).safeTransfer(actions[i], newAmount);
       IAction(actions[i]).rolloverPosition();
     }
+
+    require(sumPercentage == cacheBase, 'PERCENTAGE_DOESNT_ADD_UP');
   }
 
   /**

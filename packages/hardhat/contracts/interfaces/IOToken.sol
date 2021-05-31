@@ -13,4 +13,6 @@ interface IOToken {
     function expiryTimestamp() external view returns (uint256);
 
     function isPut() external view returns (bool);
+    
+    function balanceOf(address account) external view returns (uint256);
 }

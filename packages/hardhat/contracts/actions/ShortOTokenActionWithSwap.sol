@@ -40,7 +40,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     address _controller,
     address _oracle,
     uint256 _vaultType
-  ) {
+  ) public {
     vault = _vault;
     asset = _asset;
 

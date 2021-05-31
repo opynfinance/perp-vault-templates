@@ -15,7 +15,7 @@ const mnemonic = fs.existsSync('.secret')
       .trim()
   : "test test test test test test test test test test test junk"
 
-  const infuraKey = process.env.INFURA_KEY
+const infuraKey = process.env.INFURA_KEY
 const etherscanKey = process.env.ETHERSCAN_KEY
 
 // You need to export an object to set up your config
@@ -23,7 +23,12 @@ const etherscanKey = process.env.ETHERSCAN_KEY
 
 export default {
   networks: {
-    hardhat: {},
+    hardhat: {
+      forking: {
+        url: `https://mainnet.infura.io/v3/${infuraKey}`,
+        enabled: true
+      }
+    },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,
       accounts: {
