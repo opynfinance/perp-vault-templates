@@ -26,7 +26,7 @@ export default {
     hardhat: {
       forking: {
         url: `https://mainnet.infura.io/v3/${infuraKey}`,
-        enabled: true
+        enabled: process.env.FORK === 'true'
       }
     },
     ropsten: {
@@ -58,6 +58,9 @@ export default {
   },
   etherscan: {
     apiKey: etherscanKey
+  },
+  mocha: {
+    timeout: 40000
   }
 };
 

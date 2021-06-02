@@ -1,14 +1,8 @@
-import { ethers, waffle } from 'hardhat';
-import { BigNumber, utils, Signer } from 'ethers';
+import { ethers } from 'hardhat';
+import { utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { MockAction, MockERC20, OpynPerpVault, MockWETH } from '../typechain';
-import * as fs from 'fs';
-import { isConstructorDeclaration } from 'typescript';
-
-const mnemonic = fs.existsSync('.secret')
-  ? fs.readFileSync('.secret').toString().trim()
-  : 'test test test test test test test test test test test junk';
+import { MockAction, MockERC20, OpynPerpVault, MockWETH } from '../../typechain';
 
 enum VaultState {
   Locked,
@@ -62,8 +56,8 @@ describe('OpynPerpVault Tests', function () {
 
     // deploy 2 mock actions
     const MockActionContract = await ethers.getContractFactory('MockAction');
-    action1 = await MockActionContract.deploy(vault.address, weth.address);
-    action2 = await MockActionContract.deploy(vault.address, weth.address);
+    action1 = await MockActionContract.deploy(vault.address, weth.address) as MockAction;
+    action2 = await MockActionContract.deploy(vault.address, weth.address) as MockAction;
   });
 
   describe('init', async () => {

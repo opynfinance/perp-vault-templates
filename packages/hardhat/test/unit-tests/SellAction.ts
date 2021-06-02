@@ -2,7 +2,7 @@ import { ethers, waffle } from 'hardhat';
 import { BigNumber, utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { getOrder } from './utils/orders';
+import { getOrder } from '../utils/orders';
 import {
   ShortOTokenActionWithSwap,
   MockERC20,
@@ -12,11 +12,9 @@ import {
   MockPool,
   MockOToken,
   MockOpynOracle,
-} from '../typechain';
+} from '../../typechain';
 import * as fs from 'fs';
 import { parseUnits } from '@ethersproject/units';
-
-const { createOrder, signTypedDataOrder } = require('@airswap/utils');
 
 const mnemonic = fs.existsSync('.secret')
   ? fs.readFileSync('.secret').toString().trim()
