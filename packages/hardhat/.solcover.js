@@ -3,6 +3,5 @@ module.exports = {
     'mocks/', 
     'packages/',
     'interfaces/',
-    'actions/LongOTokenActionWithSwap.sol'
   ]
 };
