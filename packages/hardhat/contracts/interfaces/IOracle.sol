@@ -11,4 +11,5 @@ interface IOracle {
         uint256 _expiryTimestamp,
         uint256 _price
     ) external;
+    function getPrice(address _asset) external view returns (uint256);
 }

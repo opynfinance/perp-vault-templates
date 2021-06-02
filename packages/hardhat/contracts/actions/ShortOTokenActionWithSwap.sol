@@ -13,7 +13,7 @@ import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 
 import { IController } from '../interfaces/IController.sol';
 import { IAction } from '../interfaces/IAction.sol';
-import { IChainlink } from '../interfaces/IChainlink.sol';
+import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 
 contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase {
@@ -32,7 +32,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   address public immutable vault;
   address public immutable asset;
   IController public controller;
-  IChainlink public oracle; 
+  IOracle public oracle; 
 
   constructor(
     address _vault,
@@ -40,9 +40,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     address _swap,
     address _opynWhitelist,
     address _controller,
-    address _oracle,
     uint256 _vaultType
-  ) public {
+  ) {
     vault = _vault;
     asset = _asset;
 
@@ -50,10 +49,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     IERC20(_asset).safeApprove(_vault, uint256(-1));
 
     controller = IController(_controller);
-    oracle = IChainlink(_oracle);
 
     // enable pool contract to pull asset from this contract to mint options.
     address pool = controller.pool();
+    
+    oracle = IOracle(controller.oracle());
+    
     IERC20(_asset).safeApprove(pool, uint256(-1));
 
     _initSwapContract(_swap);
@@ -85,9 +86,10 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    */
   function closePosition() external onlyVault override {
     require(canClosePosition(), "Cannot close position");
-    // if(_canSettleVault()) {
-        _settleVault();
-    // }
+    
+    if(_canSettleVault()) {
+      _settleVault();
+    }
 
     // this function can only be called when it's `Activated`
     // go to the next step, which will enable owner to commit next oToken
@@ -254,15 +256,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    */
   function _isValidStrike(uint256 strikePrice) internal view returns (bool) {
     // TODO: override with your filler code. 
-    (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
-    ) = oracle.latestRoundData();
+    uint256 spotPrice = oracle.getPrice(asset);
     // checks that the strike price set is > than 105% of current price
-    uint256 spotPrice = uint256(answer);
     return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
   }
 

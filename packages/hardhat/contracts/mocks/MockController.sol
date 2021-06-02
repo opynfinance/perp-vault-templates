@@ -35,6 +35,7 @@ contract MockController {
   }
 
   IPool public pool;
+  address public oracle;
 
   bool public vaultOpened; 
 
@@ -50,8 +51,12 @@ contract MockController {
     pool = IPool(_pool);
   }
 
+  function setOracle(address _oracle) external {
+    oracle = _oracle;
+  }
+
   function isSettlementAllowed(
-    address otoken
+    address /*otoken*/
   ) external view returns (bool) {
     return true;
   }

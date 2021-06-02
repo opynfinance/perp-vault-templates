@@ -11,7 +11,7 @@ import {
   MockController,
   MockPool,
   MockOToken,
-  MockOracle,
+  MockOpynOracle,
 } from '../typechain';
 import * as fs from 'fs';
 import { parseUnits } from '@ethersproject/units';
@@ -42,7 +42,7 @@ describe('ShortActionWithSwap Tests', function () {
   let swap: MockSwap;
   let whitelist: MockWhitelist;
   let controller: MockController;
-  let oracle: MockOracle;
+  let oracle: MockOpynOracle;
 
   let accounts: SignerWithAddress[] = [];
 
@@ -57,10 +57,8 @@ describe('ShortActionWithSwap Tests', function () {
   const otoken1StrikePrice = 4000 * 1e8; // 4000 
   const otoken2StrikePrice = 5000 * 1e8; // 5000 
 
-  // 7 days from now
-  const otoken1Expiry = BigNumber.from(parseInt((Date.now() / 1000).toString()) + 86400 * 7);
-  // 14 days from now
-  const otoken2Expiry = BigNumber.from(parseInt((Date.now() / 1000).toString()) + 86400 * 14);
+  let otoken1Expiry = BigNumber.from(0)
+  let otoken2Expiry = BigNumber.from(0)
 
   // pretend to be gamma margin pool
   let pool: MockPool;
@@ -72,6 +70,15 @@ describe('ShortActionWithSwap Tests', function () {
     owner = _owner;
     vault = _vault;
   });
+
+  this.beforeAll('Set timestamps', async () => {
+    const blockNumber = await provider.getBlockNumber();
+    const block = await provider.getBlock(blockNumber);
+    const currentTimestamp = block.timestamp;
+    // 7 days from now
+    otoken1Expiry = BigNumber.from(parseInt(currentTimestamp.toString()) + 86400 * 7);
+    otoken2Expiry = BigNumber.from(parseInt(currentTimestamp.toString()) + 86400 * 14);
+  })
 
   this.beforeAll('Deploy Mock contracts', async () => {
     const ERC20 = await ethers.getContractFactory('MockERC20');
@@ -94,12 +101,14 @@ describe('ShortActionWithSwap Tests', function () {
     const MockPool = await ethers.getContractFactory('MockPool');
     pool = (await MockPool.deploy()) as MockPool;
 
+    const MockOracle = await ethers.getContractFactory('MockOpynOracle');
+    oracle = (await MockOracle.deploy()) as MockOpynOracle; 
+
     const Controller = await ethers.getContractFactory('MockController');
     controller = (await Controller.deploy()) as MockController;
+    
     await controller.setPool(pool.address);
-
-    const MockOracle = await ethers.getContractFactory('MockOracle');
-    oracle = (await MockOracle.deploy()) as MockOracle; 
+    await controller.setOracle(oracle.address)
   });
 
   describe('deployment test', () => {
@@ -111,7 +120,6 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         whitelist.address,
         controller.address,
-        oracle.address,
         0 // type 0 vault
       )) as ShortOTokenActionWithSwap;
 
@@ -141,7 +149,6 @@ describe('ShortActionWithSwap Tests', function () {
           ethers.constants.AddressZero,
           whitelist.address,
           controller.address,
-          oracle.address,
           0 // type 0 vault
         )
       ).to.be.revertedWith('Invalid airswap address');
@@ -154,7 +161,6 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         whitelist.address,
         controller.address,
-        oracle.address,
         1 // type 0 vault
       );
       expect((await action.owner()) == owner.address).to.be.true;
@@ -204,7 +210,7 @@ describe('ShortActionWithSwap Tests', function () {
         false
       );
 
-      await oracle.setData(1, 10000000000, 1, 1, 1);
+      await oracle.setAssetPrice(token.address, 10000000000);
     });
     it('should revert if calling mint + sell in idle phase', async () => {
       const collateral = utils.parseUnits('10');
@@ -335,7 +341,7 @@ describe('ShortActionWithSwap Tests', function () {
 
   describe('close position', () => {
     before('increase blocktime to otoken expiry', async () => {
-      await provider.send('evm_setNextBlockTimestamp', [otoken1Expiry.toNumber()]); // add totalDuration
+      await provider.send('evm_setNextBlockTimestamp', [otoken1Expiry.toNumber()]); 
       await provider.send('evm_mine', []);
     });
     it('should revert if the vault is trying to close from non-vault address', async () => {

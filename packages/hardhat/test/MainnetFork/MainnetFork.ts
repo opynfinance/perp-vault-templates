@@ -1,13 +1,19 @@
-import { ethers, waffle} from 'hardhat';
-import { ether, balance, BN, send } from '@openzeppelin/test-helpers';
-import { BigNumber, utils, Signer } from 'ethers';
+import { ethers } from 'hardhat';
+import { utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { expect, util } from 'chai';
-import { MockAction, MockERC20, OpynPerpVault, IWETH, ShortOTokenActionWithSwap, IOtokenFactory, IOToken, MockPricer, IOracle } from '../../typechain';
+import { expect } from 'chai';
+import {
+  MockERC20,
+  OpynPerpVault,
+  IWETH,
+  ShortOTokenActionWithSwap,
+  IOtokenFactory,
+  IOToken,
+  MockPricer,
+  IOracle,
+} from '../../typechain';
 import * as fs from 'fs';
-import { getEmitHelpers, ImportSpecifier, isConstructorDeclaration } from 'typescript';
 import { getOrder } from '../utils/orders';
-import { sign } from 'core-js/core/number';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs.readFileSync('.secret').toString().trim()
@@ -46,10 +52,10 @@ describe('Mainnet Fork Tests', function () {
   let oracle: IOracle;
   let provider;
 
-  /** 
-   * 
-   * CONSTANTS 
-   * 
+  /**
+   *
+   * CONSTANTS
+   *
    */
   const day = 86400;
   const controllerAddress = '0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72';
@@ -60,12 +66,11 @@ describe('Mainnet Fork Tests', function () {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
-  const chainlinkAddres = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419';
 
-  /** 
-   * 
+  /**
+   *
    * Setup
-   * 
+   *
    */
 
   this.beforeAll('Set accounts', async () => {
@@ -82,10 +87,13 @@ describe('Mainnet Fork Tests', function () {
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
-    weth = await ethers.getContractAt('IWETH', wethAddress) as IWETH;
-    usdc = await ethers.getContractAt('MockERC20', usdcAddress) as MockERC20;
-    otokenFactory = await ethers.getContractAt('IOtokenFactory', otokenFactoryAddress) as IOtokenFactory;
-    oracle = await ethers.getContractAt('IOracle', oracleAddress ) as IOracle;
+    weth = (await ethers.getContractAt('IWETH', wethAddress)) as IWETH;
+    usdc = (await ethers.getContractAt('MockERC20', usdcAddress)) as MockERC20;
+    otokenFactory = (await ethers.getContractAt(
+      'IOtokenFactory',
+      otokenFactoryAddress
+    )) as IOtokenFactory;
+    oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
   });
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
@@ -97,41 +105,40 @@ describe('Mainnet Fork Tests', function () {
     action1 = (await ShortActionContract.deploy(
       vault.address,
       weth.address,
-      swapAddress, 
+      swapAddress,
       whitelistAddress,
       controllerAddress,
-      chainlinkAddres,
       0 // type 0 vault
     )) as ShortOTokenActionWithSwap;
 
     await vault
-    .connect(owner)
-    .init(
-      weth.address,
-      owner.address,
-      feeRecipient.address,
-      weth.address,
-      18,
-      'OpynPerpShortVault share',
-      'sOPS',
-      [action1.address]
-    );
+      .connect(owner)
+      .init(
+        weth.address,
+        owner.address,
+        feeRecipient.address,
+        weth.address,
+        18,
+        'OpynPerpShortVault share',
+        'sOPS',
+        [action1.address]
+      );
   });
 
-  this.beforeAll('Deploy pricer and update pricer in opyn\'s oracle', async() => { 
-      provider = ethers.provider
+  this.beforeAll("Deploy pricer and update pricer in opyn's oracle", async () => {
+    provider = ethers.provider;
 
-      const PricerContract = await ethers.getContractFactory('MockPricer');
-      pricer = await PricerContract.deploy(oracleAddress) as MockPricer;
+    const PricerContract = await ethers.getContractFactory('MockPricer');
+    pricer = (await PricerContract.deploy(oracleAddress)) as MockPricer;
 
-      // impersonate owner and change the pricer
-      await owner.sendTransaction({to: opynOwner, value: utils.parseEther("1.0")});
-      await provider.send('hardhat_impersonateAccount', [opynOwner]);
-      const signer = await ethers.provider.getSigner(opynOwner);
-      await oracle.connect(signer).setAssetPricer(weth.address, pricer.address);
-      await provider.send('evm_mine', []);
-      await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
-  })
+    // impersonate owner and change the pricer
+    await owner.sendTransaction({ to: opynOwner, value: utils.parseEther('1.0') });
+    await provider.send('hardhat_impersonateAccount', [opynOwner]);
+    const signer = await ethers.provider.getSigner(opynOwner);
+    await oracle.connect(signer).setAssetPricer(weth.address, pricer.address);
+    await provider.send('evm_mine', []);
+    await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
+  });
 
   describe('check the admin setup', async () => {
     it('contract is initialized correctly', async () => {
@@ -142,13 +149,13 @@ describe('Mainnet Fork Tests', function () {
     });
 
     it('should set fee reserve', async () => {
-      // 10% reserve 
+      // 10% reserve
       await vault.connect(owner).setWithdrawReserve(1000);
       expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
     });
   });
 
-  describe('profitable scenario', async () => { 
+  describe('profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
     const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
@@ -157,14 +164,14 @@ describe('Mainnet Fork Tests', function () {
     let actualAmountInVault;
     let actualAmountInAction;
     let otoken: IOToken;
-    let expiry; 
+    let expiry;
     const reserveFactor = 10;
-    this.beforeAll('deploy otoken that will be sold and set up counterparty', async () => { 
-      const otokenStrikePrice = 500000000000
+    this.beforeAll('deploy otoken that will be sold and set up counterparty', async () => {
+      const otokenStrikePrice = 500000000000;
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
       const currentTimestamp = block.timestamp;
-      expiry = (Math.floor(currentTimestamp/day) + 10) * day + 28800;
+      expiry = (Math.floor(currentTimestamp / day) + 10) * day + 28800;
 
       await otokenFactory.createOtoken(
         weth.address,
@@ -173,7 +180,7 @@ describe('Mainnet Fork Tests', function () {
         otokenStrikePrice,
         expiry,
         false
-      )
+      );
 
       const otokenAddress = await otokenFactory.getOtoken(
         weth.address,
@@ -182,39 +189,43 @@ describe('Mainnet Fork Tests', function () {
         otokenStrikePrice,
         expiry,
         false
-      )
+      );
 
-      otoken = await ethers.getContractAt('IOToken', otokenAddress) as IOToken;
+      otoken = (await ethers.getContractAt('IOToken', otokenAddress)) as IOToken;
 
       // prepare counterparty
       counterpartyWallet = counterpartyWallet.connect(provider);
-      await owner.sendTransaction({to: counterpartyWallet.address, value: utils.parseEther("2")});
-      await weth.connect(counterpartyWallet).deposit({value: premium});
+      await owner.sendTransaction({ to: counterpartyWallet.address, value: utils.parseEther('2') });
+      await weth.connect(counterpartyWallet).deposit({ value: premium });
       await weth.connect(counterpartyWallet).approve(swapAddress, premium);
-    })
-    it('p1 deposits', async () => { 
+    });
+    it('p1 deposits', async () => {
       totalAmountInVault = p1DepositAmount;
       actualAmountInVault = totalAmountInVault;
-      await vault.connect(depositor1).depositETH({value: p1DepositAmount});
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      await vault.connect(depositor1).depositETH({ value: p1DepositAmount });
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    })
+    });
 
-    it('p2 deposits', async () => { 
+    it('p2 deposits', async () => {
       totalAmountInVault = totalAmountInVault.add(p2DepositAmount);
       actualAmountInVault = totalAmountInVault;
-      await vault.connect(depositor2).depositETH({value: p2DepositAmount});
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      await vault.connect(depositor2).depositETH({ value: p2DepositAmount });
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    })
+    });
 
     it('owner commits to the option', async () => {
-    expect((await action1.state())).to.be.equal(ActionState.Idle);
-    await action1.commitOToken(otoken.address);
-    expect((await action1.state())).to.be.equal(ActionState.Committed);
-    })
+      // set live price as 3000
+      await pricer.setPrice('300000000000');
+      expect(await action1.state()).to.be.equal(ActionState.Idle);
+      await action1.commitOToken(otoken.address);
+      expect(await action1.state()).to.be.equal(ActionState.Committed);
+    });
 
-    it('owner mints and sells options', async() => {
+    it('owner mints and sells options', async () => {
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
@@ -224,7 +235,7 @@ describe('Mainnet Fork Tests', function () {
 
       const collateralAmount = totalAmountInVault.mul(100 - reserveFactor).div(100);
       actualAmountInVault = totalAmountInVault.sub(collateralAmount);
-      const sellAmount = (collateralAmount.div(10000000000)).toString(); // 72 * 10^ 8 
+      const sellAmount = collateralAmount.div(10000000000).toString(); // 72 * 10^ 8
       const order = await getOrder(
         action1.address,
         otoken.address,
@@ -245,23 +256,26 @@ describe('Mainnet Fork Tests', function () {
       expect(await otoken.balanceOf(counterpartyWallet.address)).to.be.equal(sellAmount);
       expect(await weth.balanceOf(action1.address)).to.be.equal(premium);
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should have increased').to.be.true;
-      expect((await action1.lockedAsset()).eq(collateralAmount), 'collateral should be locked').to.be.true;
-    })
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should have increased')
+        .to.be.true;
+      expect((await action1.lockedAsset()).eq(collateralAmount), 'collateral should be locked').to
+        .be.true;
+    });
 
-    it('p3 deposits', async () => { 
+    it('p3 deposits', async () => {
       totalAmountInVault = totalAmountInVault.add(p3DepositAmount);
       actualAmountInVault = actualAmountInVault.add(p3DepositAmount);
 
-      await vault.connect(depositor3).depositETH({value: p3DepositAmount});
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      await vault.connect(depositor3).depositETH({ value: p3DepositAmount });
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    })
+    });
 
-    it('p1 withdraws', async () => { 
-      const denominator = p1DepositAmount.add(p2DepositAmount)
+    it('p1 withdraws', async () => {
+      const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
-      const amountToWithdraw = p1DepositAmount.add(shareOfPremium)
+      const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP1 = amountToWithdraw.sub(fee);
 
@@ -276,11 +290,12 @@ describe('Mainnet Fork Tests', function () {
       const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
       const balanceOfP1After = await weth.balanceOf(depositor1.address);
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);;
+      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
-    })
+    });
 
     it('option expires', async () => {
       // increase time
@@ -288,7 +303,7 @@ describe('Mainnet Fork Tests', function () {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await pricer.setExpiryPriceInOracle(weth.address, expiry,'200000000000');
+      await pricer.setExpiryPriceInOracle(weth.address, expiry, '200000000000');
 
       // increase time
       await provider.send('evm_increaseTime', [day]); // increase time
@@ -298,15 +313,16 @@ describe('Mainnet Fork Tests', function () {
 
       await vault.closePositions();
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should be same').to.be.true;
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should be same').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect((await action1.lockedAsset()).eq('0'), 'all collateral should be unlocked').to.be.true;
-    })
+    });
 
-    it('p2 withdraws', async () =>  {
-      const denominator = p1DepositAmount.add(p2DepositAmount)
+    it('p2 withdraws', async () => {
+      const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
-      const amountToWithdraw = p2DepositAmount.add(shareOfPremium)
+      const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP2 = amountToWithdraw.sub(fee);
 
@@ -321,14 +337,15 @@ describe('Mainnet Fork Tests', function () {
       const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
       const balanceOfP2After = await weth.balanceOf(depositor2.address);
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);;
+      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
-    })
+    });
 
-    it('p3 withdraws', async () =>  {
-      const amountToWithdraw = p3DepositAmount
+    it('p3 withdraws', async () => {
+      const amountToWithdraw = p3DepositAmount;
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP3 = amountToWithdraw.sub(fee);
 
@@ -343,10 +360,11 @@ describe('Mainnet Fork Tests', function () {
       const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
       const balanceOfP3After = await weth.balanceOf(depositor3.address);
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be.true;
+      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
+        .true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);;
+      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP3Before.add(amountTransferredToP3)).to.be.equal(balanceOfP3After);
-    })
-  })
+    });
+  });
 });

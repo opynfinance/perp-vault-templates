@@ -363,9 +363,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-    * @notice fallback function which disallows ETH to be sent to this contract without data except when unwrapping WETH
+    * @notice the receive ether function is called whenever the call data is empty
     */
-  fallback() external payable {
+  receive() external payable {
     require(msg.sender == address(WETH), "Cannot receive ETH");
   }
 }
