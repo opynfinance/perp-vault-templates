@@ -233,20 +233,21 @@ describe('OpynPerpVault Tests', function () {
       expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
     });
     it('should revert if calling resumeFrom pause when vault is normal', async () => {
-      await expect(vault.connect(owner).resumeFromPause(VaultState.Locked)).to.be.revertedWith(
+      await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith(
         '!Emergency'
       );
     });
     it('should be able to set vault to emergency state', async () => {
+      const stateBefore = await vault.state()
       await vault.connect(owner).emergencyPause();
-      expect((await vault.state()) === VaultState.Emergency);
+      expect((await vault.state()) === VaultState.Emergency).to.be.true;
 
       await expect(
         vault.connect(depositor1).depositETH({ value: utils.parseUnits('1') })
       ).to.be.revertedWith('Emergency');
 
-      await vault.connect(owner).resumeFromPause(VaultState.Locked);
-      expect((await vault.state()) === VaultState.Emergency);
+      await vault.connect(owner).resumeFromPause();
+      expect((await vault.state()) === stateBefore).to.be.true;
     });
   });
   describe('close position', async () => {

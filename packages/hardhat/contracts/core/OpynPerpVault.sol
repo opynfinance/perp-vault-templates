@@ -23,6 +23,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   VaultState public state;
 
+  VaultState public stateBeforePause;
+
   uint256 public constant BASE = 10000; // 100%
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
@@ -211,6 +213,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev set the state to "Emergency", which disable all withdraw and deposit
    */
   function emergencyPause() external onlyOwner {
+    stateBeforePause = state;
     state = VaultState.Emergency;
     emit StateUpdated(VaultState.Emergency);
   }
@@ -218,10 +221,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev set the state from "Emergency", which disable all withdraw and deposit
    */
-  function resumeFromPause(VaultState _newState) external onlyOwner {
+  function resumeFromPause() external onlyOwner {
     require(state == VaultState.Emergency, "!Emergency");
-    state = _newState;
-    emit StateUpdated(_newState);
+    state = stateBeforePause;
+    emit StateUpdated(stateBeforePause);
   }
 
   /*=====================
