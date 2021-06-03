@@ -61,6 +61,38 @@ describe('OpynPerpVault Tests', function () {
   });
 
   describe('init', async () => {
+    it('should revert when trying to init with duplicated actions', async() => {
+      await expect(
+        vault
+        .connect(owner)
+        .init(
+          weth.address,
+          owner.address,
+          feeRecipient.address,
+          weth.address,
+          18,
+          'OpynPerpShortVault share',
+          'sOPS',
+          [action1.address, action2.address, action2.address]
+        )
+      ).to.be.revertedWith('duplicated action');
+      
+      await expect(
+        vault
+        .connect(owner)
+        .init(
+          weth.address,
+          owner.address,
+          feeRecipient.address,
+          weth.address,
+          18,
+          'OpynPerpShortVault share',
+          'sOPS',
+          [action1.address, action2.address, action1.address]
+        )
+      ).to.be.revertedWith('duplicated action');
+      
+    })
     it('should init the contract successfully', async () => {
       await vault
         .connect(owner)

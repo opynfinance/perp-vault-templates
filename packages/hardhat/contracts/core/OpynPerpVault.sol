@@ -115,7 +115,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     feeRecipient = _feeRecipient;
     WETH = _weth;
 
-    actions = _actions;
+    // assign actions
+    for(uint256 i = 0 ; i < _actions.length; i++ ) {
+      // check all items before actions[i], does not equal to action[i]
+      for(uint256 j = 0; j < i; j++) {
+        require(_actions[i] != _actions[j], "duplicated action");
+      }
+      actions.push(_actions[i]);
+    }
+
     state = VaultState.Unlocked;
   }
 
