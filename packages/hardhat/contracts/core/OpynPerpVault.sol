@@ -351,9 +351,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev return how many asset you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
-    uint256 totatlAsset = _totalAsset();
+    uint256 totalAsset = _totalAsset();
     uint256 shareSupply = totalSupply();
-    uint256 withdrawAmount = _share.mul(totatlAsset).div(shareSupply);
+    uint256 withdrawAmount = _share.mul(totalAsset).div(shareSupply);
     return withdrawAmount;
   }
 
