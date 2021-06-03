@@ -206,6 +206,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev set the percentage that should be reserved in vault for withdraw
    */
   function setWithdrawReserve(uint256 _reserve) external onlyOwner {
+    require(_reserve < 5000, "Reserve cannot exceed 50%");
     withdrawReserve = _reserve;
   }
 

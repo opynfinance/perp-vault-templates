@@ -81,6 +81,10 @@ describe('OpynPerpVault Tests', function () {
     });
 
     it('should set fee reserve', async () => {
+      await expect(
+        vault.connect(owner).setWithdrawReserve(6000)
+      ).to.be.revertedWith('Reserve cannot exceed 50%');
+
       await vault.connect(owner).setWithdrawReserve(1000);
       expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
     });
