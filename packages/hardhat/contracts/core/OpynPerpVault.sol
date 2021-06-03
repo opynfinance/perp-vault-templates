@@ -251,7 +251,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function _totalDebt() internal view returns (uint256) {
     uint256 debt = 0;
-    for (uint8 i = 0; i < actions.length; i++) {
+    for (uint256 i = 0; i < actions.length; i++) {
       debt = debt.add(IAction(actions[i]).currentValue());
     }
     return debt;
