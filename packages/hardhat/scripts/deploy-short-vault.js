@@ -23,7 +23,7 @@ async function main() {
 
   console.log(`Vault deployed at ${vault.address}`)
 
-  const ShortAction = await hre.ethers.getContractFactory('ShortOTokenActionWithSwap');
+  const ShortAction = await hre.ethers.getContractFactory('ShortOTokenWithSwap');
   const shortAction = await ShortAction.deploy(
     vault.address, // vault
     asset,

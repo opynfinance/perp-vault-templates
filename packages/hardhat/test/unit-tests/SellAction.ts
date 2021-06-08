@@ -4,7 +4,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { getOrder } from '../utils/orders';
 import {
-  ShortOTokenActionWithSwap,
+  ShortOTokenWithSwap,
   MockERC20,
   MockWhitelist,
   MockSwap,
@@ -31,7 +31,7 @@ describe('ShortActionWithSwap Tests', function () {
 
   const counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
 
-  let action: ShortOTokenActionWithSwap;
+  let action: ShortOTokenWithSwap;
   // asset used by this action: in this case, weth
   let token: MockERC20;
   //
@@ -111,7 +111,7 @@ describe('ShortActionWithSwap Tests', function () {
 
   describe('deployment test', () => {
     it('deploy', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenActionWithSwap');
+      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
       action = (await ShortActionContract.deploy(
         vault.address,
         token.address,
@@ -119,7 +119,7 @@ describe('ShortActionWithSwap Tests', function () {
         whitelist.address,
         controller.address,
         0 // type 0 vault
-      )) as ShortOTokenActionWithSwap;
+      )) as ShortOTokenWithSwap;
 
       expect((await action.owner()) == owner.address).to.be.true;
 
@@ -139,7 +139,7 @@ describe('ShortActionWithSwap Tests', function () {
       expect((await action.opynWhitelist()) === whitelist.address).to.be.true;
     });
     it('should revert when deploying with empty swap contract', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenActionWithSwap');
+      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
       await expect(
         ShortActionContract.deploy(
           vault.address,
@@ -152,7 +152,7 @@ describe('ShortActionWithSwap Tests', function () {
       ).to.be.revertedWith('Invalid airswap address');
     });
     it('should deploy with type 1 vault', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenActionWithSwap');
+      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
       await ShortActionContract.deploy(
         vault.address,
         token.address,
