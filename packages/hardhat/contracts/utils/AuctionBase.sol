@@ -2,6 +2,7 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
+import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IEasyAuction } from "../interfaces/IEasyAuction.sol";
 import { SwapTypes } from "../libraries/SwapTypes.sol";
 
@@ -30,6 +31,9 @@ contract AuctionBase {
       bool _isAtomicClosureAllowed
     ) internal {
       address accessManager = address(0);
+
+      IERC20(_auctioningToken).approve(address(auction), _auctionedSellAmount);
+
       uint256 newAuctionId = auction.initiateAuction(
         _auctioningToken,
         _biddingToken,
