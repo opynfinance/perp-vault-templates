@@ -118,13 +118,15 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     uint96 _otokenAmount,
     uint256 _orderCancellationEndDate,
     uint256 _auctionEndDate,
-    uint96 _minBuyAmount,
+    uint96 _minPremium,
     uint256 _minimumBiddingAmountPerOrder,
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
   ) external onlyOwner onlyActivated {
     
-    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
+    // todo: add custom check to see if minimal premium is reached
+    // _otokenAmount / _minPremium is the minimal price
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _minPremium, 'Need minimum option premium');
 
     address cachedOToken = otoken;
     address cachedAsset = asset;
@@ -139,7 +141,7 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
       _orderCancellationEndDate, 
       _auctionEndDate, 
       _otokenAmount, 
-      _minBuyAmount, 
+      _minPremium,  // minBuyAmount
       _minimumBiddingAmountPerOrder, 
       _minFundingThreshold, 
       _isAtomicClosureAllowed
