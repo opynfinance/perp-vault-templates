@@ -2,11 +2,19 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import { AuctionBase } from '../utils/AuctionBase.sol';
+import { RollOverBase } from '../utils/RollOverBase.sol';
+
+import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 
 import { IController } from '../interfaces/IController.sol';
+import { IAction } from '../interfaces/IAction.sol';
+import { IOracle } from '../interfaces/IOracle.sol';
+import { IOToken } from '../interfaces/IOToken.sol';
 
 contract ShortOTokenUtils {
   IController controller;
