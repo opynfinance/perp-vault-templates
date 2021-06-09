@@ -6,7 +6,7 @@ import {
   MockERC20,
   OpynPerpVault,
   IWETH,
-  ShortOTokenActionWithSwap,
+  ShortOTokenWithSwap,
   IOtokenFactory,
   IOToken,
   MockPricer,
@@ -33,7 +33,7 @@ enum ActionState {
 
 describe('Mainnet Fork Tests', function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
-  let action1: ShortOTokenActionWithSwap;
+  let action1: ShortOTokenWithSwap;
   // asset used by this action: in this case, weth
   let weth: IWETH;
   let usdc: MockERC20;
@@ -101,7 +101,7 @@ describe('Mainnet Fork Tests', function () {
     vault = (await VaultContract.deploy()) as OpynPerpVault;
 
     // deploy the short action contract
-    const ShortActionContract = await ethers.getContractFactory('ShortOTokenActionWithSwap');
+    const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
     action1 = (await ShortActionContract.deploy(
       vault.address,
       weth.address,
@@ -109,7 +109,7 @@ describe('Mainnet Fork Tests', function () {
       whitelistAddress,
       controllerAddress,
       0 // type 0 vault
-    )) as ShortOTokenActionWithSwap;
+    )) as ShortOTokenWithSwap;
 
     await vault
       .connect(owner)

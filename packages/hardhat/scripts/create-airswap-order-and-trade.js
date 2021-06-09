@@ -49,7 +49,7 @@ async function main() {
   console.log(`signedOrder`, signedOrder)
   
   // Fill the order!
-  const ShortAction = await hre.ethers.getContractFactory('ShortOTokenActionWithSwap');
+  const ShortAction = await hre.ethers.getContractFactory('ShortOTokenWithSwap');
   const shortActionContract = await ShortAction.attach(shortAction)
   await shortActionContract.mintAndSellOToken(collateralAmount, senderAmount, signedOrder)
 }

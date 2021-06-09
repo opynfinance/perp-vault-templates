@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
+import { ShortOTokenUtils } from '../utils/ShortOTokenUtils.sol';
 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
@@ -16,7 +17,7 @@ import { IAction } from '../interfaces/IAction.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 
-contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase {
+contract ShortOTokenWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase, ShortOTokenUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -31,7 +32,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
 
   address public immutable vault;
   address public immutable asset;
-  IController public controller;
   IOracle public oracle; 
 
   constructor(
@@ -48,7 +48,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     // enable vault to take all the asset back and re-distribute.
     IERC20(_asset).safeApprove(_vault, uint256(-1));
 
-    controller = IController(_controller);
+    _initShort(_controller);
 
     // enable pool contract to pull asset from this contract to mint options.
     address pool = controller.pool();
@@ -56,12 +56,13 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     oracle = IOracle(controller.oracle());
     
     IERC20(_asset).safeApprove(pool, uint256(-1));
-
+    
+    
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
     __Ownable_init();
 
-    _openVault(_vaultType);
+    _openGammaVault(_vaultType);
   }
 
   modifier onlyVault() {
@@ -88,7 +89,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(canClosePosition(), "Cannot close position");
     
     if(_canSettleVault()) {
-      _settleVault();
+      _settleGammaVault();
     }
 
     // this function can only be called when it's `Activated`
@@ -119,7 +120,10 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(_order.signer.token == asset, 'Can only sell for asset');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
-    _mintOTokens(_collateralAmount, _otokenAmount);
+    lockedAsset = lockedAsset.add(_collateralAmount);
+
+    // mint otoken using the util function
+    _mintOTokens(asset, _collateralAmount, otoken, _otokenAmount);
 
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
@@ -135,88 +139,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
       return _canSettleVault();
     }
     return block.timestamp > rolloverTime + 1 days; 
-  }
-
-  /**
-   * @dev open vault with vaultId 1. this should only be performed once when contract is initiated
-   */
-  function _openVault(uint256 _vaultType) internal {
-
-    bytes memory data;
-    if (_vaultType != 0) {
-      data = abi.encode(_vaultType);
-    }
-
-    // this action will always use vault id 0
-    IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
-
-    actions[0] = IController.ActionArgs(
-        IController.ActionType.OpenVault,
-        address(this), // owner
-        address(0), // second address
-        address(0), // asset, otoken
-        1, // vaultId
-        0, // amount
-        0, // index
-        data // data
-    );
-
-    controller.operate(actions);
-  }
-
-  /**
-   * @dev mint otoken in vault 0
-   */
-  function _mintOTokens(uint256 _collateralAmount, uint256 _otokenAmount) internal {
-    // this action will always use vault id 0
-    IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
-
-    actions[0] = IController.ActionArgs(
-        IController.ActionType.DepositCollateral,
-        address(this), // vault owner
-        address(this), // deposit from this address
-        asset, // collateral asset
-        1, // vaultId
-        _collateralAmount, // amount
-        0, // index
-        "" // data
-    );
-
-    actions[1] = IController.ActionArgs(
-        IController.ActionType.MintShortOption,
-        address(this), // vault owner
-        address(this), // mint to this address
-        otoken, // otoken
-        1, // vaultId
-        _otokenAmount, // amount
-        0, // index
-        "" // data
-    );
-
-    lockedAsset = lockedAsset.add(_collateralAmount);
-
-    controller.operate(actions);
-  }
-
-  /**
-   * @dev settle vault 0 and withdraw all locked collateral
-   */
-  function _settleVault() internal {
-
-    IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
-    // this action will always use vault id 1
-    actions[0] = IController.ActionArgs(
-        IController.ActionType.SettleVault,
-        address(this), // owner
-        address(this), // recipient
-        address(0), // asset
-        1, // vaultId
-        0, // amount
-        0, // index
-        "" // data
-    );
-
-    controller.operate(actions);
   }
 
   /**
