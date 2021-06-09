@@ -149,6 +149,36 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
   }
 
   /**
+   * @dev start auction without minting.
+   * We need this because it's possible that there're some token left from the last auction. 
+   */
+  function startAuction(
+    uint256 _orderCancellationEndDate,
+    uint256 _auctionEndDate,
+    uint96 _otokenAmount,
+    uint96 _minPremium,
+    uint256 _minimumBiddingAmountPerOrder,
+    uint256 _minFundingThreshold,
+    bool _isAtomicClosureAllowed
+  ) external {
+    _startAuction(
+      otoken, 
+      asset, 
+      _orderCancellationEndDate, 
+      _auctionEndDate, 
+      _otokenAmount, 
+      _minPremium,  // minBuyAmount
+      _minimumBiddingAmountPerOrder, 
+      _minFundingThreshold, 
+      _isAtomicClosureAllowed
+    );
+  }
+
+  function settleLastAuction() external {
+    _settleAuction();
+  }
+
+  /**
    * @notice the function will return when someone can close a position. 1 day after rollover, 
    * if the option wasn't sold, anyone can close the position. 
    */

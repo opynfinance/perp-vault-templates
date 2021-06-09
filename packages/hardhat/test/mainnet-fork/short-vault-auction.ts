@@ -14,12 +14,6 @@ import {
   IOracle,
 } from '../../typechain';
 
-enum VaultState {
-  Locked,
-  Unlocked,
-  Emergency,
-}
-
 enum ActionState {
   Idle,
   Committed,
@@ -157,15 +151,23 @@ describe('Mainnet Fork Tests for auction action', function () {
   describe('profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
     const p2DepositAmount = utils.parseEther('70');
-    const premium = utils.parseEther('1');
+    const minPremium = utils.parseEther('3');
     let totalAmountInVault: BigNumber;
     let actualAmountInVault: BigNumber;
-    let actualAmountInAction;
     let otoken: IOToken;
     let expiry;
     let auctionId;
+    let auction2Id;
+    let auctionDeadline: number
+    let auction2Deadline: number
 
-    this.beforeAll('deploy otoken that will be sold and set up counterparty', async () => {
+    const buyer1BoughtAmount = 20 * 1e8 // 20 otoken
+    const buyer1Premium = utils.parseEther('1')
+    
+    const buyer2BoughtAmount = 42 * 1e8 // 52 otoken
+    const buyer2Premium = utils.parseEther('3')
+
+    this.beforeAll('deploy otoken that will be sold', async () => {
       const otokenStrikePrice = 400000000000;
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
@@ -239,7 +241,7 @@ describe('Mainnet Fork Tests for auction action', function () {
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
       const currentTimestamp = block.timestamp;
-      const auctionExpiry = currentTimestamp + day * 1;
+      auctionDeadline = currentTimestamp + day * 1;
 
       const minimalBidAmountPerOrder = 0.1 * 1e8 // min bid each order: 0.1 otoken
       const minFundingThreshold = 0;
@@ -250,145 +252,98 @@ describe('Mainnet Fork Tests for auction action', function () {
       await shortAuction.mintAndStartAuction(
         collateralAmount,
         sellAmount,
-        auctionExpiry, // order cancel deadline
-        auctionExpiry,
-        premium,
+        auctionDeadline, // order cancel deadline
+        auctionDeadline,
+        minPremium,
         minimalBidAmountPerOrder,
         minFundingThreshold,
         false
       );
 
       auctionId = await shortAuction.auctionId();      
-      
       expect((await otoken.balanceOf(shortAuction.address)).isZero()).to.be.true
-
       const easyAuctionOTokenAfter = await otoken.balanceOf(easyAuctionAddress)
-      
       expect(easyAuctionOTokenAfter.sub(easyAuctionOTokenBefore)).to.be.eq(sellAmount)
-      
     });
 
-    it('p1 participate in auction', async() => {
+    it('p1 participate in first auction', async() => {
       await weth.connect(buyer1).deposit({value: utils.parseEther('10')})
       await weth.connect(buyer1).approve(easyAuction.address, ethers.constants.MaxUint256)
       await easyAuction.connect(buyer1).registerUser(buyer1.address)
       
+      // bid price: 0.1 eth
       await easyAuction.connect(buyer1).placeSellOrders(
         auctionId,
-        [(10 * 1e8).toString()], // 10 otoken
-        [utils.parseEther('1')],
+        [buyer1BoughtAmount], // 20 otoken
+        [buyer1Premium], // 1 eth
         [QUEUE_START],
         '0x00'
       )
     })
 
-    it('p2 participate in auction', async() => {
+    it('settle auction', async () => {
+      // increase time
+      await provider.send('evm_setNextBlockTimestamp', [auctionDeadline + 60]);
+      await provider.send('evm_mine', []);
+
+      const wethBalanceBefore = await weth.balanceOf(shortAuction.address)
+      await shortAuction.connect(owner).settleLastAuction()
+      const wethBalanceAfter = await weth.balanceOf(shortAuction.address)
+      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(buyer1Premium)).to.be.true
+    })
+
+    it('buyer claim their tokens after auction', async() => {
+      // const buyer1OtokenAfter = await otoken.balanceOf(buyer1.address)
+    })
+
+    it('can start another auction', async () => {
+      const blockNumber = await provider.getBlockNumber();
+      const block = await provider.getBlock(blockNumber);
+      const currentTimestamp = block.timestamp;
+      auction2Deadline = currentTimestamp + day * 1;
+
+      const oTokenLeft = await otoken.balanceOf(shortAuction.address)
+      
+      const minimalBidAmountPerOrder = 0.1 * 1e8 // min bid each order: 0.1 otoken
+      const minFundingThreshold = 0;
+
+      await shortAuction.startAuction(
+        auction2Deadline, // order cancel deadline
+        auction2Deadline,
+        oTokenLeft,
+        minPremium,
+        minimalBidAmountPerOrder,
+        minFundingThreshold,
+        false
+      )
+
+      auction2Id = await shortAuction.auctionId()
+    })
+
+    it('p2 participate in second auction', async() => {
       await weth.connect(buyer2).deposit({value: utils.parseEther('10')})
       await weth.connect(buyer2).approve(easyAuction.address, ethers.constants.MaxUint256)
       await easyAuction.connect(buyer2).registerUser(buyer2.address)
       
+      // bid price: 0.1 eth
       await easyAuction.connect(buyer2).placeSellOrders(
-        auctionId,
-        [(100 * 1e8).toString()], // 100 otoken
-        [utils.parseEther('5')], // total 5 eth
+        auction2Id,
+        [buyer2BoughtAmount], // 42 otoken
+        [buyer2Premium], // 3 eth
         [QUEUE_START],
         '0x00'
       )
     })
 
-    // it('p1 withdraws', async () => {
-    //   const denominator = p1DepositAmount.add(p2DepositAmount);
-    //   const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
-    //   const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-    //   const fee = amountToWithdraw.mul(5).div(1000);
-    //   const amountTransferredToP1 = amountToWithdraw.sub(fee);
+    it('settle second auction', async () => {
+      // increase time
+      await provider.send('evm_setNextBlockTimestamp', [auction2Deadline + 60]);
+      await provider.send('evm_mine', []);
 
-    //   totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
-    //   actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
-
-    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP1Before = await weth.balanceOf(depositor1.address);
-
-    //   await vault.connect(depositor1).withdraw(await vault.balanceOf(depositor1.address));
-
-    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP1After = await weth.balanceOf(depositor1.address);
-
-    //   expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
-    //     .true;
-    //   expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-    //   expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
-    // });
-
-    // it('option expires', async () => {
-    //   // increase time
-    //   await provider.send('evm_setNextBlockTimestamp', [expiry + day]);
-    //   await provider.send('evm_mine', []);
-
-    //   // set settlement price
-    //   await pricer.setExpiryPriceInOracle(weth.address, expiry, '200000000000');
-
-    //   // increase time
-    //   await provider.send('evm_increaseTime', [day]); // increase time
-    //   await provider.send('evm_mine', []);
-
-    //   actualAmountInVault = totalAmountInVault;
-
-    //   await vault.closePositions();
-
-    //   expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should be same').to.be
-    //     .true;
-    //   expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    //   expect((await shortAuction.lockedAsset()).eq('0'), 'all collateral should be unlocked').to.be.true;
-    // });
-
-    // it('p2 withdraws', async () => {
-    //   const denominator = p1DepositAmount.add(p2DepositAmount);
-    //   const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
-    //   const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
-    //   const fee = amountToWithdraw.mul(5).div(1000);
-    //   const amountTransferredToP2 = amountToWithdraw.sub(fee);
-
-    //   totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
-    //   actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
-
-    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP2Before = await weth.balanceOf(depositor2.address);
-
-    //   await vault.connect(depositor2).withdraw(await vault.balanceOf(depositor2.address));
-
-    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP2After = await weth.balanceOf(depositor2.address);
-
-    //   expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
-    //     .true;
-    //   expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-    //   expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
-    // });
-
-    // it('p3 withdraws', async () => {
-    //   const amountToWithdraw = p3DepositAmount;
-    //   const fee = amountToWithdraw.mul(5).div(1000);
-    //   const amountTransferredToP3 = amountToWithdraw.sub(fee);
-
-    //   totalAmountInVault = '0';
-    //   actualAmountInVault = '0';
-
-    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP3Before = await weth.balanceOf(depositor3.address);
-
-    //   await vault.connect(depositor3).withdraw(await vault.balanceOf(depositor3.address));
-
-    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP3After = await weth.balanceOf(depositor3.address);
-
-    //   expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
-    //     .true;
-    //   expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-    //   expect(balanceOfP3Before.add(amountTransferredToP3)).to.be.equal(balanceOfP3After);
-    // });
+      const wethBalanceBefore = await weth.balanceOf(shortAuction.address)
+      await shortAuction.connect(owner).settleLastAuction()
+      const wethBalanceAfter = await weth.balanceOf(shortAuction.address)
+      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(buyer2Premium)).to.be.true
+    })
   });
 });
