@@ -23,7 +23,6 @@ enum ActionState {
 const QUEUE_START = '0x0000000000000000000000000000000000000000000000000000000000000001';
 
 describe('Mainnet Fork Tests for auction action', function () {
-  // let counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
   let shortAuction: ShortOTokenWithAuction;
   // asset used by this action: in this case, weth
   let weth: IWETH;
@@ -125,7 +124,7 @@ describe('Mainnet Fork Tests for auction action', function () {
       );
   });
 
-  this.beforeAll("Deploy pricer and update pricer in opyn's oracle", async () => {
+  this.beforeAll("Deploy pricer and update pricer in Opyn's oracle", async () => {
     provider = ethers.provider;
 
     const PricerContract = await ethers.getContractFactory('MockPricer');
@@ -157,7 +156,8 @@ describe('Mainnet Fork Tests for auction action', function () {
    * 
    * =======
    * todo1: write test when multiple buyers participate in the same auction. 
-   * todo2: write test to cover cases where all the otoken are sold by the auction, and there are fees to consider.. etc
+   * todo2: write test of buyer claiming oTokens after auction settlement
+   * todo3: write test to cover cases where all the otoken are sold by the auction, and there are fees to consider.. etc
    * 
    */
   describe('profitable scenario', async () => {
@@ -260,7 +260,7 @@ describe('Mainnet Fork Tests for auction action', function () {
 
       const easyAuctionOTokenBefore = await otoken.balanceOf(easyAuctionAddress)
 
-      // mint and sell 72 otokens
+      // mint and sell 72 oTokens
       await shortAuction.mintAndStartAuction(
         collateralAmount,
         sellAmount,
@@ -283,7 +283,6 @@ describe('Mainnet Fork Tests for auction action', function () {
       await weth.connect(buyer1).approve(easyAuction.address, ethers.constants.MaxUint256)
       await easyAuction.connect(buyer1).registerUser(buyer1.address)
       
-      // bid price: 0.1 eth
       await easyAuction.connect(buyer1).placeSellOrders(
         auctionId,
         [buyer1BoughtAmount], // 20 otoken
@@ -337,7 +336,6 @@ describe('Mainnet Fork Tests for auction action', function () {
       await weth.connect(buyer2).approve(easyAuction.address, ethers.constants.MaxUint256)
       await easyAuction.connect(buyer2).registerUser(buyer2.address)
       
-      // bid price: 0.1 eth
       await easyAuction.connect(buyer2).placeSellOrders(
         auction2Id,
         [buyer2BoughtAmount], // 42 otoken
