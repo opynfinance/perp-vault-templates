@@ -148,6 +148,18 @@ describe('Mainnet Fork Tests for auction action', function () {
     });
   });
 
+  /**
+   * Test case: 
+   * A short action start a auction to sell 72 4000-ETH-C.
+   * In the first round: buyer1 participates and buys 20 with 1 eth
+   * then auction ends
+   * In the second auction: buyer2 participates and buys 42 with 3 eth
+   * 
+   * =======
+   * todo1: write test when multiple buyers participate in the same auction. 
+   * todo2: write test to cover cases where all the otoken are sold by the auction, and there are fees to consider.. etc
+   * 
+   */
   describe('profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
     const p2DepositAmount = utils.parseEther('70');
