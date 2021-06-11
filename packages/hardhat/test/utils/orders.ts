@@ -1,6 +1,6 @@
-import { ethers, waffle } from 'hardhat';
+import { ethers } from 'hardhat';
 const { createOrder, signTypedDataOrder } = require('@airswap/utils');
-import { BigNumber, utils } from 'ethers';
+import { BigNumber } from 'ethers';
 
 export const getOrder = async (
   sender: string,
@@ -26,6 +26,7 @@ export const getOrder = async (
     affiliate: {
       wallet: ethers.constants.AddressZero,
     },
+    expiry: parseInt((Date.now() / 1000).toString()) + 86400 * 100
   });
   const signedOrder = await signTypedDataOrder(order, privateKey, swapContract);
   return signedOrder;

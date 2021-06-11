@@ -11,6 +11,7 @@ import {
   IOToken,
   MockPricer,
   IOracle,
+  ShortOToken,
 } from '../../typechain';
 import * as fs from 'fs';
 import { getOrder } from '../utils/orders';
@@ -33,7 +34,7 @@ enum ActionState {
 
 describe('Mainnet Fork Tests', function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
-  let action1: ShortOTokenWithSwap;
+  let action1: ShortOToken;
   // asset used by this action: in this case, weth
   let weth: IWETH;
   let usdc: MockERC20;
@@ -101,15 +102,16 @@ describe('Mainnet Fork Tests', function () {
     vault = (await VaultContract.deploy()) as OpynPerpVault;
 
     // deploy the short action contract
-    const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
+    const ShortActionContract = await ethers.getContractFactory('ShortOToken');
     action1 = (await ShortActionContract.deploy(
       vault.address,
       weth.address,
       swapAddress,
+      ethers.constants.AddressZero,
       whitelistAddress,
       controllerAddress,
       0 // type 0 vault
-    )) as ShortOTokenWithSwap;
+    )) as ShortOToken;
 
     await vault
       .connect(owner)
@@ -249,7 +251,7 @@ describe('Mainnet Fork Tests', function () {
 
       expect((await action1.lockedAsset()).eq('0'), 'collateral should not be locked').to.be.true;
 
-      await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
+      await action1.mintAndTradeAirSwapOTC(collateralAmount, sellAmount, order);
 
       totalAmountInVault = totalAmountInVault.add(premium);
 

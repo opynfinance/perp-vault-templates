@@ -11,6 +11,7 @@ contract AuctionBase {
   IEasyAuction public auction;
 
   function _initAuctionBase(address _easyAuction) internal {
+    if (_easyAuction == address(0)) return;
     auction = IEasyAuction(_easyAuction);
     auction.registerUser(address(this));
   }
