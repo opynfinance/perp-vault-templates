@@ -50,7 +50,5 @@ interface IController {
 
   function getProceed(address _owner, uint256 _vaultId) external view returns (uint256);
 
-  function isSettlementAllowed(
-    address otoken
-  ) external view returns (bool);
+  function isSettlementAllowed(address otoken) external view returns (bool);
 }

@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import "@nomiclabs/hardhat-etherscan";
 import '@typechain/hardhat';
 import "solidity-coverage"
+import "hardhat-prettier";
 
 import * as fs from 'fs';
 import * as dotenv from 'dotenv'

@@ -2,24 +2,20 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import { IAction } from '../interfaces/IAction.sol';
-import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import { IWETH } from '../interfaces/IWETH.sol';
-import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
-import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IAction} from "../interfaces/IAction.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
-  enum VaultState {
-    Locked,
-    Unlocked,
-    Emergency
-  }
+  enum VaultState {Locked, Unlocked, Emergency}
 
   VaultState public state;
 
@@ -40,7 +36,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   address[] public actions;
 
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
-  uint256 constant public CAP = 1000 ether;
+  uint256 public constant CAP = 1000 ether;
 
   /*=====================
    *       Events       *
@@ -57,7 +53,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /*=====================
    *     Modifiers      *
    *====================*/
-  
+
   /**
    * @dev can only be executed and unlock state. which bring the state back to "locked"
    */
@@ -109,16 +105,16 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     __ERC20_init(_tokenName, _tokenSymbol);
     _setupDecimals(_decimals);
     __Ownable_init();
-    transferOwnership(_owner);    
+    transferOwnership(_owner);
 
     asset = _asset;
     feeRecipient = _feeRecipient;
     WETH = _weth;
 
     // assign actions
-    for(uint256 i = 0 ; i < _actions.length; i++ ) {
+    for (uint256 i = 0; i < _actions.length; i++) {
       // check all items before actions[i], does not equal to action[i]
-      for(uint256 j = 0; j < i; j++) {
+      for (uint256 j = 0; j < i; j++) {
         require(_actions[i] != _actions[j], "duplicated action");
       }
       actions.push(_actions[i]);
@@ -154,11 +150,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice Deposits ETH into the contract and mint vault shares. Reverts if the underlying is not WETH.
    */
-  function depositETH() external payable nonReentrant notEmergency{
-    require(asset == WETH, '!WETH');
-    require(msg.value > 0, '!VALUE');
+  function depositETH() external payable nonReentrant notEmergency {
+    require(asset == WETH, "!WETH");
+    require(msg.value > 0, "!VALUE");
 
-    IWETH(WETH).deposit{ value: msg.value }();
+    IWETH(WETH).deposit{value: msg.value}();
     _deposit(msg.value);
   }
 
@@ -175,12 +171,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param share is the number of vault shares to be burned
    */
   function withdrawETH(uint256 share) external nonReentrant notEmergency {
-    require(asset == WETH, '!WETH');
+    require(asset == WETH, "!WETH");
     uint256 withdrawAmount = _withdraw(share);
 
     IWETH(WETH).withdraw(withdrawAmount);
-    (bool success, ) = msg.sender.call{ value: withdrawAmount }('');
-    require(success, 'ETH transfer failed');
+    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
+    require(success, "ETH transfer failed");
   }
 
   /**
@@ -203,7 +199,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev distribute funds to each action
    */
   function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner locker {
-    require(_allocationPercentages.length == actions.length, 'INVALID_INPUT');
+    require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
 
     emit Rollover(_allocationPercentages);
 
@@ -271,7 +267,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function _deposit(uint256 _amount) internal {
     // the asset is already deposited into the contract at this point, need to substract it from total
     uint256 totalWithDepositedAmount = _totalAsset();
-    require(totalWithDepositedAmount < CAP, 'Cap exceeded');
+    require(totalWithDepositedAmount < CAP, "Cap exceeded");
     uint256 totalBeforeDeposit = totalWithDepositedAmount.sub(_amount);
 
     uint256 share = _getSharesByDepositAmount(_amount, totalBeforeDeposit);
@@ -292,8 +288,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
       // 2. withdraw assets
       uint256 actionBalance = IERC20(cacheAsset).balanceOf(actions[i]);
-      if (actionBalance > 0)
-        IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
+      if (actionBalance > 0) IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
     }
   }
 
@@ -310,7 +305,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_percentages[i]);
-      require(sumPercentage <= cacheBase, 'PERCENTAGE_SUM_EXCEED_MAX');
+      require(sumPercentage <= cacheBase, "PERCENTAGE_SUM_EXCEED_MAX");
 
       uint256 newAmount = cacheTotalAsset.mul(_percentages[i]).div(cacheBase);
 
@@ -318,7 +313,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
       IAction(actions[i]).rolloverPosition();
     }
 
-    require(sumPercentage == cacheBase, 'PERCENTAGE_DOESNT_ADD_UP');
+    require(sumPercentage == cacheBase, "PERCENTAGE_DOESNT_ADD_UP");
   }
 
   /**
@@ -328,7 +323,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function _withdraw(uint256 _share) internal returns (uint256) {
     uint256 currentAssetBalance = _balance();
     uint256 withdrawAmount = _getWithdrawAmountByShares(_share);
-    require(withdrawAmount <= currentAssetBalance, 'NOT_ENOUGH_BALANCE');
+    require(withdrawAmount <= currentAssetBalance, "NOT_ENOUGH_BALANCE");
 
     _burn(msg.sender, _share);
 
@@ -370,13 +365,13 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
     // todo: add fee model
-    // currently fixed at 0.5% 
+    // currently fixed at 0.5%
     return _withdrawAmount.mul(50).div(BASE);
   }
 
   /**
-    * @notice the receive ether function is called whenever the call data is empty
-    */
+   * @notice the receive ether function is called whenever the call data is empty
+   */
   receive() external payable {
     require(msg.sender == address(WETH), "Cannot receive ETH");
   }

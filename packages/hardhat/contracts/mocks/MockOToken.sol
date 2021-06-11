@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
-import { MockERC20 } from './MockERC20.sol';
+import {MockERC20} from "./MockERC20.sol";
 
 /**
  * Mock ERC20
@@ -41,17 +41,18 @@ contract MockOToken is MockERC20 {
     isPut = _isPut;
   }
 
-   function getOtokenDetails()
+  function getOtokenDetails()
     external
     view
     returns (
-        address,
-        address,
-        address,
-        uint256,
-        uint256,
-        bool
-    ){
-      return (underlyingAsset, strikeAsset, collateralAsset, strikePrice, expiryTimestamp, isPut);
-    }
+      address,
+      address,
+      address,
+      uint256,
+      uint256,
+      bool
+    )
+  {
+    return (underlyingAsset, strikeAsset, collateralAsset, strikePrice, expiryTimestamp, isPut);
+  }
 }

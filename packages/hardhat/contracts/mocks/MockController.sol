@@ -2,14 +2,13 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-import { IPool } from "../interfaces/IPool.sol";
-import { MockERC20 } from "./MockERC20.sol";
+import {IPool} from "../interfaces/IPool.sol";
+import {MockERC20} from "./MockERC20.sol";
 
 /**
  * MockController
  */
 contract MockController {
-
   enum ActionType {
     OpenVault,
     MintShortOption,
@@ -37,7 +36,7 @@ contract MockController {
   IPool public pool;
   address public oracle;
 
-  bool public vaultOpened; 
+  bool public vaultOpened;
 
   address public cacheCollateralAsset;
 
@@ -47,7 +46,7 @@ contract MockController {
     mockSettlePayout = _payout;
   }
 
-  function setPool (address _pool) external {
+  function setPool(address _pool) external {
     pool = IPool(_pool);
   }
 
@@ -62,10 +61,9 @@ contract MockController {
   }
 
   function operate(ActionArgs[] memory _actions) external {
-    
-    for (uint8 i =0; i < _actions.length ; i = i+1) {
+    for (uint8 i = 0; i < _actions.length; i = i + 1) {
       ActionArgs memory action = _actions[i];
-          
+
       // mock open vault: set variable
       if (action.actionType == ActionType.OpenVault) {
         vaultOpened = true;

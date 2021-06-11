@@ -2,9 +2,10 @@
 pragma solidity >=0.6.0;
 
 interface IChainlink {
-
   function decimals() external view returns (uint8);
+
   function description() external view returns (string memory);
+
   function version() external view returns (uint256);
 
   // getRoundData and latestRoundData should both raise "No data present"
@@ -20,6 +21,7 @@ interface IChainlink {
       uint256 updatedAt,
       uint80 answeredInRound
     );
+
   function latestRoundData()
     external
     view

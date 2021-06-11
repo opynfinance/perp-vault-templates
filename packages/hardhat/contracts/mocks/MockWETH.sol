@@ -8,16 +8,19 @@ import {IWETH} from "../interfaces/IWETH.sol";
  * Mock WETH
  */
 contract MockWETH is ERC20PermitUpgradeable {
-
-  function init(string memory name_, string memory symbol_, uint8 decimals_) public {
+  function init(
+    string memory name_,
+    string memory symbol_,
+    uint8 decimals_
+  ) public {
     __ERC20_init_unchained(name_, symbol_);
     _setupDecimals(decimals_);
   }
 
   function withdraw(uint256 _amount) public {
     _burn(msg.sender, _amount);
-    (bool success, ) =  msg.sender.call{value:_amount}('');
-        
+    (bool success, ) = msg.sender.call{value: _amount}("");
+
     require(success, "Transfer failed.");
     // address payable target = msg.sender;
     // target.transfer(_amount);
@@ -26,5 +29,5 @@ contract MockWETH is ERC20PermitUpgradeable {
 
   function deposit() public payable {
     _mint(msg.sender, msg.value);
-  }  
+  }
 }

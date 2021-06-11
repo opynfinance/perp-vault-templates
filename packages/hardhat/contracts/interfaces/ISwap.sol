@@ -21,9 +21,9 @@ pragma experimental ABIEncoderV2;
 import {SwapTypes} from "../libraries/SwapTypes.sol";
 
 interface ISwap {
-    /**
-     * @notice Atomic Token Swap
-     * @param order Types.Order
-     */
-    function swap(SwapTypes.Order calldata order) external;
+  /**
+   * @notice Atomic Token Swap
+   * @param order Types.Order
+   */
+  function swap(SwapTypes.Order calldata order) external;
 }

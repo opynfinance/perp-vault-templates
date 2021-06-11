@@ -2,25 +2,23 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import { IWhitelist } from '../interfaces/IWhitelist.sol';
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IWhitelist} from "../interfaces/IWhitelist.sol";
 
 contract RollOverBase is OwnableUpgradeable {
   address public otoken;
   address public nextOToken;
 
-  uint256 constant public MIN_COMMIT_PERIOD = 18 hours;
+  uint256 public constant MIN_COMMIT_PERIOD = 18 hours;
   uint256 public commitStateStart;
 
   enum ActionState {
-    // action will go "idle" after the vault close this position, and before the next otoken is committed. 
+    // action will go "idle" after the vault close this position, and before the next otoken is committed.
     Idle,
-
     // onwer already set the next otoken this vault is trading.
     // during this phase, all funds are already back in the vault and waiting for re-distribution
     // users who don't agree with the setting of next round can withdraw.
     Committed,
-
     // after vault calls "rollover", owner can start minting / buying / selling according to each action.
     Activated
   }
@@ -29,16 +27,15 @@ contract RollOverBase is OwnableUpgradeable {
 
   IWhitelist public opynWhitelist;
 
-  modifier onlyCommitted () {
+  modifier onlyCommitted() {
     require(state == ActionState.Committed, "!COMMITED");
     _;
   }
 
-  modifier onlyActivated () {
+  modifier onlyActivated() {
     require(state == ActionState.Activated, "!Activated");
     _;
   }
-
 
   function _initRollOverBase(address _opynWhitelist) internal {
     state = ActionState.Idle;
@@ -55,7 +52,7 @@ contract RollOverBase is OwnableUpgradeable {
     nextOToken = _nextOToken;
 
     state = ActionState.Committed;
-    
+
     commitStateStart = block.timestamp;
   }
 
@@ -74,12 +71,12 @@ contract RollOverBase is OwnableUpgradeable {
   }
 
   function _checkOToken(address _nextOToken) private view {
-    require(opynWhitelist.isWhitelistedOtoken(_nextOToken), '!OTOKEN');
+    require(opynWhitelist.isWhitelistedOtoken(_nextOToken), "!OTOKEN");
     _customOTokenCheck(_nextOToken);
   }
 
   /**
-   * cutom otoken check hook to be overriden by each 
+   * cutom otoken check hook to be overriden by each
    */
   function _customOTokenCheck(address _nextOToken) internal view virtual {}
 }

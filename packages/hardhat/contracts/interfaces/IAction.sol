@@ -16,10 +16,10 @@ interface IAction {
 
   /**
    * The function for the vault to call when the vault is ready to start the next round.
-   * the vault will push assets to action before calling this function, but the amount can change compare to 
+   * the vault will push assets to action before calling this function, but the amount can change compare to
    * the last round. So each action should check their asset balance instead of using any cached balance.
    *
-   * Each action can also add additional checks and revert the `rolloverPosition` call if the action 
+   * Each action can also add additional checks and revert the `rolloverPosition` call if the action
    * is not ready to go into the next round.
    */
   function rolloverPosition() external;
