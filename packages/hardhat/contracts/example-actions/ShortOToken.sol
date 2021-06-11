@@ -6,10 +6,10 @@ import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { GammaVaultUtils } from '../utils/GammaVaultUtils.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 
-// use auction to short / long
-import { GonsisAuctionUtil } from '../utils/GonsisAuctionUtil.sol';
 // use airswap to short / long
 import { AirswapUtils } from '../utils/AirswapUtils.sol';
+// use auction to short / long
+import { AuctionUtils } from '../utils/AuctionUtils.sol';
 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
@@ -25,7 +25,7 @@ import { IOToken } from '../interfaces/IOToken.sol';
  * This is an Short Action template that inherit lots of util functions to "Short" an option.
  * You can remove the function you don't need.
  */
-contract ShortOToken is IAction, OwnableUpgradeable, GonsisAuctionUtil, AirswapUtils, RollOverBase, GammaVaultUtils {
+contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaVaultUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -64,7 +64,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, GonsisAuctionUtil, AirswapU
     IERC20(_asset).safeApprove(pool, uint256(-1));
 
     // init the contract used to short
-    _initGonsisAuctionUtil(_easyAuction);
+    _initAuction(_easyAuction);
     _initSwapContract(_airswap);
 
     _initRollOverBase(_opynWhitelist);

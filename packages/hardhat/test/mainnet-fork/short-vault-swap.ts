@@ -6,7 +6,6 @@ import {
   MockERC20,
   OpynPerpVault,
   IWETH,
-  ShortOTokenWithSwap,
   IOtokenFactory,
   IOToken,
   MockPricer,
