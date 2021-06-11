@@ -4,8 +4,12 @@ pragma experimental ABIEncoderV2;
 
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { OTokenUtils } from '../utils/OTokenUtils.sol';
-import { AuctionBase } from '../utils/AuctionBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
+
+// use auction to short / long
+import { AuctionBase } from '../utils/AuctionBase.sol';
+// use airswap to short / long
+import { AirswapBase } from '../utils/AirswapBase.sol';
 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
@@ -17,15 +21,16 @@ import { IAction } from '../interfaces/IAction.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 
-contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, RollOverBase, OTokenUtils {
+/**
+ * This is an Short Action template that inherit lots of util functions to "Short" an option.
+ * You can remove the function you don't need.
+ */
+contract ShortOToken is IAction, OwnableUpgradeable, AuctionBase, AirswapBase, RollOverBase, OTokenUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
    /// @dev 100%
   uint256 constant public BASE = 10000;
-  /// @dev the minimum strike price of the option chosen needs to be at least 105% of spot. 
-  /// This is set expecting the contract to be a strategy selling calls. For puts should change this. 
-  uint256 constant public MIN_STRIKE = 10500;
   uint256 constant public MIN_PROFITS = 100; // 1% 
   uint256 public lockedAsset;
   uint256 public rolloverTime;
@@ -37,6 +42,7 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
   constructor(
     address _vault,
     address _asset,
+    address _airswap,
     address _easyAuction,
     address _opynWhitelist,
     address _controller,
@@ -57,7 +63,10 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     
     IERC20(_asset).safeApprove(pool, uint256(-1));
 
+    // init the contract used to short
     _initAuctionBase(_easyAuction);
+    _initSwapContract(_airswap);
+
     _initRollOverBase(_opynWhitelist);
     __Ownable_init();
 
@@ -86,15 +95,10 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
    */
   function closePosition() external onlyVault override {
     require(canClosePosition(), "Cannot close position");
-    
     if(_canSettleVault()) {
       _settleGammaVault();
     }
-
-    // this function can only be called when it's `Activated`
-    // go to the next step, which will enable owner to commit next oToken
     _setActionIdle();
-
     lockedAsset = 0;
   }
 
@@ -102,13 +106,11 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
    * @dev the function that the vault will call when the new round is starting
    */
   function rolloverPosition() external onlyVault override {
-    
-    // this function can only be called when it's `Committed`
-    _rollOverNextOTokenAndActivate();
+    _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
     rolloverTime = block.timestamp;
   }
 
-  // strategy: using auction
+  // Short Functions
 
   /**
    * @dev owner only function to mint options with "assets" and start an aunction to start it.
@@ -124,11 +126,15 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     uint256 _minimumBiddingAmountPerOrder,
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
-  ) external onlyOwner onlyActivated {
+  ) 
+    external 
+    onlyOwner
+    onlyActivated 
+  {
     
     // mint token 
     if (_collateralAmount > 0 && _otokenToMint > 0) {
-    lockedAsset = lockedAsset.add(_collateralAmount);
+      lockedAsset = lockedAsset.add(_collateralAmount);
       _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
     }
     
@@ -143,6 +149,28 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
       _minFundingThreshold, 
       _isAtomicClosureAllowed
     );
+  }
+
+  /**
+   * @dev mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
+   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   */
+  function mintAndTradeAirSwapOTC(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) 
+    external 
+    onlyOwner 
+    onlyActivated 
+  {
+    require(_order.sender.wallet == address(this), '!Sender');
+    require(_order.sender.token == otoken, 'Can only sell otoken');
+    require(_order.signer.token == asset, 'Can only sell for asset');
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
+
+    lockedAsset = lockedAsset.add(_collateralAmount);
+
+    // mint otoken using the util function
+    _mintOTokens(asset, _collateralAmount, otoken, _otokenAmount);
+
+    _fillAirswapOrder(_order);
   }
 
   /**
@@ -174,28 +202,26 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
    * so accessing otoken will give u the current otoken. 
    */
   function _customOTokenCheck(address _nextOToken) internal view override {
-    // Can override or replace this. 
-     IOToken otokenToCheck = IOToken(_nextOToken);
-     require(_isValidStrike(otokenToCheck.strikePrice()), 'Strike Price Too Low');
-     require (_isValidExpiry(otokenToCheck.expiryTimestamp()), 'Invalid expiry');
-    /**
-     * e.g.
-     * check otoken strike price is lower than current spot price for put.
-     * check it's no more than x day til the current otoken expires. (can't commit too early)
-     * check there's no previously committed otoken.
-     * check otoken expiry is expected
-     */
+    IOToken otokenToCheck = IOToken(_nextOToken);
+    require(_isValidStrike(otokenToCheck.strikePrice(), otokenToCheck.isPut()), 'Strike Price Too Low');
+    require (_isValidExpiry(otokenToCheck.expiryTimestamp()), 'Invalid expiry');
+    // add more checks here
   }
 
   /**
    * @dev funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function. 
    */
-  function _isValidStrike(uint256 strikePrice) internal view returns (bool) {
+  function _isValidStrike(uint256 strikePrice, bool isPut) internal view returns (bool) {
     // TODO: override with your filler code. 
+    // Example: checks that the strike price set is > than 105% of current price for calls, < 95% spot price for puts
     uint256 spotPrice = oracle.getPrice(asset);
-    // checks that the strike price set is > than 105% of current price
-    return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+    if (isPut) {
+      return strikePrice <= spotPrice.mul(9500).div(BASE);
+    } else {
+      return strikePrice >= spotPrice.mul(10500).div(BASE);
+    }
+    
   }
 
   /**
@@ -207,7 +233,5 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     // Checks that the token committed to expires within 15 days of commitment. 
     return (block.timestamp).add(15 days) >= expiry;
   }
-
-
 }
 

@@ -138,19 +138,6 @@ describe('ShortActionWithSwap Tests', function () {
       // whitelist is set
       expect((await action.opynWhitelist()) === whitelist.address).to.be.true;
     });
-    it('should revert when deploying with empty swap contract', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
-      await expect(
-        ShortActionContract.deploy(
-          vault.address,
-          token.address,
-          ethers.constants.AddressZero,
-          whitelist.address,
-          controller.address,
-          0 // type 0 vault
-        )
-      ).to.be.revertedWith('Invalid airswap address');
-    });
     it('should deploy with type 1 vault', async () => {
       const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
       await ShortActionContract.deploy(

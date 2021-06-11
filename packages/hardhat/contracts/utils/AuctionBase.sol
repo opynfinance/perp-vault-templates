@@ -11,9 +11,7 @@ contract AuctionBase {
   IEasyAuction public auction;
 
   function _initAuctionBase(address _easyAuction) internal {
-    require(_easyAuction != address(0), "Invalid auction address");
     auction = IEasyAuction(_easyAuction);
-    
     auction.registerUser(address(this));
   }
 

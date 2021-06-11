@@ -125,8 +125,6 @@ contract ShortOTokenWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOv
     // mint otoken using the util function
     _mintOTokens(asset, _collateralAmount, otoken, _otokenAmount);
 
-    IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
-
     _fillAirswapOrder(_order);
   }
 
