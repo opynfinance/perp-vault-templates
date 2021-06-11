@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
-import { ShortOTokenUtils } from '../utils/ShortOTokenUtils.sol';
+import { OTokenUtils } from '../utils/OTokenUtils.sol';
 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
@@ -17,7 +17,7 @@ import { IAction } from '../interfaces/IAction.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 
-contract ShortOTokenWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase, ShortOTokenUtils {
+contract ShortOTokenWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase, OTokenUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 

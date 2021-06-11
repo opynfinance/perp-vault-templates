@@ -8,7 +8,7 @@ import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 
 import { IController } from '../interfaces/IController.sol';
 
-contract ShortOTokenUtils {
+contract OTokenUtils {
   IController controller;
   
   function _initShort (address _controller) internal {
