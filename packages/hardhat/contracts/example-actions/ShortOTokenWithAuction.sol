@@ -108,14 +108,16 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     rolloverTime = block.timestamp;
   }
 
+  // strategy: using auction
+
   /**
-   * @dev owner only function to mint options with "assets" and sell otokens in this contract 
-   * by filling an order on AirSwap.
+   * @dev owner only function to mint options with "assets" and start an aunction to start it.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndStartAuction(
-    uint256 _collateralAmount, 
-    uint96 _otokenAmount,
+    uint256 _collateralAmount,
+    uint256 _otokenToMint,
+    uint96 _otokenToSell,
     uint256 _orderCancellationEndDate,
     uint256 _auctionEndDate,
     uint96 _minPremium,
@@ -124,58 +126,23 @@ contract ShortOTokenWithAuction is IAction, OwnableUpgradeable, AuctionBase, Rol
     bool _isAtomicClosureAllowed
   ) external onlyOwner onlyActivated {
     
-    // todo: add custom check to see if minimal premium is reached
-    // _otokenAmount / _minPremium is the minimal price
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _minPremium, 'Need minimum option premium');
-
-    address cachedOToken = otoken;
-    address cachedAsset = asset;
-
+    // mint token 
+    if (_collateralAmount > 0 && _otokenToMint > 0) {
     lockedAsset = lockedAsset.add(_collateralAmount);
-
-    _mintOTokens(asset, _collateralAmount, cachedOToken, uint256(_otokenAmount));
-
-    _startAuction(
-      cachedOToken, 
-      cachedAsset, 
-      _orderCancellationEndDate, 
-      _auctionEndDate, 
-      _otokenAmount, 
-      _minPremium,  // minBuyAmount
-      _minimumBiddingAmountPerOrder, 
-      _minFundingThreshold, 
-      _isAtomicClosureAllowed
-    );
-  }
-
-  /**
-   * @dev start auction without minting.
-   * We need this because it's possible that there're some token left from the last auction. 
-   */
-  function startAuction(
-    uint256 _orderCancellationEndDate,
-    uint256 _auctionEndDate,
-    uint96 _otokenAmount,
-    uint96 _minPremium,
-    uint256 _minimumBiddingAmountPerOrder,
-    uint256 _minFundingThreshold,
-    bool _isAtomicClosureAllowed
-  ) external {
+      _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
+    }
+    
     _startAuction(
       otoken, 
       asset, 
       _orderCancellationEndDate, 
       _auctionEndDate, 
-      _otokenAmount, 
+      _otokenToSell, 
       _minPremium,  // minBuyAmount
       _minimumBiddingAmountPerOrder, 
       _minFundingThreshold, 
       _isAtomicClosureAllowed
     );
-  }
-
-  function settleLastAuction() external {
-    _settleAuction();
   }
 
   /**

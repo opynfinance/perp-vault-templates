@@ -10,10 +10,6 @@ contract AuctionBase {
     
   IEasyAuction public auction;
 
-  bool public auctionStarted;
-
-  uint256 public auctionId;
-
   function _initAuctionBase(address _easyAuction) internal {
     require(_easyAuction != address(0), "Invalid auction address");
     auction = IEasyAuction(_easyAuction);
@@ -32,13 +28,11 @@ contract AuctionBase {
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
   ) internal {
-    require(!auctionStarted, "auction in progress");
-    
     address accessManager = address(0);
 
     IERC20(_auctioningToken).approve(address(auction), _auctionedSellAmount);
 
-    uint256 newAuctionId = auction.initiateAuction(
+    auction.initiateAuction(
       _auctioningToken,
       _biddingToken,
       _orderCancellationEndDate,
@@ -51,16 +45,6 @@ contract AuctionBase {
       accessManager,
       ''
     );
-    auctionId = newAuctionId;
   }
-
-  /**
-   * settle the auction after expiry pass
-   */
-  function _settleAuction() internal {
-    auction.settleAuction(auctionId);
-    auctionStarted = false;
-  }
-
 }
 
