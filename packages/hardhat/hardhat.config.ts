@@ -60,7 +60,7 @@ export default {
     apiKey: etherscanKey
   },
   mocha: {
-    timeout: 40000
+    timeout: 60000
   }
 };
 

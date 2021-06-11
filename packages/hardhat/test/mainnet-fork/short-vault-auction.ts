@@ -7,7 +7,7 @@ import {
   OpynPerpVault,
   IWETH,
   IEasyAuction,
-  ShortOTokenWithAuction,
+  ShortOToken,
   IOtokenFactory,
   IOToken,
   MockPricer,
@@ -23,7 +23,7 @@ enum ActionState {
 const QUEUE_START = '0x0000000000000000000000000000000000000000000000000000000000000001';
 
 describe('Mainnet Fork Tests for auction action', function () {
-  let shortAuction: ShortOTokenWithAuction;
+  let shortAction: ShortOToken;
   // asset used by this action: in this case, weth
   let weth: IWETH;
   let usdc: MockERC20;
@@ -100,15 +100,16 @@ describe('Mainnet Fork Tests for auction action', function () {
     vault = (await VaultContract.deploy()) as OpynPerpVault;
 
     // deploy the short action contract
-    const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithAuction');
-    shortAuction = (await ShortActionContract.deploy(
+    const ShortActionContract = await ethers.getContractFactory('ShortOToken');
+    shortAction = (await ShortActionContract.deploy(
       vault.address,
       weth.address,
+      ethers.constants.AddressZero, // airswap
       easyAuctionAddress,
       whitelistAddress,
       controllerAddress,
       0 // type 0 vault
-    )) as ShortOTokenWithAuction;
+    )) as ShortOToken;
 
     await vault
       .connect(owner)
@@ -120,7 +121,7 @@ describe('Mainnet Fork Tests for auction action', function () {
         18,
         'OpynPerpShortVault share',
         'sOPS',
-        [shortAuction.address]
+        [shortAction.address]
       );
   });
 
@@ -228,14 +229,14 @@ describe('Mainnet Fork Tests for auction action', function () {
     it('owner commits to the option', async () => {
       // set live price as 3000
       await pricer.setPrice('300000000000');
-      expect(await shortAuction.state()).to.be.equal(ActionState.Idle);
-      await shortAuction.commitOToken(otoken.address);
-      expect(await shortAuction.state()).to.be.equal(ActionState.Committed);
+      expect(await shortAction.state()).to.be.equal(ActionState.Idle);
+      await shortAction.commitOToken(otoken.address);
+      expect(await shortAction.state()).to.be.equal(ActionState.Committed);
     });
 
-    it('owner mints and start auction', async () => {
+    it('owner mints and starts auction', async () => {
       // increase time
-      const minPeriod = await shortAuction.MIN_COMMIT_PERIOD();
+      const minPeriod = await shortAction.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
       await provider.send('evm_mine', []);
 
@@ -246,9 +247,11 @@ describe('Mainnet Fork Tests for auction action', function () {
       actualAmountInVault = totalAmountInVault.sub(collateralAmount);
 
       // convert 1e18 to otoken amount (1e8)
+      
       const sellAmount = collateralAmount.div(10000000000).toString();
+      const mintAmount = sellAmount
 
-      expect((await shortAuction.lockedAsset()).eq('0'), 'collateral should not be locked').to.be.true;
+      expect((await shortAction.lockedAsset()).eq('0'), 'collateral should not be locked').to.be.true;
 
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
@@ -261,8 +264,9 @@ describe('Mainnet Fork Tests for auction action', function () {
       const easyAuctionOTokenBefore = await otoken.balanceOf(easyAuctionAddress)
 
       // mint and sell 72 oTokens
-      await shortAuction.mintAndStartAuction(
+      await shortAction.mintAndStartAuction(
         collateralAmount,
+        mintAmount,
         sellAmount,
         auctionDeadline, // order cancel deadline
         auctionDeadline,
@@ -272,8 +276,8 @@ describe('Mainnet Fork Tests for auction action', function () {
         false
       );
 
-      auctionId = await shortAuction.auctionId();      
-      expect((await otoken.balanceOf(shortAuction.address)).isZero()).to.be.true
+      auctionId = await easyAuction.auctionCounter();      
+      expect((await otoken.balanceOf(shortAction.address)).isZero()).to.be.true
       const easyAuctionOTokenAfter = await otoken.balanceOf(easyAuctionAddress)
       expect(easyAuctionOTokenAfter.sub(easyAuctionOTokenBefore)).to.be.eq(sellAmount)
     });
@@ -297,9 +301,9 @@ describe('Mainnet Fork Tests for auction action', function () {
       await provider.send('evm_setNextBlockTimestamp', [auctionDeadline + 60]);
       await provider.send('evm_mine', []);
 
-      const wethBalanceBefore = await weth.balanceOf(shortAuction.address)
-      await shortAuction.connect(owner).settleLastAuction()
-      const wethBalanceAfter = await weth.balanceOf(shortAuction.address)
+      const wethBalanceBefore = await weth.balanceOf(shortAction.address)
+      await easyAuction.connect(owner).settleAuction(auctionId)
+      const wethBalanceAfter = await weth.balanceOf(shortAction.address)
       expect(wethBalanceAfter.sub(wethBalanceBefore).eq(buyer1Premium)).to.be.true
     })
 
@@ -313,22 +317,24 @@ describe('Mainnet Fork Tests for auction action', function () {
       const currentTimestamp = block.timestamp;
       auction2Deadline = currentTimestamp + day * 1;
 
-      const oTokenLeft = await otoken.balanceOf(shortAuction.address)
+      const oTokenLeft = await otoken.balanceOf(shortAction.address)
       
       const minimalBidAmountPerOrder = 0.1 * 1e8 // min bid each order: 0.1 otoken
       const minFundingThreshold = 0;
 
-      await shortAuction.startAuction(
+      await shortAction.mintAndStartAuction(
+        0, // no collateral,
+        0,
+        oTokenLeft,
         auction2Deadline, // order cancel deadline
         auction2Deadline,
-        oTokenLeft,
         minPremium,
         minimalBidAmountPerOrder,
         minFundingThreshold,
         false
       )
 
-      auction2Id = await shortAuction.auctionId()
+      auction2Id = await easyAuction.auctionCounter()
     })
 
     it('p2 participate in second auction', async() => {
@@ -350,9 +356,9 @@ describe('Mainnet Fork Tests for auction action', function () {
       await provider.send('evm_setNextBlockTimestamp', [auction2Deadline + 60]);
       await provider.send('evm_mine', []);
 
-      const wethBalanceBefore = await weth.balanceOf(shortAuction.address)
-      await shortAuction.connect(owner).settleLastAuction()
-      const wethBalanceAfter = await weth.balanceOf(shortAuction.address)
+      const wethBalanceBefore = await weth.balanceOf(shortAction.address)
+      await easyAuction.connect(owner).settleAuction(auction2Id)
+      const wethBalanceAfter = await weth.balanceOf(shortAction.address)
       expect(wethBalanceAfter.sub(wethBalanceBefore).eq(buyer2Premium)).to.be.true
     })
   });

@@ -4,7 +4,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { getOrder } from '../utils/orders';
 import {
-  ShortOTokenWithSwap,
+  ShortOToken,
   MockERC20,
   MockWhitelist,
   MockSwap,
@@ -31,7 +31,7 @@ describe('ShortActionWithSwap Tests', function () {
 
   const counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
 
-  let action: ShortOTokenWithSwap;
+  let action: ShortOToken;
   // asset used by this action: in this case, weth
   let token: MockERC20;
   //
@@ -111,15 +111,16 @@ describe('ShortActionWithSwap Tests', function () {
 
   describe('deployment test', () => {
     it('deploy', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
+      const ShortActionContract = await ethers.getContractFactory('ShortOToken');
       action = (await ShortActionContract.deploy(
         vault.address,
         token.address,
         swap.address,
+        ethers.constants.AddressZero, // no auction
         whitelist.address,
         controller.address,
         0 // type 0 vault
-      )) as ShortOTokenWithSwap;
+      )) as ShortOToken;
 
       expect((await action.owner()) == owner.address).to.be.true;
 
@@ -138,25 +139,13 @@ describe('ShortActionWithSwap Tests', function () {
       // whitelist is set
       expect((await action.opynWhitelist()) === whitelist.address).to.be.true;
     });
-    it('should revert when deploying with empty swap contract', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
-      await expect(
-        ShortActionContract.deploy(
-          vault.address,
-          token.address,
-          ethers.constants.AddressZero,
-          whitelist.address,
-          controller.address,
-          0 // type 0 vault
-        )
-      ).to.be.revertedWith('Invalid airswap address');
-    });
     it('should deploy with type 1 vault', async () => {
-      const ShortActionContract = await ethers.getContractFactory('ShortOTokenWithSwap');
+      const ShortActionContract = await ethers.getContractFactory('ShortOToken');
       await ShortActionContract.deploy(
         vault.address,
         token.address,
         swap.address,
+        ethers.constants.AddressZero,
         whitelist.address,
         controller.address,
         1 // type 0 vault
@@ -225,7 +214,7 @@ describe('ShortActionWithSwap Tests', function () {
         counterpartyWallet.privateKey
       );
       await expect(
-        action.connect(owner).mintAndSellOToken(collateral, amountOTokenToMint, order)
+        action.connect(owner).mintAndTradeAirSwapOTC(collateral, amountOTokenToMint, order)
       ).to.be.revertedWith('!Activated');
     });
     it('should not be able to token with invalid strike price', async () => {
@@ -276,7 +265,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, order)).revertedWith('Need minimum option premium');
+      await expect(action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, order)).revertedWith('Need minimum option premium');
     })
     it('should be able to mint and sell in this phase', async () => {
       const collateralAmount = utils.parseUnits('10');
@@ -293,7 +282,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, order);
+      await action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, order);
       const otokenBalanceAfter = await otoken1.balanceOf(action.address);
       expect(otokenBalanceAfter.sub(otokenBalanceBefore).eq('0')).to.be.true;
     });
@@ -309,7 +298,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, badOrder1)).to.be.revertedWith(
+      await expect(action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, badOrder1)).to.be.revertedWith(
         'Can only sell otoken'
       );
 
@@ -323,7 +312,7 @@ describe('ShortActionWithSwap Tests', function () {
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(action.connect(owner).mintAndSellOToken(collateralAmount, mintOTokenAmount, badOrder2)).to.be.revertedWith(
+      await expect(action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, badOrder2)).to.be.revertedWith(
         'Can only sell for asset'
       );
     });
@@ -370,7 +359,7 @@ describe('ShortActionWithSwap Tests', function () {
         counterpartyWallet.privateKey
       );
       await expect(
-        action.connect(owner).mintAndSellOToken(collateral, amountOTokenToMint, order)
+        action.connect(owner).mintAndTradeAirSwapOTC(collateral, amountOTokenToMint, order)
       ).to.be.revertedWith('!Activated');
     });
   });

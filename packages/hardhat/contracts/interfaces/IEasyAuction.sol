@@ -21,6 +21,8 @@ interface IEasyAuction {
         uint256 minFundingThreshold;
     }
 
+    function auctionCounter() external view returns(uint256);
+
     // @dev: function to intiate a new auction
     // Warning: In case the auction is expected to raise more than
     // 2^96 units of the biddingToken, don't start the auction, as
