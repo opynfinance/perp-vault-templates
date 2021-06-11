@@ -8,7 +8,7 @@ import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import { ISwap } from "../interfaces/ISwap.sol";
 import { SwapTypes } from "../libraries/SwapTypes.sol";
 
-contract AirswapBase {
+contract AirswapUtils {
   using SafeERC20 for IERC20;
   ISwap public airswap;
 

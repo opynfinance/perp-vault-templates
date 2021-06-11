@@ -6,11 +6,11 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IEasyAuction } from "../interfaces/IEasyAuction.sol";
 import { SwapTypes } from "../libraries/SwapTypes.sol";
 
-contract AuctionBase {
+contract AuctionUtils {
     
   IEasyAuction public auction;
 
-  function _initAuctionBase(address _easyAuction) internal {
+  function _initAuction(address _easyAuction) internal {
     if (_easyAuction == address(0)) return;
     auction = IEasyAuction(_easyAuction);
     auction.registerUser(address(this));

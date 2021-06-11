@@ -26,7 +26,7 @@ enum ActionState {
   Activated,
 }
 
-describe('ShortActionWithSwap Tests', function () {
+describe('ShortAction with Airswap', function () {
   const provider = waffle.provider;
 
   const counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
