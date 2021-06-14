@@ -147,6 +147,27 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
+   * @dev mint options with "asset" and participate in an auction to sell it for asset.
+   */
+  function mintAndBidInAuction(
+    uint256 _auctionId,
+    uint256 _collateralAmount,
+    uint256 _otokenToMint,
+    uint96[] memory _minBuyAmounts,
+    uint96[] memory _sellAmounts,
+    bytes32[] memory _prevSellOrders,
+    bytes calldata _allowListCallData
+  ) external onlyOwner onlyActivated {
+    // mint token
+    if (_collateralAmount > 0 && _otokenToMint > 0) {
+      lockedAsset = lockedAsset.add(_collateralAmount);
+      _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
+    }
+
+    _bidInAuction(asset, otoken, _auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, _allowListCallData);
+  }
+
+  /**
    * @dev mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
