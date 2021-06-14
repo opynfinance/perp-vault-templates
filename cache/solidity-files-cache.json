@@ -1,0 +1,1663 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": {
+      "lastModificationDate": 1622516807390,
+      "contentHash": "91a7735bfcbb48c7482f10f1083a8ed8",
+      "sourceName": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../utils/ContextUpgradeable.sol",
+        "../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "OwnableUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/utils/RollOverBase.sol": {
+      "lastModificationDate": 1623423223641,
+      "contentHash": "1bbe1830d679e077b9559152d9654c05",
+      "sourceName": "contracts/utils/RollOverBase.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol",
+        "../interfaces/IWhitelist.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "RollOverBase"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/libraries/SwapTypes.sol": {
+      "lastModificationDate": 1621943319315,
+      "contentHash": "452bef53729ff42b865300d08cebff6f",
+      "sourceName": "contracts/libraries/SwapTypes.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "SwapTypes"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol": {
+      "lastModificationDate": 1622516807424,
+      "contentHash": "e0a41531d159d3a32f84b7a3ecf9fabb",
+      "sourceName": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "IERC20"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts/token/ERC20/SafeERC20.sol": {
+      "lastModificationDate": 1622516807649,
+      "contentHash": "33e22842646d746e5c4124c2fdc051aa",
+      "sourceName": "@openzeppelin/contracts/token/ERC20/SafeERC20.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC20.sol",
+        "../../math/SafeMath.sol",
+        "../../utils/Address.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "SafeERC20"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts/math/SafeMath.sol": {
+      "lastModificationDate": 1622516807656,
+      "contentHash": "e03e12206057e809eb76c5f681170c32",
+      "sourceName": "@openzeppelin/contracts/math/SafeMath.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "SafeMath"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IController.sol": {
+      "lastModificationDate": 1622604565477,
+      "contentHash": "c93b43c20edea4059433e9eab1f42676",
+      "sourceName": "contracts/interfaces/IController.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IController"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IAction.sol": {
+      "lastModificationDate": 1621943319313,
+      "contentHash": "95c8ebe660f13e5567574ddfcebf303b",
+      "sourceName": "contracts/interfaces/IAction.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IAction"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IOracle.sol": {
+      "lastModificationDate": 1622597197925,
+      "contentHash": "fa8ffbbc792ec4ce1f25a86611b44dc5",
+      "sourceName": "contracts/interfaces/IOracle.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "IOracle"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IOToken.sol": {
+      "lastModificationDate": 1622509260308,
+      "contentHash": "e2c2027f32707bf2102c04baaf9faca6",
+      "sourceName": "contracts/interfaces/IOToken.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IOToken"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": {
+      "lastModificationDate": 1622516806757,
+      "contentHash": "9f901c17a18eadc08042b6a510da3b7d",
+      "sourceName": "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "ContextUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/proxy/Initializable.sol": {
+      "lastModificationDate": 1622516807325,
+      "contentHash": "71b3ac8d4da61bb6c6708c12f56e3c1f",
+      "sourceName": "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../utils/AddressUpgradeable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.4.24 <0.8.0"
+      ],
+      "artifacts": [
+        "Initializable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol": {
+      "lastModificationDate": 1622516806710,
+      "contentHash": "aa72beb3bf14f8394b4a8a292d66589c",
+      "sourceName": "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.2 <0.8.0"
+      ],
+      "artifacts": [
+        "AddressUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/ISwap.sol": {
+      "lastModificationDate": 1621943319314,
+      "contentHash": "57ca01052b8a256047faadb1fa6b84f3",
+      "sourceName": "contracts/interfaces/ISwap.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../libraries/SwapTypes.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "ISwap"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IWhitelist.sol": {
+      "lastModificationDate": 1621943319315,
+      "contentHash": "2e84f4cc7a3f377ca20b5c0e8b52f5f5",
+      "sourceName": "contracts/interfaces/IWhitelist.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IWhitelist"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts/utils/Address.sol": {
+      "lastModificationDate": 1622516806858,
+      "contentHash": "7aa46886ff5abe7515496208a5e2ce5a",
+      "sourceName": "@openzeppelin/contracts/utils/Address.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.2 <0.8.0"
+      ],
+      "artifacts": [
+        "Address"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockPricer.sol": {
+      "lastModificationDate": 1622597197926,
+      "contentHash": "5f223cc613aba19a4473bf0a8c37280e",
+      "sourceName": "contracts/mocks/MockPricer.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../interfaces/IOracle.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "MockPricer"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockAction.sol": {
+      "lastModificationDate": 1621945040879,
+      "contentHash": "86d73ca042aa1ff38cec1cea08589381",
+      "sourceName": "contracts/mocks/MockAction.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../interfaces/IAction.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockAction"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockSwap.sol": {
+      "lastModificationDate": 1621943319319,
+      "contentHash": "e20e36ba3b74e2daf0c9710921a9d40f",
+      "sourceName": "contracts/mocks/MockSwap.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../libraries/SwapTypes.sol",
+        "../interfaces/ISwap.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "MockSwap"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IEasyAuction.sol": {
+      "lastModificationDate": 1623405249585,
+      "contentHash": "31a4e46695278bdf42455f1bdab47004",
+      "sourceName": "contracts/interfaces/IEasyAuction.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IEasyAuction"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockWhitelist.sol": {
+      "lastModificationDate": 1621943319320,
+      "contentHash": "fbcc1889fb09d17074695dbbba50f6c6",
+      "sourceName": "contracts/mocks/MockWhitelist.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../interfaces/IWhitelist.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockWhitelist"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/core/OpynPerpVault.sol": {
+      "lastModificationDate": 1623053029532,
+      "contentHash": "93b8174b2c514529ed9de0c7e69de398",
+      "sourceName": "contracts/core/OpynPerpVault.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol",
+        "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol",
+        "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol",
+        "../interfaces/IAction.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "../interfaces/IWETH.sol",
+        "@openzeppelin/contracts/token/ERC20/SafeERC20.sol",
+        "@openzeppelin/contracts/math/SafeMath.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "OpynPerpVault"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol": {
+      "lastModificationDate": 1622516807444,
+      "contentHash": "008d2d730bc1f24f3c0fafa29b7a0bd2",
+      "sourceName": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "ReentrancyGuardUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol": {
+      "lastModificationDate": 1622516807040,
+      "contentHash": "4404d773c16609e9c316b0acaa487556",
+      "sourceName": "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../../utils/ContextUpgradeable.sol",
+        "./IERC20Upgradeable.sol",
+        "../../math/SafeMathUpgradeable.sol",
+        "../../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "ERC20Upgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IWETH.sol": {
+      "lastModificationDate": 1622509260314,
+      "contentHash": "be78ab8937a83a7320cb551adcd9c7f3",
+      "sourceName": "contracts/interfaces/IWETH.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IWETH"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol": {
+      "lastModificationDate": 1622516807252,
+      "contentHash": "6c8edd65243ec9d6eb91cc63cce2cd16",
+      "sourceName": "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "IERC20Upgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol": {
+      "lastModificationDate": 1622516807503,
+      "contentHash": "33cad0216fea16ce4baadc5603b84218",
+      "sourceName": "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "SafeMathUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockWETH.sol": {
+      "lastModificationDate": 1622509260333,
+      "contentHash": "30ec8c25a7d2ea0f74752dae2c46bb84",
+      "sourceName": "contracts/mocks/MockWETH.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts-upgradeable/drafts/ERC20PermitUpgradeable.sol",
+        "../interfaces/IWETH.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockWETH"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/drafts/ERC20PermitUpgradeable.sol": {
+      "lastModificationDate": 1622516806980,
+      "contentHash": "3e510705706431f5c73bdc56d616424d",
+      "sourceName": "@openzeppelin/contracts-upgradeable/drafts/ERC20PermitUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../token/ERC20/ERC20Upgradeable.sol",
+        "./IERC20PermitUpgradeable.sol",
+        "../cryptography/ECDSAUpgradeable.sol",
+        "../utils/CountersUpgradeable.sol",
+        "./EIP712Upgradeable.sol",
+        "../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.5 <0.8.0"
+      ],
+      "artifacts": [
+        "ERC20PermitUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/drafts/IERC20PermitUpgradeable.sol": {
+      "lastModificationDate": 1622516807246,
+      "contentHash": "851cd6f51cf3b2cbebe86458c2d3d4c1",
+      "sourceName": "@openzeppelin/contracts-upgradeable/drafts/IERC20PermitUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "IERC20PermitUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/cryptography/ECDSAUpgradeable.sol": {
+      "lastModificationDate": 1622516806799,
+      "contentHash": "8fe21554560075593b87ae37a30dea42",
+      "sourceName": "@openzeppelin/contracts-upgradeable/cryptography/ECDSAUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "ECDSAUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol": {
+      "lastModificationDate": 1622516806769,
+      "contentHash": "8cba95f8a22b2fb5aad5aa6cede94288",
+      "sourceName": "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../math/SafeMathUpgradeable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "CountersUpgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/node_modules/@openzeppelin/contracts-upgradeable/drafts/EIP712Upgradeable.sol": {
+      "lastModificationDate": 1622516806802,
+      "contentHash": "561a5b469b2870291fdecd726e3f7501",
+      "sourceName": "@openzeppelin/contracts-upgradeable/drafts/EIP712Upgradeable.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../proxy/Initializable.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.0 <0.8.0"
+      ],
+      "artifacts": [
+        "EIP712Upgradeable"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockERC20.sol": {
+      "lastModificationDate": 1621943319317,
+      "contentHash": "388637698ed0d70137316a104a7dfc44",
+      "sourceName": "contracts/mocks/MockERC20.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts-upgradeable/drafts/ERC20PermitUpgradeable.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockERC20"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockOToken.sol": {
+      "lastModificationDate": 1622509260328,
+      "contentHash": "5073a9fcf7c8be22ef37e167f69e26e4",
+      "sourceName": "contracts/mocks/MockOToken.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./MockERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockOToken"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockController.sol": {
+      "lastModificationDate": 1622597197925,
+      "contentHash": "ca94773a146f17467bc7aa3da914f5aa",
+      "sourceName": "contracts/mocks/MockController.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../interfaces/IPool.sol",
+        "./MockERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockController"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IPool.sol": {
+      "lastModificationDate": 1621943319314,
+      "contentHash": "a46dc73141c80fd4aea3cfaa576b53c7",
+      "sourceName": "contracts/interfaces/IPool.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.7.2"
+      ],
+      "artifacts": [
+        "IPool"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockPool.sol": {
+      "lastModificationDate": 1621943319318,
+      "contentHash": "8a06572012866660abfc94c3a88a1377",
+      "sourceName": "contracts/mocks/MockPool.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.7.0"
+      ],
+      "artifacts": [
+        "MockPool"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IChainlink.sol": {
+      "lastModificationDate": 1622509260303,
+      "contentHash": "b51669ac77c84b6f39ce9fb1cfbed287",
+      "sourceName": "contracts/interfaces/IChainlink.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0"
+      ],
+      "artifacts": [
+        "IChainlink"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/interfaces/IOtokenFactory.sol": {
+      "lastModificationDate": 1622509260311,
+      "contentHash": "b32ad4746b1073b5703e1dcb27b8d954",
+      "sourceName": "contracts/interfaces/IOtokenFactory.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "IOtokenFactory"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockOpynOracle.sol": {
+      "lastModificationDate": 1622597197926,
+      "contentHash": "71c9a7e09e8e4851015e18e43f86de7c",
+      "sourceName": "contracts/mocks/MockOpynOracle.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0"
+      ],
+      "artifacts": [
+        "MockOpynOracle"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/mocks/MockOracle.sol": {
+      "lastModificationDate": 1622509260330,
+      "contentHash": "7c890b7b3c5bdf7afdf5c088bc6f81d7",
+      "sourceName": "contracts/mocks/MockOracle.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.6.0"
+      ],
+      "artifacts": [
+        "MockOracle"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/example-actions/ShortOToken.sol": {
+      "lastModificationDate": 1623423625813,
+      "contentHash": "fac92e0981529b1bc559c26bd3a88fe5",
+      "sourceName": "contracts/example-actions/ShortOToken.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol",
+        "../utils/GammaVaultUtils.sol",
+        "../utils/RollOverBase.sol",
+        "../utils/AirswapUtils.sol",
+        "../utils/AuctionUtils.sol",
+        "../libraries/SwapTypes.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/SafeERC20.sol",
+        "@openzeppelin/contracts/math/SafeMath.sol",
+        "../interfaces/IController.sol",
+        "../interfaces/IAction.sol",
+        "../interfaces/IOracle.sol",
+        "../interfaces/IOToken.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "ShortOToken"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/utils/AirswapUtils.sol": {
+      "lastModificationDate": 1623423163126,
+      "contentHash": "8a3b57882ab55e7b4ab6da139b03df0d",
+      "sourceName": "contracts/utils/AirswapUtils.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/SafeERC20.sol",
+        "../interfaces/ISwap.sol",
+        "../libraries/SwapTypes.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "AirswapUtils"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/utils/GammaVaultUtils.sol": {
+      "lastModificationDate": 1623423290858,
+      "contentHash": "ad905de5477554116ab51eb3a22064b3",
+      "sourceName": "contracts/utils/GammaVaultUtils.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/SafeERC20.sol",
+        "@openzeppelin/contracts/math/SafeMath.sol",
+        "../interfaces/IController.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "GammaVaultUtils"
+      ]
+    },
+    "/Users/antonasso/programming/opyn/perp-vault-templates/packages/hardhat/contracts/utils/AuctionUtils.sol": {
+      "lastModificationDate": 1623423599760,
+      "contentHash": "31ee8cbd01b6de69de69dea4e251ac37",
+      "sourceName": "contracts/utils/AuctionUtils.sol",
+      "solcConfig": {
+        "version": "0.7.6",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "../interfaces/IEasyAuction.sol",
+        "../libraries/SwapTypes.sol"
+      ],
+      "versionPragmas": [
+        ">=0.7.2"
+      ],
+      "artifacts": [
+        "AuctionUtils"
+      ]
+    }
+  }
+}

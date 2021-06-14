@@ -1,0 +1,374 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IEasyAuction",
+  "sourceName": "contracts/interfaces/IEasyAuction.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "auctionCounter",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "_sellOrders",
+          "type": "bytes32[]"
+        }
+      ],
+      "name": "cancelSellOrders",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "orders",
+          "type": "bytes32[]"
+        }
+      ],
+      "name": "claimFromParticipantOrder",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "sumAuctioningTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "sumBiddingTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "order",
+          "type": "bytes32"
+        }
+      ],
+      "name": "containsOrder",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getSecondsRemainingInBatch",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserId",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "userId",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_auctioningToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_biddingToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "orderCancellationEndDate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "auctionEndDate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint96",
+          "name": "_auctionedSellAmount",
+          "type": "uint96"
+        },
+        {
+          "internalType": "uint96",
+          "name": "_minBuyAmount",
+          "type": "uint96"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimumBiddingAmountPerOrder",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minFundingThreshold",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isAtomicClosureAllowed",
+          "type": "bool"
+        },
+        {
+          "internalType": "address",
+          "name": "accessManagerContract",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "accessManagerContractData",
+          "type": "bytes"
+        }
+      ],
+      "name": "initiateAuction",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_minBuyAmounts",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_sellAmounts",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "_prevSellOrders",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "allowListCallData",
+          "type": "bytes"
+        }
+      ],
+      "name": "placeSellOrders",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "userId",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_minBuyAmounts",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_sellAmounts",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "_prevSellOrders",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "allowListCallData",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "orderSubmitter",
+          "type": "address"
+        }
+      ],
+      "name": "placeSellOrdersOnBehalf",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "userId",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "iterationSteps",
+          "type": "uint256"
+        }
+      ],
+      "name": "precalculateSellAmountSum",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "registerUser",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "userId",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        }
+      ],
+      "name": "settleAuction",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "clearingOrder",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "auctionId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_minBuyAmount",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "uint96[]",
+          "name": "_sellAmount",
+          "type": "uint96[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "_prevSellOrder",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "allowListCallData",
+          "type": "bytes"
+        }
+      ],
+      "name": "settleAuctionAtomically",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

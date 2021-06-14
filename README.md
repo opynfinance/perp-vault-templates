@@ -1,5 +1,31 @@
-# Opyn Perp Vault Template
+# OpynPerpVault contracts
 
-This is the monorepo for Opyn's perpetual vault templates.
+## Install
 
-More information about how Opyn's Vault works, please visit [Gitbook for the documentation](https://opyn.gitbook.io/perp-vault).
+```
+npm install
+```
+
+add a `.secret` file containing your testing mnemonic in the current folder.
+
+## Test
+
+### Run unit tests
+
+```
+npm run test
+```
+
+### Mainnet fork test
+
+```
+npm run test:fork
+```
+
+## Coverage
+
+Generate test coverage report
+
+```
+npx hardhat coverage
+```

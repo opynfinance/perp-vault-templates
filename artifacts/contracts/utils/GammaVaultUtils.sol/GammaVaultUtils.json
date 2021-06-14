@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "GammaVaultUtils",
+  "sourceName": "contracts/utils/GammaVaultUtils.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea2646970667358221220bb10a562bb563e10da7171d086820543ae023c319bea0941ec9d80a774254f5f64736f6c63430007060033",
+  "deployedBytecode": "0x6080604052600080fdfea2646970667358221220bb10a562bb563e10da7171d086820543ae023c319bea0941ec9d80a774254f5f64736f6c63430007060033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
