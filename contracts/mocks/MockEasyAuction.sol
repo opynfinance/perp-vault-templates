@@ -3,6 +3,7 @@ pragma solidity ^0.7.2;
 pragma experimental ABIEncoderV2;
 
 import {SwapTypes} from "../libraries/SwapTypes.sol";
+import {IEasyAuction} from "../interfaces/IEasyAuction.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -16,10 +17,29 @@ contract MockEasyAuction {
 
   mapping(address => bool) registered;
 
-  mapping(uint256 => uint256) auctionEndDates;
   mapping(uint256 => address) biddingToken;
   mapping(uint256 => address) auctioningToken;
   mapping(address => uint256) userMinBuy;
+
+  function auctionData(uint256 _id) external view returns (IEasyAuction.AuctionData memory) {
+    return
+      IEasyAuction.AuctionData(
+        auctioningToken[_id],
+        biddingToken[_id],
+        0,
+        0,
+        "",
+        0,
+        0,
+        bytes32(0),
+        bytes32(0),
+        0,
+        false,
+        false,
+        0,
+        0
+      );
+  }
 
   function registerUser(address user) external returns (uint64 userId) {
     registered[user] = true;
@@ -29,7 +49,7 @@ contract MockEasyAuction {
     address _auctioningToken,
     address _biddingToken,
     uint256, /*orderCancellationEndDate*/
-    uint256 auctionEndDate,
+    uint256, /*auctionEndDate*/
     uint96 _auctionedSellAmount,
     uint96, /*_minBuyAmount*/
     uint256, /*minimumBiddingAmountPerOrder*/
@@ -41,7 +61,7 @@ contract MockEasyAuction {
     auctionCounter = auctionCounter.add(1);
     {
       IERC20(_auctioningToken).safeTransferFrom(msg.sender, address(this), _auctionedSellAmount);
-      auctionEndDates[auctionCounter] = auctionEndDate;
+
       biddingToken[auctionCounter] = _biddingToken;
       auctioningToken[auctionCounter] = _auctioningToken;
     }
@@ -56,7 +76,7 @@ contract MockEasyAuction {
     bytes32[] memory, /*_prevSellOrders*/
     bytes calldata /*allowListCallData*/
   )
-    internal
+    external
     returns (
       uint64 /*userId*/
     )

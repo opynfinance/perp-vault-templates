@@ -26,22 +26,25 @@ contract AuctionUtils {
   /**
    * participate in an auction.
    */
-  function bidInAuction(
-    address biddingAsset,
-    uint256 auctionId,
+  function _bidInAuction(
+    address _auctioningAsset,
+    address _biddingAsset,
+    uint256 _auctionId,
     uint96[] memory _minBuyAmounts,
     uint96[] memory _sellAmounts,
     bytes32[] memory _prevSellOrders,
     bytes calldata allowListCallData
   ) internal {
+    IEasyAuction.AuctionData memory auctionData = auction.auctionData(_auctionId);
+    require(auctionData.auctioningToken == _auctioningAsset, "Invalid Auction");
     // approve auction to pull tokens from this contract
     uint256 sumSellAmount;
     for (uint256 i = 0; i < _sellAmounts.length; i++) {
       sumSellAmount = sumSellAmount.add(_sellAmounts[i]);
     }
-    IERC20(biddingAsset).safeApprove(address(auction), sumSellAmount);
+    IERC20(_biddingAsset).safeApprove(address(auction), sumSellAmount);
 
-    auction.placeSellOrders(auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, allowListCallData);
+    auction.placeSellOrders(_auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, allowListCallData);
   }
 
   function _startAuction(

@@ -320,12 +320,13 @@ describe("ShortAction", function () {
         ).to.be.revertedWith("Can only sell for asset");
       });
     });
-    describe("short with EasyAuction", async () => {
+    describe("short by starting an EasyAuction", async () => {
       let auctionDeadline: number;
 
       it("should be able to mint and start an auction phase", async () => {
-        const collateralAmount = utils.parseUnits("5");
+        const collateralAmount = utils.parseUnits("10");
         const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
+        const mintAmount = 10 * 1e8;
         const sellAmount = 5 * 1e8;
         const minPremium = utils.parseUnits("1"); // 1 eth min premium
 
@@ -339,7 +340,7 @@ describe("ShortAction", function () {
 
         await action.connect(owner).mintAndStartAuction(
           collateralAmount,
-          sellAmount,
+          mintAmount,
           sellAmount,
           auctionDeadline, // order cancel deadline
           auctionDeadline,
@@ -350,6 +351,85 @@ describe("ShortAction", function () {
         );
         const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
         expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(sellAmount)).to.be.true;
+      });
+
+      it("should start another auction with otoken left in the contract", async () => {
+        const collateralAmount = 0;
+        const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
+        const mintAmount = 0;
+        const sellAmount = 5 * 1e8;
+        const minPremium = utils.parseUnits("1"); // 1 eth min premium
+
+        const blockNumber = await provider.getBlockNumber();
+        const block = await provider.getBlock(blockNumber);
+        const currentTimestamp = block.timestamp;
+        auctionDeadline = currentTimestamp + 86400 * 1;
+
+        const minimalBidAmountPerOrder = 0.1 * 1e8; // min bid each order: 0.1 otoken
+        const minFundingThreshold = 0;
+
+        await action
+          .connect(owner)
+          .mintAndStartAuction(
+            collateralAmount,
+            mintAmount,
+            sellAmount,
+            auctionDeadline,
+            auctionDeadline,
+            minPremium,
+            minimalBidAmountPerOrder,
+            minFundingThreshold,
+            false
+          );
+        const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
+        expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(sellAmount)).to.be.true;
+      });
+
+      it('can short by participate in a "buy otoken auction"', async () => {
+        const blockNumber = await provider.getBlockNumber();
+        const block = await provider.getBlock(blockNumber);
+        const currentTimestamp = block.timestamp;
+        const auctionDeadline = currentTimestamp + 86400 * 1;
+        // buyer create an auction to use 5 eth to buy 60 otokens
+        const buyer = accounts[3];
+        const sellAmount = utils.parseUnits("5");
+        await token.mint(buyer.address, sellAmount);
+        await token.connect(buyer).approve(auction.address, sellAmount);
+        await auction.connect(buyer).initiateAuction(
+          token.address,
+          otoken1.address,
+          auctionDeadline,
+          auctionDeadline,
+          sellAmount,
+          60 * 1e8, // mint buy amount
+          1e6, // minimumBiddingAmountPerOrder
+          0, // minFundingThreshold
+          false, // isAtomicClosureAllowed
+          ethers.constants.AddressZero, // accessManagerContract
+          "0x00" // accessManagerContractData
+        );
+
+        const auctionIdToParticipate = await auction.auctionCounter();
+
+        // the action participate in the action
+        const collateralAmount = utils.parseUnits("5");
+        const mintAmount = 5 * 1e8;
+        const minPremium = utils.parseUnits("0.2");
+
+        const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
+        await action
+          .connect(owner)
+          .mintAndBidInAuction(
+            auctionIdToParticipate,
+            collateralAmount,
+            mintAmount,
+            [minPremium],
+            [mintAmount],
+            ["0x0000000000000000000000000000000000000000000000000000000000000001"],
+            "0x00"
+          );
+        const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
+        expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(mintAmount)).to.be.true;
       });
     });
     it("should not be able to commit next token", async () => {

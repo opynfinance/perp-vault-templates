@@ -20,6 +20,8 @@ interface IEasyAuction {
     uint256 minFundingThreshold;
   }
 
+  function auctionData(uint256 _id) external view returns (AuctionData memory);
+
   function auctionCounter() external view returns (uint256);
 
   // @dev: function to intiate a new auction
