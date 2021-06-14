@@ -52,8 +52,8 @@ jobs:
       - run:
           name: Unit Test 
           command: npm run test
-      - run:
-          name: Mainnet fork test
-          command: npm run test:fork
+      # - run:
+      #     name: Mainnet fork test
+      #     command: npm run test:fork
 
       
