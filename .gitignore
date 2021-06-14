@@ -3,3 +3,5 @@ typechain
 .secret
 coverage.json
 coverage
+artifacts
+cache
