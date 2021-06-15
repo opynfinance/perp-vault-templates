@@ -44,7 +44,6 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     address _asset,
     address _airswap,
     address _easyAuction,
-    address _opynWhitelist,
     address _controller,
     uint256 _vaultType
   ) {
@@ -60,6 +59,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     address pool = controller.pool();
 
     oracle = IOracle(controller.oracle());
+    address whitelist = controller.whitelist();
 
     IERC20(_asset).safeApprove(pool, uint256(-1));
 
@@ -67,7 +67,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     _initAuction(_easyAuction);
     _initSwapContract(_airswap);
 
-    _initRollOverBase(_opynWhitelist);
+    _initRollOverBase(whitelist);
     __Ownable_init();
 
     _openGammaVault(_vaultType);

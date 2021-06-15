@@ -110,6 +110,7 @@ describe("ShortAction", function () {
     controller = (await Controller.deploy()) as MockController;
 
     await controller.setPool(pool.address);
+    await controller.setWhitelist(whitelist.address);
     await controller.setOracle(oracle.address);
   });
 
@@ -121,7 +122,6 @@ describe("ShortAction", function () {
         token.address,
         swap.address,
         auction.address,
-        whitelist.address,
         controller.address,
         0 // type 0 vault
       )) as ShortOToken;
@@ -148,7 +148,6 @@ describe("ShortAction", function () {
         token.address,
         swap.address,
         ethers.constants.AddressZero,
-        whitelist.address,
         controller.address,
         1 // type 0 vault
       );

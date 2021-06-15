@@ -51,7 +51,6 @@ describe("Mainnet Fork Tests for auction action", function () {
    */
   const day = 86400;
   const controllerAddress = "0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72";
-  const whitelistAddress = "0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779";
 
   const easyAuctionAddress = "0x0b7fFc1f4AD541A4Ed16b40D8c37f0929158D101";
 
@@ -103,7 +102,6 @@ describe("Mainnet Fork Tests for auction action", function () {
       weth.address,
       ethers.constants.AddressZero, // airswap
       easyAuctionAddress,
-      whitelistAddress,
       controllerAddress,
       0 // type 0 vault
     )) as ShortOToken;
