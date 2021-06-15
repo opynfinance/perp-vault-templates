@@ -42,7 +42,6 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
     address _asset,
     address _airswap,
     address _easyAuction,
-    address _opynWhitelist,
     address _controller
   ) {
     vault = _vault;
@@ -59,7 +58,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
     _initAuction(_easyAuction);
     _initSwapContract(_airswap);
 
-    _initRollOverBase(_opynWhitelist);
+    _initRollOverBase(controller.whitelist());
     __Ownable_init();
   }
 
@@ -98,6 +97,18 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
   function rolloverPosition() external override onlyVault {
     _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
     rolloverTime = block.timestamp;
+  }
+
+  /**
+   * @notice the function will return when someone can close a position. 1 day after rollover,
+   * if the option wasn't sold, anyone can close the position.
+   */
+  function canClosePosition() public view returns (bool) {
+    if (otoken != address(0)) {
+      return controller.isSettlementAllowed(otoken);
+    }
+    // no otoken committed or longing
+    return block.timestamp > rolloverTime + 1 days;
   }
 
   // Long Functions
@@ -154,17 +165,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
 
   // End of Long Funtions
 
-  /**
-   * @notice the function will return when someone can close a position. 1 day after rollover,
-   * if the option wasn't sold, anyone can close the position.
-   */
-  function canClosePosition() public view returns (bool) {
-    if (otoken != address(0)) {
-      return controller.isSettlementAllowed(otoken);
-    }
-    // no otoken committed or longing
-    return block.timestamp > rolloverTime + 1 days;
-  }
+  // Custom Checks
 
   /**
    * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
