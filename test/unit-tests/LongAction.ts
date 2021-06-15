@@ -1,5 +1,5 @@
 import { ethers, waffle } from "hardhat";
-import { BigNumber, utils } from "ethers";
+import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { getOrder } from "../utils/orders";
@@ -250,7 +250,6 @@ describe("LongAction: Buying Puts", function () {
         const usdcBalanceBefore = await usdc.balanceOf(action.address);
         await action.connect(owner).tradeAirswapOTC(order);
         const usdcBalanceAfter = await usdc.balanceOf(action.address);
-        console.log(`usdcBalanceAfter`);
         expect(usdcBalanceBefore.sub(usdcBalanceAfter).eq(premium)).to.be.true;
       });
       it("should revert when trying to fill wrong order", async () => {
