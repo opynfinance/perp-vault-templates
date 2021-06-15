@@ -38,6 +38,8 @@ interface IController {
 
   function pool() external view returns (address);
 
+  function whitelist() external view returns (address);
+
   function getPayout(address _otoken, uint256 _amount) external view returns (uint256);
 
   function operate(ActionArgs[] calldata _actions) external;

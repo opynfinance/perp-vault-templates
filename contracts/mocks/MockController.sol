@@ -35,6 +35,7 @@ contract MockController {
 
   IPool public pool;
   address public oracle;
+  address public whitelist;
 
   bool public vaultOpened;
 
@@ -44,6 +45,10 @@ contract MockController {
 
   function setSettlePayout(uint256 _payout) external {
     mockSettlePayout = _payout;
+  }
+
+  function setWhitelist(address _whitelist) external {
+    whitelist = _whitelist;
   }
 
   function setPool(address _pool) external {
