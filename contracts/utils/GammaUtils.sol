@@ -11,7 +11,7 @@ import {IController} from "../interfaces/IController.sol";
 contract GammaUtils {
   IController controller;
 
-  function _initShort(address _controller) internal {
+  function _initGammaUtil(address _controller) internal {
     controller = IController(_controller);
   }
 
@@ -95,6 +95,22 @@ contract GammaUtils {
       "" // data
     );
 
+    controller.operate(actions);
+  }
+
+  function _redeemOTokens(address _otoken, uint256 _amount) internal {
+    IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
+    // this action will always use vault id 1
+    actions[0] = IController.ActionArgs(
+      IController.ActionType.Redeem,
+      address(0), // owner
+      address(this), // secondAddress: recipient
+      _otoken, // asset
+      0, // vaultId
+      _amount, // amount
+      0, // index
+      "" // data
+    );
     controller.operate(actions);
   }
 }

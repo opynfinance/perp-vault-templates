@@ -3,7 +3,7 @@ pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {GammaVaultUtils} from "../utils/GammaVaultUtils.sol";
+import {GammaUtils} from "../utils/GammaUtils.sol";
 import {RollOverBase} from "../utils/RollOverBase.sol";
 
 // use airswap to short / long
@@ -25,7 +25,7 @@ import {IOToken} from "../interfaces/IOToken.sol";
  * This is an Short Action template that inherit lots of util functions to "Short" an option.
  * You can remove the function you don't need.
  */
-contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaVaultUtils {
+contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -53,7 +53,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     // enable vault to take all the asset back and re-distribute.
     IERC20(_asset).safeApprove(_vault, uint256(-1));
 
-    _initShort(_controller);
+    _initGammaUtil(_controller);
 
     // enable pool contract to pull asset from this contract to mint options.
     address pool = controller.pool();
@@ -153,8 +153,8 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     uint256 _auctionId,
     uint256 _collateralAmount,
     uint256 _otokenToMint,
-    uint96[] memory _minBuyAmounts,
-    uint96[] memory _sellAmounts,
+    uint96[] memory _minBuyAmounts, // min amount of asset to get (premium)
+    uint96[] memory _sellAmounts, // amount of otoken selling
     bytes32[] memory _prevSellOrders,
     bytes calldata _allowListCallData
   ) external onlyOwner onlyActivated {
