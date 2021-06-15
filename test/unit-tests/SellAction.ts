@@ -400,7 +400,7 @@ describe("ShortAction", function () {
           auctionDeadline,
           auctionDeadline,
           sellAmount,
-          60 * 1e8, // mint buy amount
+          60 * 1e8, // min buy amount
           1e6, // minimumBiddingAmountPerOrder
           0, // minFundingThreshold
           false, // isAtomicClosureAllowed

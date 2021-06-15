@@ -120,8 +120,8 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
   function startAuction(
     uint256 _orderCancellationEndDate,
     uint256 _auctionEndDate,
-    uint96 _assetToSell,
-    uint96 _mintOTokenToBuy,
+    uint96 _premium,
+    uint96 _minOTokenToBuy,
     uint256 _minimumBiddingAmountPerOrder,
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
@@ -131,8 +131,8 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
       otoken, // bidding auction
       _orderCancellationEndDate,
       _auctionEndDate,
-      _assetToSell, // _auctionedSellAmount
-      _mintOTokenToBuy, // minBuyAmount
+      _premium, // _auctionedSellAmount
+      _minOTokenToBuy, // minBuyAmount
       _minimumBiddingAmountPerOrder,
       _minFundingThreshold,
       _isAtomicClosureAllowed
