@@ -220,7 +220,7 @@ describe("ShortAction", function () {
       ).to.be.revertedWith("!Activated");
     });
     it("should not be able to token with invalid strike price", async () => {
-      await expect(action.connect(owner).commitOToken(otokenBad.address)).to.be.revertedWith("Strike Price Too Low");
+      await expect(action.connect(owner).commitOToken(otokenBad.address)).to.be.revertedWith("Bad Strike Price");
     });
     it("should be able to commit next token", async () => {
       await action.connect(owner).commitOToken(otoken1.address);

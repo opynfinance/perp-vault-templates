@@ -218,19 +218,27 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
    */
   function _customOTokenCheck(address _nextOToken) internal view override {
     IOToken otokenToCheck = IOToken(_nextOToken);
-    require(_isValidStrike(otokenToCheck.strikePrice(), otokenToCheck.isPut()), "Strike Price Too Low");
+    require(
+      _isValidStrike(otokenToCheck.underlyingAsset(), otokenToCheck.strikePrice(), otokenToCheck.isPut()),
+      "Bad Strike Price"
+    );
     require(_isValidExpiry(otokenToCheck.expiryTimestamp()), "Invalid expiry");
     // add more checks here
+    // check underlying or strike asset is valid .. etc
   }
 
   /**
    * @dev funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function.
    */
-  function _isValidStrike(uint256 strikePrice, bool isPut) internal view returns (bool) {
+  function _isValidStrike(
+    address _underlying,
+    uint256 strikePrice,
+    bool isPut
+  ) internal view returns (bool) {
     // TODO: override with your filler code.
     // Example: checks that the strike price set is > than 105% of current price for calls, < 95% spot price for puts
-    uint256 spotPrice = oracle.getPrice(asset);
+    uint256 spotPrice = oracle.getPrice(_underlying);
     if (isPut) {
       return strikePrice <= spotPrice.mul(9500).div(BASE);
     } else {
