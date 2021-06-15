@@ -38,6 +38,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public constant CAP = 1000 ether;
 
+  uint256 public round;
+  mapping(address => mapping(uint256 => uint256)) userRoundRegisteredWithdrawShares; // user's reserved share for a round
+  mapping(uint256 => uint256) roundRegisteredWithdrawShares; // total reserved shares for a round
+
   /*=====================
    *       Events       *
    *====================*/
