@@ -249,6 +249,27 @@ describe("Mainnet Fork Tests", function () {
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
     });
 
+    it("option expires", async () => {
+      // increase time
+      await provider.send("evm_setNextBlockTimestamp", [expiry + day]);
+      await provider.send("evm_mine", []);
+
+      // set settlement price
+      await pricer.setExpiryPriceInOracle(weth.address, expiry, "200000000000");
+
+      // increase time
+      await provider.send("evm_increaseTime", [day]); // increase time
+      await provider.send("evm_mine", []);
+
+      actualAmountInVault = totalAmountInVault;
+
+      await vault.closePositions();
+
+      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should be same").to.be.true;
+      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect((await action1.lockedAsset()).eq("0"), "all collateral should be unlocked").to.be.true;
+    });
+
     it("p1 withdraws", async () => {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
@@ -271,27 +292,6 @@ describe("Mainnet Fork Tests", function () {
       expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
-    });
-
-    it("option expires", async () => {
-      // increase time
-      await provider.send("evm_setNextBlockTimestamp", [expiry + day]);
-      await provider.send("evm_mine", []);
-
-      // set settlement price
-      await pricer.setExpiryPriceInOracle(weth.address, expiry, "200000000000");
-
-      // increase time
-      await provider.send("evm_increaseTime", [day]); // increase time
-      await provider.send("evm_mine", []);
-
-      actualAmountInVault = totalAmountInVault;
-
-      await vault.closePositions();
-
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should be same").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect((await action1.lockedAsset()).eq("0"), "all collateral should be unlocked").to.be.true;
     });
 
     it("p2 withdraws", async () => {

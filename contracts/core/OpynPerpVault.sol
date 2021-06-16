@@ -68,7 +68,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev can only be executed and unlock state. which bring the state back to "locked"
    */
   modifier locker {
-    require(state == VaultState.Unlocked, "!Unlocked");
+    require(state == VaultState.Unlocked, "Locked");
     _;
     state = VaultState.Locked;
     emit StateUpdated(VaultState.Locked);
@@ -181,7 +181,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param share is the number of vault shares to be burned
    */
   function withdrawETH(uint256 share) external nonReentrant {
-    require(state == VaultState.Unlocked, "!Unlocked");
+    require(state == VaultState.Unlocked, "Locked");
     require(asset == WETH, "!WETH");
     uint256 withdrawAmount = _regularWithdraw(share);
 
@@ -195,7 +195,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _shares is the number of vault shares to be burned
    */
   function withdraw(uint256 _shares) external nonReentrant {
-    require(state == VaultState.Unlocked, "!Unlocked");
+    require(state == VaultState.Unlocked, "Locked");
     uint256 withdrawAmount = _regularWithdraw(_shares);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
   }
@@ -391,9 +391,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _share amount of shares burn to withdraw asset.
    */
   function _regularWithdraw(uint256 _share) internal returns (uint256) {
-    uint256 currentAssetBalance = _balance();
     uint256 withdrawAmount = _getWithdrawAmountByShares(_share);
-    require(withdrawAmount <= currentAssetBalance, "NOT_ENOUGH_BALANCE");
 
     _burn(msg.sender, _share);
 

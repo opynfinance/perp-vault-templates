@@ -200,39 +200,34 @@ describe("OpynPerpVault Tests", function () {
       expect((await vault.state()) === VaultState.Locked).to.be.true;
     });
     it("should revert when trying to call rollover again", async () => {
-      await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith("!Unlocked");
+      await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith("Locked");
     });
-    it("should revert when trying to withdraw full amount", async () => {
+    it("should revert when trying to do normal withdraw", async () => {
       const depositor1Shares = await vault.balanceOf(depositor1.address);
-      await expect(vault.connect(depositor1).withdraw(depositor1Shares.div(2))).to.be.revertedWith(
-        "NOT_ENOUGH_BALANCE"
-      );
-    });
-    it("should be able to withdraw reserved amount of asset (ETH)", async () => {
-      const depositor1Shares = await vault.balanceOf(depositor1.address);
+      await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("Locked");
       // withdraw 10%
-      const withdrawShareAmount = depositor1Shares.div(10);
-      const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
+      // const withdrawShareAmount = depositor1Shares.div(10);
+      // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
 
-      const vaultBalanceBefore = await weth.balanceOf(vault.address);
-      const totalSupplyBefore = await vault.totalSupply();
-      const ethBalanceBefore = await depositor1.getBalance();
+      // const vaultBalanceBefore = await weth.balanceOf(vault.address);
+      // const totalSupplyBefore = await vault.totalSupply();
+      // const ethBalanceBefore = await depositor1.getBalance();
 
-      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
       // withdraw eth, (set gas price to 0 so gas won't mess with eth balances)
-      await vault.connect(depositor1).withdrawETH(withdrawShareAmount, { gasPrice: 0 });
+      // await vault.connect(depositor1).withdrawETH(withdrawShareAmount, { gasPrice: 0 });
 
-      const vaultBalanceAfter = await weth.balanceOf(vault.address);
-      const totalSupplyAfter = await vault.totalSupply();
-      const ethBalanceAfter = await depositor1.getBalance();
+      // const vaultBalanceAfter = await weth.balanceOf(vault.address);
+      // const totalSupplyAfter = await vault.totalSupply();
+      // const ethBalanceAfter = await depositor1.getBalance();
 
-      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
 
-      expect(ethBalanceAfter.sub(ethBalanceBefore).eq(expectedAmount)).to.be.true;
-      expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
-      expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
+      // expect(ethBalanceAfter.sub(ethBalanceBefore).eq(expectedAmount)).to.be.true;
+      // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
+      // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
     });
 
     it("should be able to register a withdraw", async () => {
@@ -248,31 +243,34 @@ describe("OpynPerpVault Tests", function () {
       expect(totalQueuedShares.eq(shares)).to.be.true;
     });
 
-    it("should be able to withdraw reserved amount of asset (WETH)", async () => {
-      const depositor2Shares = await vault.balanceOf(depositor2.address);
-      // withdraw 10%
-      const withdrawShareAmount = depositor2Shares.div(10);
-      const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
+    it("should revert when trying withdraw WETH", async () => {
+      const depositor1Shares = await vault.balanceOf(depositor1.address);
+      await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("Locked");
 
-      const vaultBalanceBefore = await weth.balanceOf(vault.address);
-      const totalSupplyBefore = await vault.totalSupply();
-      const wethBalanceBefore = await weth.balanceOf(depositor2.address);
+      // const depositor2Shares = await vault.balanceOf(depositor2.address);
+      // // withdraw 10%
+      // const withdrawShareAmount = depositor2Shares.div(10);
+      // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
 
-      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+      // const vaultBalanceBefore = await weth.balanceOf(vault.address);
+      // const totalSupplyBefore = await vault.totalSupply();
+      // const wethBalanceBefore = await weth.balanceOf(depositor2.address);
 
-      // withdraw weth
-      await vault.connect(depositor2).withdraw(withdrawShareAmount);
+      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
-      const vaultBalanceAfter = await weth.balanceOf(vault.address);
-      const totalSupplyAfter = await vault.totalSupply();
-      const wethBalanceAfter = await weth.balanceOf(depositor2.address);
+      // // withdraw weth
+      // await vault.connect(depositor2).withdraw(withdrawShareAmount);
 
-      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+      // const vaultBalanceAfter = await weth.balanceOf(vault.address);
+      // const totalSupplyAfter = await vault.totalSupply();
+      // const wethBalanceAfter = await weth.balanceOf(depositor2.address);
 
-      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(expectedAmount)).to.be.true;
-      expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
-      expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
+      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+
+      // expect(wethBalanceAfter.sub(wethBalanceBefore).eq(expectedAmount)).to.be.true;
+      // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
+      // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
     });
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
       await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith("!Emergency");
