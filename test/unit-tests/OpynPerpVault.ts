@@ -150,10 +150,10 @@ describe("OpynPerpVault Tests", function () {
       // depositor 3 deposits 10 eth
       await vault.connect(depositor3).depositETH({ value: depositAmount });
     });
-    it("should be able to withdraw weth", async () => {
+    it("should be able to withdraw eth", async () => {
       // depositor 4 deposit 10 eth and withdraw 10 eth
       await vault.connect(depositor4).depositETH({ value: depositAmount });
-      await vault.connect(depositor4).withdraw(depositAmount);
+      await vault.connect(depositor4).withdrawETH(depositAmount);
       expect((await vault.balanceOf(depositor4.address)).isZero()).to.be.true;
 
       // deposit 10 eth back
@@ -238,7 +238,9 @@ describe("OpynPerpVault Tests", function () {
       const d4Shares = await vault.balanceOf(depositor4.address);
       await vault.connect(depositor4).registerWithdraw(d4Shares);
     });
-
+    it("should revert if trying to get withdraw from queue now", async () => {
+      await expect(vault.connect(depositor1).withdrawFromQueue(0)).to.be.revertedWith("Invalid round");
+    });
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
       await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith("!Emergency");
     });
@@ -355,10 +357,14 @@ describe("OpynPerpVault Tests", function () {
       const wethAfterQueueWithdraw = await weth.balanceOf(depositor3.address);
 
       // withdraw by normal withdraw
+
       const shares = await vault.balanceOf(depositor3.address);
+      const amountToGetNormalWithdraw = await vault.getWithdrawAmountByShares(shares);
       await vault.connect(depositor3).withdraw(shares);
       const wethAfter = await weth.balanceOf(depositor3.address);
-      // comparison
+      expect(amountToGetNormalWithdraw.eq(wethAfter.sub(wethAfterQueueWithdraw))).to.be.true;
+
+      // compare 2 kind of withdraw
       const amountFromQueueWithdraw = wethAfterQueueWithdraw.sub(wethBefore);
       const amountFromWithdraw = wethAfter.sub(wethAfterQueueWithdraw);
 
