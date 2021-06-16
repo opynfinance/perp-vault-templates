@@ -180,7 +180,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice Withdraws ETH from vault using vault shares.
    * @param share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 share) external nonReentrant notEmergency {
+  function withdrawETH(uint256 share) external nonReentrant {
+    require(state == VaultState.Unlocked, "!Unlocked");
     require(asset == WETH, "!WETH");
     uint256 withdrawAmount = _regularWithdraw(share);
 
@@ -193,7 +194,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice Withdraws asset from vault using vault shares.
    * @param _shares is the number of vault shares to be burned
    */
-  function withdraw(uint256 _shares) external nonReentrant notEmergency {
+  function withdraw(uint256 _shares) external nonReentrant {
+    require(state == VaultState.Unlocked, "!Unlocked");
     uint256 withdrawAmount = _regularWithdraw(_shares);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
   }
@@ -424,9 +426,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev return how many asset you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
-    // if someone registered a queue withdraw, their shares will be burn and excluded from totalSupply
-    // we need to add it back if someone wants to trigger a `normalWithdraw` when the vault is still locked, otherwise
-    // this withdrawer can get more than he deserved.
     uint256 effectiveShares = totalSupply().add(roundTotalQueuedWithdrawShares[round]);
     return _share.mul(_totalAsset()).div(effectiveShares);
   }
