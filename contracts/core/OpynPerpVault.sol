@@ -376,14 +376,13 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev iterrate through each action, close position and withdraw funds
    */
   function _closeAndWithdraw() internal {
-    address cacheAsset = asset;
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(actions[i]).closePosition();
 
       // 2. withdraw assets
-      uint256 actionBalance = IERC20(cacheAsset).balanceOf(actions[i]);
-      if (actionBalance > 0) IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
+      uint256 actionBalance = IERC20(asset).balanceOf(actions[i]);
+      if (actionBalance > 0) IERC20(asset).safeTransferFrom(actions[i], address(this), actionBalance);
     }
   }
 
@@ -488,9 +487,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function _snapshotShareAndAsset() internal {
     uint256 vaultBalance = _effectiveBalance();
     uint256 outStandingShares = totalSupply();
-    uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
+    uint256 sharesBurned = roundTotalQueuedWithdrawShares[round];
 
-    uint256 totalShares = outStandingShares.add(queuedShares);
+    uint256 totalShares = outStandingShares.add(sharesBurned);
 
     // store this round's balance and shares
     roundTotalShare[round] = totalShares;
@@ -499,8 +498,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     // === Handle withdraw queue === //
     // withdrawQueueAmount was keeping track of total amount that should be reserved for withdraws, not including this round
     // add this round's reserved asset into withdrawQueueAmount, which will stay in the vault for withdraw
-    uint256 sharesToWithdrawThisRound = roundTotalQueuedWithdrawShares[round];
-    uint256 roundReservedAsset = sharesToWithdrawThisRound.mul(vaultBalance).div(totalShares);
+
+    uint256 roundReservedAsset = sharesBurned.mul(vaultBalance).div(totalShares);
     withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
 
     // === Handle deposit queue === //
