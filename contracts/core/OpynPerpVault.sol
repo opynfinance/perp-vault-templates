@@ -39,8 +39,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   uint256 public constant CAP = 1000 ether;
 
   uint256 public round;
-  mapping(address => mapping(uint256 => uint256)) userRoundRegisteredWithdrawShares; // user's reserved share for a round
-  mapping(uint256 => uint256) roundRegisteredWithdrawShares; // total reserved shares for a round
+  mapping(address => mapping(uint256 => uint256)) userRoundQueuedWithdrawShares; // user's reserved share for a round
+
+  mapping(uint256 => uint256) roundTotalQueuedWithdrawShares; // total reserved shares for a round
+
+  mapping(uint256 => uint256) roundShareToAssetRatio;
 
   /*=====================
    *       Events       *
@@ -49,6 +52,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   event Deposit(address account, uint256 amountDeposited, uint256 shareMinted);
 
   event Withdraw(address account, uint256 amountWithdrawn, uint256 fee, uint256 shareBurned);
+
+  event WithdrawFromQueue(address account, uint256 amountWithdrawn, uint256 fee, uint256 round);
 
   event Rollover(uint256[] allocations);
 
@@ -185,11 +190,42 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @notice Withdraws asset from vault using vault shares
-   * @param share is the number of vault shares to be burned
+   * @param _round the round you registered a queue withdraw
    */
-  function withdraw(uint256 share) external nonReentrant notEmergency {
-    uint256 withdrawAmount = _withdraw(share);
+  function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  }
+
+  /**
+   * @notice Withdraws ETH from vault using vault shares
+   * @param _round the round you registered a queue withdraw
+   */
+  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
+    require(asset == WETH, "!WETH");
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
+
+    IWETH(WETH).withdraw(withdrawAmount);
+    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
+    require(success, "ETH transfer failed");
+  }
+
+  /**
+   * @notice Withdraws asset from vault using vault shares
+   * @param _shares is the number of vault shares to be burned
+   */
+  function withdraw(uint256 _shares) external nonReentrant notEmergency {
+    uint256 withdrawAmount = _withdraw(_shares);
+    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  }
+
+  /**
+   * @dev register for a fair withdraw burn user shares,
+   */
+  function registerWithdraw(uint256 _shares) external notEmergency {
+    _burn(msg.sender, _shares);
+    userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
+    roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
   }
 
   /**
@@ -197,6 +233,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function closePositions() public unlocker {
     _closeAndWithdraw();
+
+    _fixShareToAssetRatio();
+
+    round = round.add(1);
   }
 
   /**
@@ -321,6 +361,26 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
+   * @dev calculate withdraw amount from queued shares, return withdraw amount to be handled by queueWithdraw or queueWithdrawETH
+   * @param _round the round you registered a queue withdraw
+   */
+  function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
+    uint256 withdrawAmount = _getWithdrawAmountByQueuedShares(_round);
+
+    userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
+
+    uint256 fee = _getWithdrawFee(withdrawAmount);
+
+    IERC20(asset).transfer(feeRecipient, fee);
+
+    uint256 amountPostFee = withdrawAmount.sub(fee);
+
+    emit WithdrawFromQueue(msg.sender, amountPostFee, fee, _round);
+
+    return amountPostFee;
+  }
+
+  /**
    * @dev burn shares, return withdraw amount handle by withdraw or withdrawETH
    * @param _share amount of shares burn to withdraw asset.
    */
@@ -364,6 +424,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     return withdrawAmount;
   }
 
+  function _getWithdrawAmountByQueuedShares(uint256 _round) internal view returns (uint256) {
+    require(_round < round, "Invalid round");
+    uint256 userQueuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
+    return userQueuedShares.mul(roundShareToAssetRatio[_round]).div(BASE);
+  }
+
   /**
    * @dev get amount of fee charged based on total amount of asset withdrawing.
    */
@@ -371,6 +437,21 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     // todo: add fee model
     // currently fixed at 0.5%
     return _withdrawAmount.mul(50).div(BASE);
+  }
+
+  /**
+   * @dev calculate and set the ratio of how shares can be converted to asset amounts for the current round.
+   * this function is called after withdrawing from action contracts
+   */
+  function _fixShareToAssetRatio() internal {
+    uint256 totalBalance = _balance();
+    uint256 outStandingShares = totalSupply();
+    uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
+    uint256 totalShares = outStandingShares.add(queuedShares);
+
+    roundShareToAssetRatio[round] = totalBalance.mul(BASE).div(totalShares);
+
+    // todo: add this to reserved amount
   }
 
   /**
