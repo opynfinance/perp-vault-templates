@@ -3,7 +3,8 @@ import { utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
-import { isRegularExpressionLiteral } from "typescript";
+
+const precisionFactor = 1e18;
 
 enum VaultState {
   Locked,
@@ -143,16 +144,11 @@ describe("OpynPerpVault Tests", function () {
       // depositor 2 deposits 10 weth
       await vault.connect(depositor2).deposit(depositAmount);
 
-      expect((await vault.balanceOf(depositor1.address)).eq(depositAmount)).to.be.true;
-      expect((await vault.balanceOf(depositor2.address)).eq(depositAmount)).to.be.true;
-
-      // depositor 3 deposits 10 eth, for queue withdraw
+      // depositor 3 deposits 10 eth
       await vault.connect(depositor3).depositETH({ value: depositAmount });
-
-      expect((await vault.totalAsset()).eq(depositAmount.mul(3)), "total asset should update").to.be.true;
     });
     it("should be able to withdraw weth or eth", async () => {
-      // depositor 4 deposit 10 eth
+      // depositor 4 deposit 10 eth and withdraw 10 eth
       await vault.connect(depositor4).depositETH({ value: depositAmount });
       await vault.connect(depositor4).withdraw(depositAmount);
       expect((await vault.balanceOf(depositor4.address)).isZero()).to.be.true;
@@ -192,10 +188,7 @@ describe("OpynPerpVault Tests", function () {
       expect(action2BalanceAfter.sub(action2BalanceBefore).eq(vaultBalanceBefore.mul(4).div(10))).to.be.true;
 
       expect(vaultBalanceAfter.isZero()).to.be.true;
-
       expect(totalValueAfter.eq(totalValueBefore), "total value should stay unaffected").to.be.true;
-
-      expect((await vault.state()) === VaultState.Locked).to.be.true;
     });
   });
   describe("Round 0, vault Locked", async () => {
@@ -204,36 +197,13 @@ describe("OpynPerpVault Tests", function () {
       expect(await vault.round()).to.eq(0);
     });
     it("should revert when trying to call rollover again", async () => {
-      await expect(vault.connect(owner).rollOver([7000, 3000])).to.be.revertedWith("Locked");
+      await expect(vault.connect(owner).rollOver([6000, 4000])).to.be.revertedWith("Locked");
     });
     it("should revert when trying to withdraw", async () => {
       const depositor1Shares = await vault.balanceOf(depositor1.address);
       await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("Locked");
 
       await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("Locked");
-      // withdraw 10%
-      // const withdrawShareAmount = depositor1Shares.div(10);
-      // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
-
-      // const vaultBalanceBefore = await weth.balanceOf(vault.address);
-      // const totalSupplyBefore = await vault.totalSupply();
-      // const ethBalanceBefore = await depositor1.getBalance();
-
-      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
-
-      // withdraw eth, (set gas price to 0 so gas won't mess with eth balances)
-      // await vault.connect(depositor1).withdrawETH(withdrawShareAmount, { gasPrice: 0 });
-
-      // const vaultBalanceAfter = await weth.balanceOf(vault.address);
-      // const totalSupplyAfter = await vault.totalSupply();
-      // const ethBalanceAfter = await depositor1.getBalance();
-
-      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
-
-      // expect(ethBalanceAfter.sub(ethBalanceBefore).eq(expectedAmount)).to.be.true;
-      // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
-      // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
     });
 
     it("should be able to register a withdraw", async () => {
@@ -248,46 +218,17 @@ describe("OpynPerpVault Tests", function () {
       const totalQueuedShares = await vault.roundTotalQueuedWithdrawShares(round);
       expect(totalQueuedShares.eq(d1Shares)).to.be.true;
 
-      // let depositor 2 register withdraw half of his shares
+      // let depositor 2 register withdraw
       const d2Shares = await vault.balanceOf(depositor2.address);
-      const sharesBurned = d2Shares.div(2);
-      await vault.connect(depositor2).registerWithdraw(sharesBurned);
+      await vault.connect(depositor2).registerWithdraw(d2Shares);
       const d2SharesAfter = await vault.balanceOf(depositor2.address);
-      expect(d2SharesAfter.eq(d2Shares.sub(sharesBurned))).to.be.true;
+      expect(d2SharesAfter.isZero()).to.be.true;
 
-      const d2QueuedShares = await vault.userRoundQueuedWithdrawShares(depositor2.address, round);
-      expect(d2QueuedShares.eq(sharesBurned)).to.be.true;
-      const finalQueuedShares = await vault.roundTotalQueuedWithdrawShares(round);
-      expect(finalQueuedShares.sub(totalQueuedShares).eq(sharesBurned)).to.be.true;
+      // depositor 3 register half his shares
+      const d3Shares = await vault.balanceOf(depositor3.address);
+      await vault.connect(depositor3).registerWithdraw(d3Shares.div(2));
     });
 
-    // it("should revert when trying withdraw WETH", async () => {
-
-    // const depositor2Shares = await vault.balanceOf(depositor2.address);
-    // // withdraw 10%
-    // const withdrawShareAmount = depositor2Shares.div(10);
-    // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
-
-    // const vaultBalanceBefore = await weth.balanceOf(vault.address);
-    // const totalSupplyBefore = await vault.totalSupply();
-    // const wethBalanceBefore = await weth.balanceOf(depositor2.address);
-
-    // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
-
-    // // withdraw weth
-    // await vault.connect(depositor2).withdraw(withdrawShareAmount);
-
-    // const vaultBalanceAfter = await weth.balanceOf(vault.address);
-    // const totalSupplyAfter = await vault.totalSupply();
-    // const wethBalanceAfter = await weth.balanceOf(depositor2.address);
-
-    // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-    // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
-
-    // expect(wethBalanceAfter.sub(wethBalanceBefore).eq(expectedAmount)).to.be.true;
-    // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
-    // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
-    // });
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
       await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith("!Emergency");
     });
@@ -335,6 +276,7 @@ describe("OpynPerpVault Tests", function () {
     });
   });
   describe("Round 1: vault Unlocked", async () => {
+    let round0HalfShare;
     it("unlocked state checks", async () => {
       expect(await vault.state()).to.eq(VaultState.Unlocked);
       expect(await vault.round()).to.eq(1);
@@ -342,5 +284,101 @@ describe("OpynPerpVault Tests", function () {
     it("should revert if calling closePositions again", async () => {
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith("!Locked");
     });
+    it("should have correct reserved for withdraw", async () => {
+      const totalReservedForRoundWithdraw = await vault.reservedForQueuedWithdraw();
+      const vaultTotalWeth = await weth.balanceOf(vault.address);
+      const totalAsset = await vault.totalAsset();
+      expect(vaultTotalWeth.sub(totalAsset).eq(totalReservedForRoundWithdraw)).to.be.true;
+    });
+
+    it("should allow queue withdraw weth", async () => {
+      // depositor1 use withdraw weth
+      const d1WethBefore = await weth.balanceOf(depositor1.address);
+      const reserveBefore = await vault.reservedForQueuedWithdraw();
+
+      const amountTestDeposit = utils.parseUnits("1");
+      const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
+      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+
+      await vault.connect(depositor1).withdrawFromQueue(0);
+
+      const d1WethAfter = await weth.balanceOf(depositor1.address);
+      const reserveAfter = await vault.reservedForQueuedWithdraw();
+      const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
+      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+
+      expect(d1WethAfter.add(fee).sub(d1WethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
+    });
+
+    it("should allow queue withdraw eth", async () => {
+      // depositor2 use withdrawETHFromQueue
+      const ethBefore = await depositor2.getBalance();
+      const reserveBefore = await vault.reservedForQueuedWithdraw();
+
+      const amountTestDeposit = utils.parseUnits("1");
+      const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
+      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+
+      await vault.connect(depositor2).withdrawETHFromQueue(0, { gasPrice: 0 });
+
+      const ethAfter = await depositor2.getBalance();
+      const reserveAfter = await vault.reservedForQueuedWithdraw();
+      const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
+      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+
+      expect(ethAfter.add(fee).sub(ethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
+    });
+
+    it("queue withdraw and normal withdraw should act the same now", async () => {
+      // depositor 3 has half registered as queued withdraw, half as pure share
+      // using both withdraw method should give him the same result now.
+
+      // execute queue withdraw
+      const wethBefore = await weth.balanceOf(depositor3.address);
+      await vault.connect(depositor3).withdrawFromQueue(0);
+      const wethAfterQueueWithdraw = await weth.balanceOf(depositor3.address);
+
+      // withdraw by normal withdraw
+      const shares = await vault.balanceOf(depositor3.address);
+      await vault.connect(depositor3).withdraw(shares);
+      const wethAfter = await weth.balanceOf(depositor3.address);
+      // comparison
+      const amountFromQueueWithdraw = wethAfterQueueWithdraw.sub(wethBefore);
+      const amountFromWithdraw = wethAfter.sub(wethAfterQueueWithdraw);
+
+      // error < 10000 wei
+      expect(amountFromWithdraw.sub(amountFromQueueWithdraw).abs().lt(10000)).to.be.true;
+    });
+
+    it("should be able to rollover again", async () => {
+      const totalReservedForRoundWithdraw = await vault.reservedForQueuedWithdraw();
+
+      const action1BalanceBefore = await weth.balanceOf(action1.address);
+      const action2BalanceBefore = await weth.balanceOf(action2.address);
+      const totalValueBefore = await vault.totalAsset();
+
+      // Distribution:
+      // 70% - action1
+      // 30% - action2
+      await vault.connect(owner).rollOver([7000, 3000]);
+
+      const vaultBalanceAfter = await weth.balanceOf(vault.address);
+      const action1BalanceAfter = await weth.balanceOf(action1.address);
+      const action2BalanceAfter = await weth.balanceOf(action2.address);
+      const totalValueAfter = await vault.totalAsset();
+
+      expect(action1BalanceAfter.sub(action1BalanceBefore).eq(totalValueBefore.mul(7).div(10))).to.be.true;
+      expect(action2BalanceAfter.sub(action2BalanceBefore).eq(totalValueBefore.mul(3).div(10))).to.be.true;
+
+      expect(vaultBalanceAfter.eq(totalReservedForRoundWithdraw), "vault should have some weth reserved").to.be.true;
+      expect(totalValueAfter.eq(totalValueBefore), "total value should stay unaffected").to.be.true;
+    });
+  });
+  describe("Round 1: vault Locked", async () => {
+    it("should be able to call withdrawQueue", async () => {});
   });
 });
