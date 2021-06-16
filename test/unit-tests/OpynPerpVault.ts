@@ -213,10 +213,17 @@ describe("OpynPerpVault Tests", function () {
     });
 
     it("should be able to register a withdraw", async () => {
+      const amountTestDeposit = utils.parseUnits("1");
+
       const d1Shares = await vault.balanceOf(depositor1.address);
+
+      const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
       await vault.connect(depositor1).registerWithdraw(d1Shares);
+
+      const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
       const d1SharesAfter = await vault.balanceOf(depositor1.address);
       expect(d1SharesAfter.isZero()).to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore)).to.be.true;
 
       const round = await vault.round();
       const d1QueuedShares = await vault.userRoundQueuedWithdrawShares(depositor1.address, round);

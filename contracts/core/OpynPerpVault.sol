@@ -156,6 +156,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @dev return how many shares you can get if you deposit asset into the pool
+   * @notice this number will change when someone register a withdraw when the vault is locked
    * @param _amount amount of asset you deposit
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
@@ -420,7 +421,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _totalAssetAmount amont of asset already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
-    uint256 shareSupply = totalSupply();
+    uint256 shareSupply = totalSupply().add(roundTotalQueuedWithdrawShares[round]);
 
     uint256 shares = shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);
     return shares;
