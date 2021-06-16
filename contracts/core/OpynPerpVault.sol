@@ -188,27 +188,27 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(success, "ETH transfer failed");
   }
 
-  /**
-   * @notice Withdraws asset from vault using vault shares
-   * @param _round the round you registered a queue withdraw
-   */
-  function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
-    uint256 withdrawAmount = _withdrawFromQueue(_round);
-    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
-  }
+  // /**
+  //  * @notice Withdraws asset from vault using vault shares
+  //  * @param _round the round you registered a queue withdraw
+  //  */
+  // function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
+  //   uint256 withdrawAmount = _withdrawFromQueue(_round);
+  //   IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  // }
 
-  /**
-   * @notice Withdraws ETH from vault using vault shares
-   * @param _round the round you registered a queue withdraw
-   */
-  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
-    require(asset == WETH, "!WETH");
-    uint256 withdrawAmount = _withdrawFromQueue(_round);
+  // /**
+  //  * @notice Withdraws ETH from vault using vault shares
+  //  * @param _round the round you registered a queue withdraw
+  //  */
+  // function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
+  //   require(asset == WETH, "!WETH");
+  //   uint256 withdrawAmount = _withdrawFromQueue(_round);
 
-    IWETH(WETH).withdraw(withdrawAmount);
-    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
-    require(success, "ETH transfer failed");
-  }
+  //   IWETH(WETH).withdraw(withdrawAmount);
+  //   (bool success, ) = msg.sender.call{value: withdrawAmount}("");
+  //   require(success, "ETH transfer failed");
+  // }
 
   /**
    * @notice Withdraws asset from vault using vault shares
@@ -360,25 +360,25 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(sumPercentage == cacheBase, "PERCENTAGE_DOESNT_ADD_UP");
   }
 
-  /**
-   * @dev calculate withdraw amount from queued shares, return withdraw amount to be handled by queueWithdraw or queueWithdrawETH
-   * @param _round the round you registered a queue withdraw
-   */
-  function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
-    uint256 withdrawAmount = _getWithdrawAmountByQueuedShares(_round);
+  // /**
+  //  * @dev calculate withdraw amount from queued shares, return withdraw amount to be handled by queueWithdraw or queueWithdrawETH
+  //  * @param _round the round you registered a queue withdraw
+  //  */
+  // function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
+  //   uint256 withdrawAmount = _getWithdrawAmountByQueuedShares(_round);
 
-    userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
+  //   userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
 
-    uint256 fee = _getWithdrawFee(withdrawAmount);
+  //   uint256 fee = _getWithdrawFee(withdrawAmount);
 
-    IERC20(asset).transfer(feeRecipient, fee);
+  //   IERC20(asset).transfer(feeRecipient, fee);
 
-    uint256 amountPostFee = withdrawAmount.sub(fee);
+  //   uint256 amountPostFee = withdrawAmount.sub(fee);
 
-    emit WithdrawFromQueue(msg.sender, amountPostFee, fee, _round);
+  //   emit WithdrawFromQueue(msg.sender, amountPostFee, fee, _round);
 
-    return amountPostFee;
-  }
+  //   return amountPostFee;
+  // }
 
   /**
    * @dev burn shares, return withdraw amount handle by withdraw or withdrawETH
@@ -424,11 +424,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     return withdrawAmount;
   }
 
-  function _getWithdrawAmountByQueuedShares(uint256 _round) internal view returns (uint256) {
-    require(_round < round, "Invalid round");
-    uint256 userQueuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
-    return userQueuedShares.mul(roundShareToAssetRatio[_round]).div(BASE);
-  }
+  // function _getWithdrawAmountByQueuedShares(uint256 _round) internal view returns (uint256) {
+  //   require(_round < round, "Invalid round");
+  //   uint256 userQueuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
+  //   return userQueuedShares.mul(roundShareToAssetRatio[_round]).div(BASE);
+  // }
 
   /**
    * @dev get amount of fee charged based on total amount of asset withdrawing.
