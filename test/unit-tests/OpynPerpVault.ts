@@ -196,6 +196,7 @@ describe("OpynPerpVault Tests", function () {
     });
   });
   describe("Round 0, vault Locked", async () => {
+    const depositAmount = utils.parseUnits("10");
     it("locked state checks", async () => {
       expect(await vault.state()).to.eq(VaultState.Locked);
       expect(await vault.round()).to.eq(0);
@@ -208,6 +209,10 @@ describe("OpynPerpVault Tests", function () {
       await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("!Unlocked");
 
       await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("!Unlocked");
+    });
+    it("should revert when trying to deposit", async () => {
+      await expect(vault.connect(depositor1).deposit(depositAmount)).to.be.revertedWith("!Unlocked");
+      await expect(vault.connect(depositor1).depositETH({ value: depositAmount })).to.be.revertedWith("!Unlocked");
     });
 
     it("should be able to register a withdraw", async () => {
