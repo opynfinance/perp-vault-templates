@@ -23,13 +23,14 @@ describe("OpynPerpVault Tests", function () {
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
+  let depositor4: SignerWithAddress;
   let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
 
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();
-    const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3, _random] = accounts;
+    const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3, _depositor4, _random] = accounts;
 
     owner = _owner;
     feeRecipient = _feeRecipient;
@@ -37,6 +38,7 @@ describe("OpynPerpVault Tests", function () {
     depositor1 = _depositor1;
     depositor2 = _depositor2;
     depositor3 = _depositor3;
+    depositor4 = _depositor4;
     random = _random;
   });
 
@@ -133,26 +135,34 @@ describe("OpynPerpVault Tests", function () {
       const shares1Before = await vault.balanceOf(depositor1.address);
       const expectedShares = await vault.getSharesByDepositAmount(depositAmount);
 
-      // depositor 1 deposit 10 eth
+      // depositor 1 deposits 10 eth
       await vault.connect(depositor1).depositETH({ value: depositAmount });
       expect((await vault.totalAsset()).eq(depositAmount), "total asset should update").to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address);
       expect(shares1After.sub(shares1Before).eq(expectedShares)).to.be.true;
 
-      // depositor 2 deposit 10 weth
+      // depositor 2 deposits 10 weth
       await vault.connect(depositor2).deposit(depositAmount);
 
       expect((await vault.balanceOf(depositor1.address)).eq(depositAmount)).to.be.true;
       expect((await vault.balanceOf(depositor2.address)).eq(depositAmount)).to.be.true;
 
-      expect((await vault.totalAsset()).eq(depositAmount.mul(2)), "total asset should update").to.be.true;
+      // depositor 3 deposits 10 eth, for queue withdraw
+      await vault.connect(depositor3).depositETH({ value: depositAmount });
+
+      expect((await vault.totalAsset()).eq(depositAmount.mul(3)), "total asset should update").to.be.true;
     });
     it("should be able to withdraw weth or eth", async () => {
-      // depositor 3 deposit 10 eth
-      await vault.connect(depositor3).depositETH({ value: depositAmount });
-      await vault.connect(depositor3).withdraw(depositAmount);
-      expect((await vault.balanceOf(depositor3.address)).isZero()).to.be.true;
+      // depositor 4 deposit 10 eth
+      await vault.connect(depositor4).depositETH({ value: depositAmount });
+      await vault.connect(depositor4).withdraw(depositAmount);
+      expect((await vault.balanceOf(depositor4.address)).isZero()).to.be.true;
+    });
+
+    it("should revert when trying to register a queue withdraw", async () => {
+      const shares = await vault.balanceOf(depositor3.address);
+      await expect(vault.connect(depositor3).registerWithdraw(shares)).to.be.revertedWith("!Locked");
     });
     it("should revert when calling closePosition", async () => {
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith("!Locked");
@@ -185,11 +195,11 @@ describe("OpynPerpVault Tests", function () {
 
       expect(vaultBalanceAfter.eq(vaultBalanceBefore.div(10))).to.be.true;
 
-      expect(totalValueAfter.eq(totalValueBefore), "total value should stay uneffected").to.be.true;
+      expect(totalValueAfter.eq(totalValueBefore), "total value should stay unaffected").to.be.true;
 
       expect((await vault.state()) === VaultState.Locked).to.be.true;
     });
-    it("shoudl revert when trying to call rollover again", async () => {
+    it("should revert when trying to call rollover again", async () => {
       await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith("!Unlocked");
     });
     it("should revert when trying to withdraw full amount", async () => {
@@ -223,6 +233,19 @@ describe("OpynPerpVault Tests", function () {
       expect(ethBalanceAfter.sub(ethBalanceBefore).eq(expectedAmount)).to.be.true;
       expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
       expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
+    });
+
+    it("should be able to register a withdraw", async () => {
+      const shares = await vault.balanceOf(depositor3.address);
+      await vault.connect(depositor3).registerWithdraw(shares);
+      const balanceAfter = await vault.balanceOf(depositor3.address);
+      expect(balanceAfter.isZero()).to.be.true;
+
+      const round = await vault.round();
+      const queuedShares = await vault.userRoundQueuedWithdrawShares(depositor3.address, round);
+      expect(queuedShares.eq(shares)).to.be.true;
+      const totalQueuedShares = await vault.roundTotalQueuedWithdrawShares(round);
+      expect(totalQueuedShares.eq(shares)).to.be.true;
     });
 
     it("should be able to withdraw reserved amount of asset (WETH)", async () => {
@@ -268,7 +291,7 @@ describe("OpynPerpVault Tests", function () {
     });
   });
   describe("close position", async () => {
-    before("pretent that action1 made money", async () => {
+    before("pretend that action1 made money", async () => {
       // mint 1 weth and send it to action1
       await weth.connect(random).deposit({ value: utils.parseUnits("1") });
       await weth.connect(random).transfer(action1.address, utils.parseUnits("1"));
@@ -283,15 +306,21 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(owner).closePositions();
 
       const totalAssetAfter = await vault.totalAsset();
+
+      const totalReservedForQueueWithdraw = await vault.reservedForQueuedWithdraw();
+
       const vaultBalanceAfter = await weth.balanceOf(vault.address);
       const action1BalanceAfter = await weth.balanceOf(action1.address);
       const action2BalanceAfter = await weth.balanceOf(action2.address);
 
-      expect(totalAssetBefore.eq(totalAssetAfter)).to.be.true;
+      // after calling rollover, total asset will exclude amount reserved for queue withdraw
+      expect(totalAssetBefore.eq(totalAssetAfter.add(totalReservedForQueueWithdraw)), "total asset mismatch").to.be
+        .true;
       expect(
         vaultBalanceAfter
           .sub(vaultBalanceBefore)
-          .eq(action2BalanceBefore.sub(action2BalanceAfter).add(action1BalanceBefore.sub(action1BalanceAfter)))
+          .eq(action2BalanceBefore.sub(action2BalanceAfter).add(action1BalanceBefore.sub(action1BalanceAfter))),
+        "erc20 balance mismatch"
       ).to.be.true;
     });
     it("should revert if calling closePositions again", async () => {

@@ -25,6 +25,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserveRatio;
+  uint256 public reservedForQueuedWithdraw;
 
   address public WETH;
 
@@ -39,11 +40,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   uint256 public constant CAP = 1000 ether;
 
   uint256 public round;
-  mapping(address => mapping(uint256 => uint256)) userRoundQueuedWithdrawShares; // user's reserved share for a round
+  mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares; // user's reserved share for a round
 
-  mapping(uint256 => uint256) roundTotalQueuedWithdrawShares; // total reserved shares for a round
+  mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares; // total reserved shares for a round
 
-  mapping(uint256 => uint256) roundShareToAssetRatio;
+  mapping(uint256 => uint256) public roundShareToAssetRatio;
 
   /*=====================
    *       Events       *
@@ -223,6 +224,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev register for a fair withdraw burn user shares,
    */
   function registerWithdraw(uint256 _shares) external notEmergency {
+    require(state == VaultState.Locked, "!Locked");
     _burn(msg.sender, _shares);
     userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
     roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
@@ -284,7 +286,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * total assets controlled by this vault
    */
   function _totalAsset() internal view returns (uint256) {
-    return _balance().add(_totalDebt());
+    return _balance().add(_totalDebt()).sub(reservedForQueuedWithdraw);
   }
 
   /**
@@ -365,9 +367,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _round the round you registered a queue withdraw
    */
   function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
-    uint256 withdrawAmount = _getWithdrawAmountByQueuedShares(_round);
+    require(_round < round, "Invalid round");
 
+    uint256 queuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
+    uint256 withdrawAmount = queuedShares.mul(roundShareToAssetRatio[_round]).div(BASE);
+
+    // remove user's queued shares
     userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
+    // decrease total asset we reserved from queued withdraw
+    reservedForQueuedWithdraw = reservedForQueuedWithdraw.sub(queuedShares);
 
     uint256 amountPostFee = _payFee(withdrawAmount);
 
@@ -416,16 +424,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev return how many asset you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
-    uint256 totalAssetAmount = _totalAsset();
-    uint256 shareSupply = totalSupply();
-    uint256 withdrawAmount = _share.mul(totalAssetAmount).div(shareSupply);
-    return withdrawAmount;
-  }
-
-  function _getWithdrawAmountByQueuedShares(uint256 _round) internal view returns (uint256) {
-    require(_round < round, "Invalid round");
-    uint256 userQueuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
-    return userQueuedShares.mul(roundShareToAssetRatio[_round]).div(BASE);
+    return _share.mul(_totalAsset()).div(totalSupply());
   }
 
   /**
@@ -445,11 +444,18 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 totalBalance = _balance();
     uint256 outStandingShares = totalSupply();
     uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
+
+    // all the queued shares + outstanding shares should equally spread the balance
     uint256 totalShares = outStandingShares.add(queuedShares);
+    uint256 ratio = totalBalance.mul(BASE).div(totalShares);
 
-    roundShareToAssetRatio[round] = totalBalance.mul(BASE).div(totalShares);
+    // add this round's reserved asset into reservedForQueuedWithdraw.
+    // these amount will be excluded from the totalAsset().
+    uint256 roundReservedAsset = queuedShares.mul(ratio).div(BASE);
 
-    // todo: add this to reserved amount
+    reservedForQueuedWithdraw = reservedForQueuedWithdraw.add(roundReservedAsset);
+
+    roundShareToAssetRatio[round] = ratio;
   }
 
   /**
