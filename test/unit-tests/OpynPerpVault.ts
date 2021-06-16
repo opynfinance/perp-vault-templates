@@ -4,8 +4,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
 
-const precisionFactor = 1e18;
-
 enum VaultState {
   Locked,
   Unlocked,
@@ -203,13 +201,13 @@ describe("OpynPerpVault Tests", function () {
       expect(await vault.round()).to.eq(0);
     });
     it("should revert when trying to call rollover again", async () => {
-      await expect(vault.connect(owner).rollOver([6000, 4000])).to.be.revertedWith("Locked");
+      await expect(vault.connect(owner).rollOver([6000, 4000])).to.be.revertedWith("!Unlocked");
     });
     it("should revert when trying to withdraw", async () => {
       const depositor1Shares = await vault.balanceOf(depositor1.address);
-      await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("Locked");
+      await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("!Unlocked");
 
-      await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("Locked");
+      await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("!Unlocked");
     });
 
     it("should be able to register a withdraw", async () => {
@@ -257,7 +255,7 @@ describe("OpynPerpVault Tests", function () {
       expect((await vault.state()) === VaultState.Emergency).to.be.true;
 
       await expect(vault.connect(depositor1).depositETH({ value: utils.parseUnits("1") })).to.be.revertedWith(
-        "Emergency"
+        "!Unlocked"
       );
 
       await vault.connect(owner).resumeFromPause();

@@ -49,7 +49,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
 
   /// @dev user's asset amount in deposit queue for a round
-  // mapping(address => mapping(uint256 => uint256)) public userRoundQueuedDepositAmount;
+  mapping(address => mapping(uint256 => uint256)) public userRoundQueuedDepositAmount;
 
   /// @dev total registered shares per round
   mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares;
@@ -79,10 +79,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * @dev can only be executed and unlock state. which bring the state back to "locked"
+   * @dev can only be executed and unlock state. which bring the state back to 'Locked'
    */
   modifier locker {
-    require(state == VaultState.Unlocked, "Locked");
+    require(state == VaultState.Unlocked, "!Unlocked");
     _;
     state = VaultState.Locked;
     emit StateUpdated(VaultState.Locked);
@@ -175,7 +175,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice Deposits ETH into the contract and mint vault shares. Reverts if the underlying is not WETH.
    */
-  function depositETH() external payable nonReentrant notEmergency {
+  function depositETH() external payable nonReentrant {
+    require(state == VaultState.Unlocked, "!Unlocked");
     require(asset == WETH, "!WETH");
     require(msg.value > 0, "!VALUE");
 
@@ -186,9 +187,46 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev deposit ERC20 asset and get shares
    */
-  function deposit(uint256 _amount) external notEmergency {
+  function deposit(uint256 _amount) external {
+    require(state == VaultState.Unlocked, "!Unlocked");
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
     _deposit(_amount);
+  }
+
+  /**
+   * @dev register for a fair deposit
+   */
+  function registerDepositETH() external payable {
+    require(asset == WETH, "!WETH");
+    require(state == VaultState.Locked, "!Locked");
+    IWETH(WETH).deposit{value: msg.value}();
+    userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(msg.value);
+    depositQueueAmount = depositQueueAmount.add(msg.value);
+  }
+
+  /**
+   * @dev register for a fair deposit with ERC20
+   */
+  function registerDeposit(uint256 _amount) external {
+    require(state == VaultState.Locked, "!Locked");
+    IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
+    userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_amount);
+    depositQueueAmount = depositQueueAmount.add(_amount);
+  }
+
+  /**
+   * anyone can call this function and claim the shares
+   */
+  function claimShares(address _depositor, uint256 _round) external {
+    require(_round < round, "Invalid round");
+    uint256 amountDeposited = userRoundQueuedWithdrawShares[_depositor][_round];
+
+    userRoundQueuedWithdrawShares[_depositor][_round] = 0;
+    depositQueueAmount = depositQueueAmount.sub(amountDeposited);
+
+    uint256 equivilentShares = amountDeposited.mul(roundTotalShare[_round]).div(roundTotalAsset[_round]);
+
+    _mint(_depositor, equivilentShares);
   }
 
   /**
@@ -196,7 +234,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param share is the number of vault shares to be burned
    */
   function withdrawETH(uint256 share) external nonReentrant {
-    require(state == VaultState.Unlocked, "Locked");
+    require(state == VaultState.Unlocked, "!Unlocked");
     require(asset == WETH, "!WETH");
     uint256 withdrawAmount = _regularWithdraw(share);
 
@@ -210,7 +248,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _shares is the number of vault shares to be burned
    */
   function withdraw(uint256 _shares) external nonReentrant {
-    require(state == VaultState.Unlocked, "Locked");
+    require(state == VaultState.Unlocked, "!Unlocked");
     uint256 withdrawAmount = _regularWithdraw(_shares);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
   }
