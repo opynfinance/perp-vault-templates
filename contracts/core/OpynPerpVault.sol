@@ -24,10 +24,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   // @dev 100%, use to represent fee, allocation percentage
   uint256 public constant BASE = 10000;
 
-  uint256 public constant PRECISION_FACTOR = 1e18;
-
   /// @dev amount of asset that's been registered to be withdrawn. this amount will alwasys be reserved in the vault.
   uint256 public withdrawQueueAmount;
+
+  /// @dev amount of asset that's been deposited into the vault, but hadn't mint share yet.
+  uint256 public depositQueueAmount;
 
   address public WETH;
 
@@ -44,13 +45,20 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev the current round
   uint256 public round;
 
-  /// @dev user's share registered to withdraw for a round
+  /// @dev user's share in withdraw queue for a round
   mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
 
-  /// @dev total registered shares for a round
+  /// @dev user's asset amount in deposit queue for a round
+  // mapping(address => mapping(uint256 => uint256)) public userRoundQueuedDepositAmount;
+
+  /// @dev total registered shares per round
   mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares;
 
-  mapping(uint256 => uint256) public roundShareToAssetRatio;
+  /// @dev total asset recorded at end of each round
+  mapping(uint256 => uint256) public roundTotalAsset;
+
+  /// @dev total share supply recorded at end of each round
+  mapping(uint256 => uint256) public roundTotalShare;
 
   /*=====================
    *       Events       *
@@ -283,17 +291,17 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * total assets controlled by this vault
+   * @dev total assets controlled by this vault, which is effective balance + all the balance in the actions
    */
   function _totalAsset() internal view returns (uint256) {
-    return _balance().add(_totalDebt()).sub(withdrawQueueAmount);
+    return _effectiveBalance().add(_totalDebt());
   }
 
   /**
-   * @dev returns remaining asset balance in the vault.
+   * @dev returns asset balance of the vault that's not registered to be withdrawn.
    */
-  function _balance() internal view returns (uint256) {
-    return IERC20(asset).balanceOf(address(this));
+  function _effectiveBalance() internal view returns (uint256) {
+    return IERC20(asset).balanceOf(address(this)).sub(depositQueueAmount).sub(withdrawQueueAmount);
   }
 
   /**
@@ -370,7 +378,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(_round < round, "Invalid round");
 
     uint256 queuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
-    uint256 withdrawAmount = queuedShares.mul(roundShareToAssetRatio[_round]).div(PRECISION_FACTOR);
+    uint256 withdrawAmount = queuedShares.mul(roundTotalAsset[_round]).div(roundTotalShare[_round]);
 
     // remove user's queued shares
     userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
@@ -440,21 +448,22 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * this function is called after withdrawing from action contracts
    */
   function _fixShareToAssetRatio() internal {
-    uint256 totalBalance = _balance();
+    uint256 vaultBalance = _effectiveBalance();
     uint256 outStandingShares = totalSupply();
     uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
 
     // all the queued shares + outstanding shares should equally spread the balance
     uint256 totalShares = outStandingShares.add(queuedShares);
-    uint256 ratio = totalBalance.mul(PRECISION_FACTOR).div(totalShares);
 
     // add this round's reserved asset into withdrawQueue.
     // these amount will be excluded from the totalAsset().
-    uint256 roundReservedAsset = queuedShares.mul(ratio).div(PRECISION_FACTOR);
+    uint256 roundReservedAsset = queuedShares.mul(vaultBalance).div(totalShares);
 
     withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
 
-    roundShareToAssetRatio[round] = ratio;
+    // store this round's balance and shares
+    roundTotalShare[round] = totalShares;
+    roundTotalAsset[round] = vaultBalance;
   }
 
   /**
