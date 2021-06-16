@@ -180,31 +180,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice Withdraws ETH from vault using vault shares
    * @param share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 share) external nonReentrant notEmergency {
+  function withdrawETH(uint256 share) external nonReentrant {
+    require(state == VaultState.Unlocked, "!Unlocked");
     require(asset == WETH, "!WETH");
     uint256 withdrawAmount = _withdraw(share);
-
-    IWETH(WETH).withdraw(withdrawAmount);
-    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
-    require(success, "ETH transfer failed");
-  }
-
-  /**
-   * @notice Withdraws asset from vault using vault shares
-   * @param _round the round you registered a queue withdraw
-   */
-  function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
-    uint256 withdrawAmount = _withdrawFromQueue(_round);
-    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
-  }
-
-  /**
-   * @notice Withdraws ETH from vault using vault shares
-   * @param _round the round you registered a queue withdraw
-   */
-  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
-    require(asset == WETH, "!WETH");
-    uint256 withdrawAmount = _withdrawFromQueue(_round);
 
     IWETH(WETH).withdraw(withdrawAmount);
     (bool success, ) = msg.sender.call{value: withdrawAmount}("");
@@ -228,6 +207,28 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     _burn(msg.sender, _shares);
     userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
     roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
+  }
+
+  /**
+   * @notice Withdraws asset from vault using vault shares
+   * @param _round the round you registered a queue withdraw
+   */
+  function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
+    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  }
+
+  /**
+   * @notice Withdraws ETH from vault using vault shares
+   * @param _round the round you registered a queue withdraw
+   */
+  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
+    require(asset == WETH, "!WETH");
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
+
+    IWETH(WETH).withdraw(withdrawAmount);
+    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
+    require(success, "ETH transfer failed");
   }
 
   /**
