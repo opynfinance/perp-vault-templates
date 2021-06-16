@@ -30,6 +30,9 @@ describe("OpynPerpVault Tests", function () {
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
 
+  //
+  let round0FullShareWithdrawAmount;
+
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();
     const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3, _depositor4, _random] = accounts;
@@ -147,11 +150,14 @@ describe("OpynPerpVault Tests", function () {
       // depositor 3 deposits 10 eth
       await vault.connect(depositor3).depositETH({ value: depositAmount });
     });
-    it("should be able to withdraw weth or eth", async () => {
+    it("should be able to withdraw weth", async () => {
       // depositor 4 deposit 10 eth and withdraw 10 eth
       await vault.connect(depositor4).depositETH({ value: depositAmount });
       await vault.connect(depositor4).withdraw(depositAmount);
       expect((await vault.balanceOf(depositor4.address)).isZero()).to.be.true;
+
+      // deposit 10 eth back
+      await vault.connect(depositor4).depositETH({ value: depositAmount });
     });
 
     it("should revert when trying to register a queue withdraw", async () => {
@@ -227,6 +233,10 @@ describe("OpynPerpVault Tests", function () {
       // depositor 3 register half his shares
       const d3Shares = await vault.balanceOf(depositor3.address);
       await vault.connect(depositor3).registerWithdraw(d3Shares.div(2));
+
+      // depositor 4 register all his shares
+      const d4Shares = await vault.balanceOf(depositor4.address);
+      await vault.connect(depositor4).registerWithdraw(d4Shares);
     });
 
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
@@ -276,7 +286,6 @@ describe("OpynPerpVault Tests", function () {
     });
   });
   describe("Round 1: vault Unlocked", async () => {
-    let round0HalfShare;
     it("unlocked state checks", async () => {
       expect(await vault.state()).to.eq(VaultState.Unlocked);
       expect(await vault.round()).to.eq(1);
@@ -293,7 +302,7 @@ describe("OpynPerpVault Tests", function () {
 
     it("should allow queue withdraw weth", async () => {
       // depositor1 use withdraw weth
-      const d1WethBefore = await weth.balanceOf(depositor1.address);
+      const wethBefore = await weth.balanceOf(depositor1.address);
       const reserveBefore = await vault.reservedForQueuedWithdraw();
 
       const amountTestDeposit = utils.parseUnits("1");
@@ -302,14 +311,17 @@ describe("OpynPerpVault Tests", function () {
 
       await vault.connect(depositor1).withdrawFromQueue(0);
 
-      const d1WethAfter = await weth.balanceOf(depositor1.address);
+      const wethAfter = await weth.balanceOf(depositor1.address);
       const reserveAfter = await vault.reservedForQueuedWithdraw();
       const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
       const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
       const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
 
-      expect(d1WethAfter.add(fee).sub(d1WethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
+      expect(wethAfter.add(fee).sub(wethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
       expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
+
+      // store how much depositor 1 get
+      round0FullShareWithdrawAmount = wethAfter.sub(wethBefore);
     });
 
     it("should allow queue withdraw eth", async () => {
@@ -379,6 +391,12 @@ describe("OpynPerpVault Tests", function () {
     });
   });
   describe("Round 1: vault Locked", async () => {
-    it("should be able to call withdrawQueue", async () => {});
+    it("should be able to call withdrawQueue", async () => {
+      const wethBefore = await weth.balanceOf(depositor4.address);
+      await vault.connect(depositor4).withdrawFromQueue(0);
+
+      const wethAfter = await weth.balanceOf(depositor4.address);
+      expect(round0FullShareWithdrawAmount.eq(wethAfter.sub(wethBefore))).to.be.true;
+    });
   });
 });
