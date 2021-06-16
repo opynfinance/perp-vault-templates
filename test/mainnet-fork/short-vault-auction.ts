@@ -131,8 +131,8 @@ describe("Mainnet Fork Tests for auction action", function () {
   describe("check the admin setup", async () => {
     it("should set fee reserve", async () => {
       // 10% reserve
-      await vault.connect(owner).setWithdrawReserve(reserveFactor * 100);
-      expect((await vault.withdrawReserve()).toNumber() == reserveFactor * 100).to.be.true;
+      await vault.connect(owner).setwithdrawReserveRatio(reserveFactor * 100);
+      expect((await vault.withdrawReserveRatio()).toNumber() == reserveFactor * 100).to.be.true;
     });
   });
 

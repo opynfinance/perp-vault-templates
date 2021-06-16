@@ -139,8 +139,8 @@ describe("Mainnet Fork Tests", function () {
 
     it("should set fee reserve", async () => {
       // 10% reserve
-      await vault.connect(owner).setWithdrawReserve(1000);
-      expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
+      await vault.connect(owner).setWithdrawReserveRatio(1000);
+      expect((await vault.withdrawReserveRatio()).toNumber() == 1000).to.be.true;
     });
   });
 
