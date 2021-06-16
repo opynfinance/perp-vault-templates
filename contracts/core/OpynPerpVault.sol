@@ -28,7 +28,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   uint256 public withdrawQueueAmount;
 
   /// @dev amount of asset that's been deposited into the vault, but hadn't mint share yet.
-  uint256 public depositQueueAmount;
+  uint256 public pendingDeposit;
 
   address public WETH;
 
@@ -201,7 +201,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(state == VaultState.Locked, "!Locked");
     IWETH(WETH).deposit{value: msg.value}();
     userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(msg.value);
-    depositQueueAmount = depositQueueAmount.add(msg.value);
+    pendingDeposit = pendingDeposit.add(msg.value);
   }
 
   /**
@@ -211,7 +211,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(state == VaultState.Locked, "!Locked");
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
     userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_amount);
-    depositQueueAmount = depositQueueAmount.add(_amount);
+    pendingDeposit = pendingDeposit.add(_amount);
   }
 
   /**
@@ -222,11 +222,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 amountDeposited = userRoundQueuedWithdrawShares[_depositor][_round];
 
     userRoundQueuedWithdrawShares[_depositor][_round] = 0;
-    depositQueueAmount = depositQueueAmount.sub(amountDeposited);
+    // pendingDeposit = pendingDeposit.sub(amountDeposited);
 
     uint256 equivilentShares = amountDeposited.mul(roundTotalShare[_round]).div(roundTotalAsset[_round]);
 
-    _mint(_depositor, equivilentShares);
+    // transfer shares from vault to user
+    transfer(_depositor, equivilentShares);
   }
 
   /**
@@ -258,7 +259,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function registerWithdraw(uint256 _shares) external {
     require(state == VaultState.Locked, "!Locked");
+    // transfer token to the vault
     _burn(msg.sender, _shares);
+    // _mint(address(this), _shares);
     userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
     roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
   }
@@ -291,7 +294,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function closePositions() public unlocker {
     _closeAndWithdraw();
 
-    _fixShareToAssetRatio();
+    _snapshotShareAndAsset();
 
     round = round.add(1);
   }
@@ -340,7 +343,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev returns asset balance of the vault that's not registered to be withdrawn.
    */
   function _effectiveBalance() internal view returns (uint256) {
-    return IERC20(asset).balanceOf(address(this)).sub(depositQueueAmount).sub(withdrawQueueAmount);
+    return IERC20(asset).balanceOf(address(this)).sub(pendingDeposit).sub(withdrawQueueAmount);
   }
 
   /**
@@ -456,7 +459,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev return how many shares you can get if you deposit {_amount} asset
    * @param _amount amount of token depositing
-   * @param _totalAssetAmount amont of asset already in the pool before deposit
+   * @param _totalAssetAmount amount of asset already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply().add(roundTotalQueuedWithdrawShares[round]);
@@ -483,26 +486,35 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev calculate and set the ratio of how shares can be converted to asset amounts for the current round.
+   * @dev calculate
    * this function is called after withdrawing from action contracts
    */
-  function _fixShareToAssetRatio() internal {
+  function _snapshotShareAndAsset() internal {
     uint256 vaultBalance = _effectiveBalance();
     uint256 outStandingShares = totalSupply();
     uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
 
-    // all the queued shares + outstanding shares should equally spread the balance
     uint256 totalShares = outStandingShares.add(queuedShares);
-
-    // add this round's reserved asset into withdrawQueue.
-    // these amount will be excluded from the totalAsset().
-    uint256 roundReservedAsset = queuedShares.mul(vaultBalance).div(totalShares);
-
-    withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
 
     // store this round's balance and shares
     roundTotalShare[round] = totalShares;
     roundTotalAsset[round] = vaultBalance;
+
+    // === Handle withdraw queue === //
+    // withdrawQueueAmount was keeping track of total amount that should be reserved for withdraws, not including this round
+    // add this round's reserved asset into withdrawQueueAmount, which will stay in the vault for withdraw
+    uint256 sharesToWithdrawThisRound = roundTotalQueuedWithdrawShares[round];
+    uint256 roundReservedAsset = sharesToWithdrawThisRound.mul(vaultBalance).div(totalShares);
+    withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
+
+    // === Handle deposit queue === //
+    // pendingDeposit is amount of deposit accepted in this round, which was in the vault all the time.
+    // we will calculate how much shares this amount can mint, mint it at once to the vault,
+    // and reset the pendingDeposit, so that this amount can be used in the next round.
+    uint256 sharesToMint = pendingDeposit.mul(totalShares).div(vaultBalance);
+
+    _mint(address(this), sharesToMint);
+    pendingDeposit = 0;
   }
 
   /**
