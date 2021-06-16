@@ -26,8 +26,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   uint256 public constant PRECISION_FACTOR = 1e18;
 
-  /// @dev amount of asset in the vault that's been registered to withdrawn, this amount won't go into the actions.
-  uint256 public reservedForQueuedWithdraw;
+  /// @dev amount of asset that's been registered to be withdrawn. this amount will alwasys be reserved in the vault.
+  uint256 public withdrawQueueAmount;
 
   address public WETH;
 
@@ -41,10 +41,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public constant CAP = 1000 ether;
 
+  /// @dev the current round
   uint256 public round;
-  mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares; // user's reserved share for a round
 
-  mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares; // total reserved shares for a round
+  /// @dev user's share registered to withdraw for a round
+  mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
+
+  /// @dev total registered shares for a round
+  mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares;
 
   mapping(uint256 => uint256) public roundShareToAssetRatio;
 
@@ -282,7 +286,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * total assets controlled by this vault
    */
   function _totalAsset() internal view returns (uint256) {
-    return _balance().add(_totalDebt()).sub(reservedForQueuedWithdraw);
+    return _balance().add(_totalDebt()).sub(withdrawQueueAmount);
   }
 
   /**
@@ -370,8 +374,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     // remove user's queued shares
     userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
-    // decrease total asset we reserved for queued withdraw
-    reservedForQueuedWithdraw = reservedForQueuedWithdraw.sub(withdrawAmount);
+    // decrease total asset we reserved for withdraw
+    withdrawQueueAmount = withdrawQueueAmount.sub(withdrawAmount);
 
     uint256 amountPostFee = _payFee(withdrawAmount);
 
@@ -444,11 +448,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 totalShares = outStandingShares.add(queuedShares);
     uint256 ratio = totalBalance.mul(PRECISION_FACTOR).div(totalShares);
 
-    // add this round's reserved asset into reservedForQueuedWithdraw.
+    // add this round's reserved asset into withdrawQueue.
     // these amount will be excluded from the totalAsset().
     uint256 roundReservedAsset = queuedShares.mul(ratio).div(PRECISION_FACTOR);
 
-    reservedForQueuedWithdraw = reservedForQueuedWithdraw.add(roundReservedAsset);
+    withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
 
     roundShareToAssetRatio[round] = ratio;
   }

@@ -270,7 +270,7 @@ describe("OpynPerpVault Tests", function () {
 
       const totalAssetAfter = await vault.totalAsset();
 
-      const totalReservedForQueueWithdraw = await vault.reservedForQueuedWithdraw();
+      const totalReservedForQueueWithdraw = await vault.withdrawQueueAmount();
 
       const vaultBalanceAfter = await weth.balanceOf(vault.address);
       const action1BalanceAfter = await weth.balanceOf(action1.address);
@@ -296,7 +296,7 @@ describe("OpynPerpVault Tests", function () {
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith("!Locked");
     });
     it("should have correct reserved for withdraw", async () => {
-      const totalReservedForRoundWithdraw = await vault.reservedForQueuedWithdraw();
+      const totalReservedForRoundWithdraw = await vault.withdrawQueueAmount();
       const vaultTotalWeth = await weth.balanceOf(vault.address);
       const totalAsset = await vault.totalAsset();
       expect(vaultTotalWeth.sub(totalAsset).eq(totalReservedForRoundWithdraw)).to.be.true;
@@ -305,7 +305,7 @@ describe("OpynPerpVault Tests", function () {
     it("should allow queue withdraw weth", async () => {
       // depositor1 use withdraw weth
       const wethBefore = await weth.balanceOf(depositor1.address);
-      const reserveBefore = await vault.reservedForQueuedWithdraw();
+      const reserveBefore = await vault.withdrawQueueAmount();
 
       const amountTestDeposit = utils.parseUnits("1");
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
@@ -314,7 +314,7 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(depositor1).withdrawFromQueue(0);
 
       const wethAfter = await weth.balanceOf(depositor1.address);
-      const reserveAfter = await vault.reservedForQueuedWithdraw();
+      const reserveAfter = await vault.withdrawQueueAmount();
       const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
       const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
       const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
@@ -329,7 +329,7 @@ describe("OpynPerpVault Tests", function () {
     it("should allow queue withdraw eth", async () => {
       // depositor2 use withdrawETHFromQueue
       const ethBefore = await depositor2.getBalance();
-      const reserveBefore = await vault.reservedForQueuedWithdraw();
+      const reserveBefore = await vault.withdrawQueueAmount();
 
       const amountTestDeposit = utils.parseUnits("1");
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
@@ -338,7 +338,7 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(depositor2).withdrawETHFromQueue(0, { gasPrice: 0 });
 
       const ethAfter = await depositor2.getBalance();
-      const reserveAfter = await vault.reservedForQueuedWithdraw();
+      const reserveAfter = await vault.withdrawQueueAmount();
       const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
       const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
       const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
@@ -373,7 +373,7 @@ describe("OpynPerpVault Tests", function () {
     });
 
     it("should be able to rollover again", async () => {
-      const totalReservedForRoundWithdraw = await vault.reservedForQueuedWithdraw();
+      const totalReservedForRoundWithdraw = await vault.withdrawQueueAmount();
 
       const action1BalanceBefore = await weth.balanceOf(action1.address);
       const action2BalanceBefore = await weth.balanceOf(action2.address);
