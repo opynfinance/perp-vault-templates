@@ -24,7 +24,7 @@ contract AuctionUtils {
   }
 
   /**
-   * participate in an auction.
+   * @dev participate in an auction
    */
   function _bidInAuction(
     address _auctioningAsset,

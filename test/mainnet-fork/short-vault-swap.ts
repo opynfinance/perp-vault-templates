@@ -59,7 +59,6 @@ describe("Mainnet Fork Tests", function () {
    */
   const day = 86400;
   const controllerAddress = "0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72";
-  const whitelistAddress = "0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779";
   const swapAddress = "0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA";
   const oracleAddress = "0xc497f40D1B7db6FA5017373f1a0Ec6d53126Da23";
   const opynOwner = "0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB";
@@ -104,7 +103,6 @@ describe("Mainnet Fork Tests", function () {
       weth.address,
       swapAddress,
       ethers.constants.AddressZero,
-      whitelistAddress,
       controllerAddress,
       0 // type 0 vault
     )) as ShortOToken;

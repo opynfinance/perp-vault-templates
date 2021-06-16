@@ -35,15 +35,28 @@ contract MockController {
 
   IPool public pool;
   address public oracle;
+  address public whitelist;
 
   bool public vaultOpened;
 
   address public cacheCollateralAsset;
 
   uint256 public mockSettlePayout;
+  uint256 public mockRedeemPayout;
+
+  address public redeemPayoutAsset;
 
   function setSettlePayout(uint256 _payout) external {
     mockSettlePayout = _payout;
+  }
+
+  function setRedeemPayout(address _redeemPayoutAsset, uint256 _payout) external {
+    mockRedeemPayout = _payout;
+    redeemPayoutAsset = _redeemPayoutAsset;
+  }
+
+  function setWhitelist(address _whitelist) external {
+    whitelist = _whitelist;
   }
 
   function setPool(address _pool) external {
@@ -88,6 +101,8 @@ contract MockController {
       else if (action.actionType == ActionType.SettleVault) {
         address owner = action.owner;
         pool.transferToUser(owner, cacheCollateralAsset, mockSettlePayout);
+      } else if (action.actionType == ActionType.Redeem) {
+        pool.transferToUser(action.secondAddress, redeemPayoutAsset, mockRedeemPayout);
       }
     }
   }

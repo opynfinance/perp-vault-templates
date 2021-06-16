@@ -3,12 +3,12 @@ pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {GammaUtils} from "../utils/GammaUtils.sol";
-import {RollOverBase} from "../utils/RollOverBase.sol";
 
-// use airswap to short / long
+import {RollOverBase} from "../utils/RollOverBase.sol";
+import {GammaUtils} from "../utils/GammaUtils.sol";
+// use airswap to long
 import {AirswapUtils} from "../utils/AirswapUtils.sol";
-// use auction to short / long
+// use auction to long
 import {AuctionUtils} from "../utils/AuctionUtils.sol";
 
 import {SwapTypes} from "../libraries/SwapTypes.sol";
@@ -22,17 +22,15 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {IOToken} from "../interfaces/IOToken.sol";
 
 /**
- * This is an Short Action template that inherit lots of util functions to "Short" an option.
+ * This is an Long Action template that inherit lots of util functions to "Long" an option.
  * You can remove the function you don't need.
  */
-contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaUtils {
+contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
   /// @dev 100%
   uint256 public constant BASE = 10000;
-  uint256 public constant MIN_PROFITS = 100; // 1%
-  uint256 public lockedAsset;
   uint256 public rolloverTime;
 
   address public immutable vault;
@@ -44,8 +42,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     address _asset,
     address _airswap,
     address _easyAuction,
-    address _controller,
-    uint256 _vaultType
+    address _controller
   ) {
     vault = _vault;
     asset = _asset;
@@ -55,22 +52,14 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
     _initGammaUtil(_controller);
 
-    // enable pool contract to pull asset from this contract to mint options.
-    address pool = controller.pool();
-
     oracle = IOracle(controller.oracle());
-    address whitelist = controller.whitelist();
 
-    IERC20(_asset).safeApprove(pool, uint256(-1));
-
-    // init the contract used to short
+    // init the contract used to execute trades
     _initAuction(_easyAuction);
     _initSwapContract(_airswap);
 
-    _initRollOverBase(whitelist);
+    _initRollOverBase(controller.whitelist());
     __Ownable_init();
-
-    _openGammaVault(_vaultType);
   }
 
   modifier onlyVault() {
@@ -84,10 +73,8 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 assetBalance = IERC20(asset).balanceOf(address(this));
-    return assetBalance.add(lockedAsset);
-
-    // todo: caclulate cash value to avoid not early withdraw to avoid loss.
+    return IERC20(asset).balanceOf(address(this));
+    // todo: add cash value of the otoken that we're long
   }
 
   /**
@@ -95,11 +82,13 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
    */
   function closePosition() external override onlyVault {
     require(canClosePosition(), "Cannot close position");
-    if (_canSettleVault()) {
-      _settleGammaVault();
+    if (otoken != address(0)) {
+      uint256 amount = IERC20(otoken).balanceOf(address(this));
+      _redeemOTokens(otoken, amount);
+
+      // todo: convert asset get from redeem to the asset this strategy is based on
     }
     _setActionIdle();
-    lockedAsset = 0;
   }
 
   /**
@@ -110,36 +99,40 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     rolloverTime = block.timestamp;
   }
 
-  // Short Functions
+  /**
+   * @notice the function will return when someone can close a position. 1 day after rollover,
+   * if the option wasn't sold, anyone can close the position.
+   */
+  function canClosePosition() public view returns (bool) {
+    if (otoken != address(0)) {
+      return controller.isSettlementAllowed(otoken);
+    }
+    // no otoken committed or longing
+    return block.timestamp > rolloverTime + 1 days;
+  }
+
+  // Long Functions
+  // Keep the functions you need to buy otokens.
 
   /**
-   * @dev owner only function to mint options with "assets" and start an aunction to start it.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   * @dev owner only function to start an aunction to buy otokens
    */
-  function mintAndStartAuction(
-    uint256 _collateralAmount,
-    uint256 _otokenToMint,
-    uint96 _otokenToSell,
+  function startAuction(
     uint256 _orderCancellationEndDate,
     uint256 _auctionEndDate,
-    uint96 _minPremium,
+    uint96 _premium,
+    uint96 _minOTokenToBuy,
     uint256 _minimumBiddingAmountPerOrder,
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
   ) external onlyOwner onlyActivated {
-    // mint token
-    if (_collateralAmount > 0 && _otokenToMint > 0) {
-      lockedAsset = lockedAsset.add(_collateralAmount);
-      _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
-    }
-
     _startAuction(
-      otoken,
-      asset,
+      asset, // auctioning token
+      otoken, // bidding auction
       _orderCancellationEndDate,
       _auctionEndDate,
-      _otokenToSell,
-      _minPremium, // minBuyAmount
+      _premium, // _auctionedSellAmount
+      _minOTokenToBuy, // minBuyAmount
       _minimumBiddingAmountPerOrder,
       _minFundingThreshold,
       _isAtomicClosureAllowed
@@ -147,69 +140,32 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev mint options with "asset" and participate in an auction to sell it for asset.
+   * @dev participate in an auction to buy otoken.
    */
-  function mintAndBidInAuction(
+  function bidInAuction(
     uint256 _auctionId,
-    uint256 _collateralAmount,
-    uint256 _otokenToMint,
-    uint96[] memory _minBuyAmounts, // min amount of asset to get (premium)
-    uint96[] memory _sellAmounts, // amount of otoken selling
+    uint96[] memory _minBuyAmounts, // amount of otoken to buy
+    uint96[] memory _sellAmounts, // amount of asset to pay
     bytes32[] memory _prevSellOrders,
     bytes calldata _allowListCallData
   ) external onlyOwner onlyActivated {
-    // mint token
-    if (_collateralAmount > 0 && _otokenToMint > 0) {
-      lockedAsset = lockedAsset.add(_collateralAmount);
-      _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
-    }
-
-    _bidInAuction(asset, otoken, _auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, _allowListCallData);
+    _bidInAuction(otoken, asset, _auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, _allowListCallData);
   }
 
   /**
-   * @dev mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   * @dev execute OTC trade to buy oToken.
    */
-  function mintAndTradeAirSwapOTC(
-    uint256 _collateralAmount,
-    uint256 _otokenAmount,
-    SwapTypes.Order memory _order
-  ) external onlyOwner onlyActivated {
+  function tradeAirswapOTC(SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), "!Sender");
-    require(_order.sender.token == otoken, "Can only sell otoken");
-    require(_order.signer.token == asset, "Can only sell for asset");
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, "Need minimum option premium");
-
-    lockedAsset = lockedAsset.add(_collateralAmount);
-
-    // mint otoken using the util function
-    _mintOTokens(asset, _collateralAmount, otoken, _otokenAmount);
+    require(_order.sender.token == asset, "Can only pay with asset");
+    require(_order.signer.token == otoken, "Can only buy otoken");
 
     _fillAirswapOrder(_order);
   }
 
-  /**
-   * @notice the function will return when someone can close a position. 1 day after rollover,
-   * if the option wasn't sold, anyone can close the position.
-   */
-  function canClosePosition() public view returns (bool) {
-    if (otoken != address(0) && lockedAsset != 0) {
-      return _canSettleVault();
-    }
-    return block.timestamp > rolloverTime + 1 days;
-  }
+  // End of Long Funtions
 
-  /**
-   * @dev checks if the current vault can be settled
-   */
-  function _canSettleVault() internal view returns (bool) {
-    if (lockedAsset != 0 && otoken != address(0)) {
-      return controller.isSettlementAllowed(otoken);
-    }
-
-    return false;
-  }
+  // Custom Checks
 
   /**
    * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
@@ -224,7 +180,6 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     );
     require(_isValidExpiry(otokenToCheck.expiryTimestamp()), "Invalid expiry");
     // add more checks here
-    // check underlying or strike asset is valid .. etc
   }
 
   /**
