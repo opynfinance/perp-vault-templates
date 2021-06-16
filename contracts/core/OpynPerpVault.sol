@@ -219,15 +219,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function claimShares(address _depositor, uint256 _round) external {
     require(_round < round, "Invalid round");
-    uint256 amountDeposited = userRoundQueuedWithdrawShares[_depositor][_round];
+    uint256 amountDeposited = userRoundQueuedDepositAmount[_depositor][_round];
 
-    userRoundQueuedWithdrawShares[_depositor][_round] = 0;
-    // pendingDeposit = pendingDeposit.sub(amountDeposited);
+    userRoundQueuedDepositAmount[_depositor][_round] = 0;
 
     uint256 equivilentShares = amountDeposited.mul(roundTotalShare[_round]).div(roundTotalAsset[_round]);
 
     // transfer shares from vault to user
-    transfer(_depositor, equivilentShares);
+    _transfer(address(this), _depositor, equivilentShares);
   }
 
   /**
@@ -393,23 +392,20 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function _distribute(uint256[] memory _percentages) internal nonReentrant {
     uint256 cacheTotalAsset = _totalAsset();
-    uint256 cacheBase = BASE;
 
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage;
-    address cacheAsset = asset;
-
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_percentages[i]);
-      require(sumPercentage <= cacheBase, "PERCENTAGE_SUM_EXCEED_MAX");
+      require(sumPercentage <= BASE, "PERCENTAGE_SUM_EXCEED_MAX");
 
-      uint256 newAmount = cacheTotalAsset.mul(_percentages[i]).div(cacheBase);
+      uint256 newAmount = cacheTotalAsset.mul(_percentages[i]).div(BASE);
 
-      if (newAmount > 0) IERC20(cacheAsset).safeTransfer(actions[i], newAmount);
+      if (newAmount > 0) IERC20(asset).safeTransfer(actions[i], newAmount);
       IAction(actions[i]).rolloverPosition();
     }
 
-    require(sumPercentage == cacheBase, "PERCENTAGE_DOESNT_ADD_UP");
+    require(sumPercentage == BASE, "PERCENTAGE_DOESNT_ADD_UP");
   }
 
   /**

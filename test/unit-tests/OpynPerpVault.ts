@@ -173,7 +173,12 @@ describe("OpynPerpVault Tests", function () {
       // deposit 10 eth back
       await vault.connect(depositor4).depositETH({ value: depositAmount });
     });
-
+    it("should revert when trying to register a deposit", async () => {
+      await expect(vault.connect(depositor3).registerDeposit(depositAmount)).to.be.revertedWith("!Locked");
+      await expect(vault.connect(depositor3).registerDepositETH({ value: depositAmount })).to.be.revertedWith(
+        "!Locked"
+      );
+    });
     it("should revert when trying to register a queue withdraw", async () => {
       const shares = await vault.balanceOf(depositor3.address);
       await expect(vault.connect(depositor3).registerWithdraw(shares)).to.be.revertedWith("!Locked");
@@ -182,8 +187,10 @@ describe("OpynPerpVault Tests", function () {
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith("!Locked");
     });
     it("should revert if rollover is called with total percentage > 100", async () => {
-      // max percentage sum should be 90% (9000) because 10% is set for reserve
       await expect(vault.connect(owner).rollOver([5000, 6000])).to.be.revertedWith("PERCENTAGE_SUM_EXCEED_MAX");
+    });
+    it("should revert if rollover is called with total percentage < 100", async () => {
+      await expect(vault.connect(owner).rollOver([5000, 4000])).to.be.revertedWith("PERCENTAGE_DOESNT_ADD_UP");
     });
     it("should revert if rollover is called with invalid percentage array", async () => {
       await expect(vault.connect(owner).rollOver([5000])).to.be.revertedWith("INVALID_INPUT");
@@ -268,29 +275,47 @@ describe("OpynPerpVault Tests", function () {
       const totalAssetBefore = await vault.totalAsset();
       const sharesBefore = await vault.balanceOf(depositor5.address);
       const vaultWethBefore = await weth.balanceOf(vault.address);
+      const testAmountToGetBefore = await vault.getSharesByDepositAmount(depositAmount);
 
       await vault.connect(depositor5).registerDepositETH({ value: depositAmount });
 
       const totalAssetAfter = await vault.totalAsset();
       const sharesAfter = await vault.balanceOf(depositor5.address);
       const vaultWethAfter = await weth.balanceOf(vault.address);
+      const testAmountToGetAfter = await vault.getSharesByDepositAmount(depositAmount);
 
       expect(sharesAfter.eq(sharesBefore), "should not mint shares").to.be.true;
       expect(vaultWethAfter.sub(vaultWethBefore).eq(depositAmount)).to.be.true;
       expect(totalAssetAfter.eq(totalAssetBefore), "should not affect totalAsset").to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore)).to.be.true;
     });
 
-    it("should be able to schedule a deposit with ETH", async () => {
-      const sharesBefore = await vault.balanceOf(depositor5.address);
+    it("should be able to schedule a deposit with WETH", async () => {
+      await weth.connect(depositor6).deposit({ value: depositAmount });
+      await weth.connect(depositor6).approve(vault.address, ethers.constants.MaxUint256);
+
+      const totalAssetBefore = await vault.totalAsset();
+      const sharesBefore = await vault.balanceOf(depositor6.address);
       const vaultWethBefore = await weth.balanceOf(vault.address);
-      await vault.connect(depositor5).registerDepositETH({ value: depositAmount });
-      const sharesAfter = await vault.balanceOf(depositor5.address);
+      const testAmountToGetBefore = await vault.getSharesByDepositAmount(depositAmount);
+
+      await vault.connect(depositor6).registerDeposit(depositAmount);
+
+      const totalAssetAfter = await vault.totalAsset();
+      const sharesAfter = await vault.balanceOf(depositor6.address);
       const vaultWethAfter = await weth.balanceOf(vault.address);
-      expect(sharesAfter.sub(sharesBefore).isZero(), "should not mint shares").to.be.true;
+      const testAmountToGetAfter = await vault.getSharesByDepositAmount(depositAmount);
+
+      expect(sharesAfter.eq(sharesBefore), "should not mint shares").to.be.true;
       expect(vaultWethAfter.sub(vaultWethBefore).eq(depositAmount)).to.be.true;
+      expect(totalAssetAfter.eq(totalAssetBefore), "should not affect totalAsset").to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore)).to.be.true;
     });
     it("should revert if trying to get withdraw from queue now", async () => {
       await expect(vault.connect(depositor1).withdrawFromQueue(0)).to.be.revertedWith("Invalid round");
+    });
+    it("should revert if trying to get claim shares now", async () => {
+      await expect(vault.connect(depositor1).claimShares(depositor5.address, 0)).to.be.revertedWith("Invalid round");
     });
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
       await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith("!Emergency");
@@ -303,6 +328,8 @@ describe("OpynPerpVault Tests", function () {
       await expect(vault.connect(depositor1).depositETH({ value: utils.parseUnits("1") })).to.be.revertedWith(
         "!Unlocked"
       );
+
+      await expect(vault.connect(depositor1).withdrawFromQueue(0)).to.be.revertedWith("Emergency");
 
       await vault.connect(owner).resumeFromPause();
       expect((await vault.state()) === stateBefore).to.be.true;
@@ -324,7 +351,6 @@ describe("OpynPerpVault Tests", function () {
       const totalAssetAfter = await vault.totalAsset();
 
       const totalReservedForQueueWithdraw = await vault.withdrawQueueAmount();
-
       const vaultBalanceAfter = await weth.balanceOf(vault.address);
       const action1BalanceAfter = await weth.balanceOf(action1.address);
       const action2BalanceAfter = await weth.balanceOf(action2.address);
@@ -357,6 +383,23 @@ describe("OpynPerpVault Tests", function () {
       const totalAsset = await vault.totalAsset();
       expect(vaultTotalWeth.sub(totalInWithdrawQueue).eq(totalAsset)).to.be.true;
       expect(pendingDeposit.isZero()).to.be.true;
+    });
+
+    it("should allow anyone can trigger claim shares", async () => {
+      const depositAmount = utils.parseUnits("10");
+      // claim for depositor 5
+      const totalSupplyBefore = await vault.totalSupply();
+      const shareBalanceBefore = await vault.balanceOf(depositor5.address);
+
+      // how much shares you should get
+      const calculatedShares = await vault.getSharesByDepositAmount(depositAmount);
+
+      await vault.connect(random).claimShares(depositor5.address, 0);
+
+      const totalSupplyAfter = await vault.totalSupply();
+      const shareBalanceAfter = await vault.balanceOf(depositor5.address);
+      expect(totalSupplyBefore.eq(totalSupplyAfter)).to.be.true;
+      expect(shareBalanceAfter.sub(shareBalanceBefore).eq(calculatedShares)).to.be.true;
     });
 
     it("should allow queue withdraw weth", async () => {
