@@ -3,6 +3,7 @@ import { utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
+import { isRegularExpressionLiteral } from "typescript";
 
 enum VaultState {
   Locked,
@@ -107,13 +108,6 @@ describe("OpynPerpVault Tests", function () {
       expect((await vault.WETH()) === weth.address).to.be.true;
     });
 
-    it("should set fee reserve", async () => {
-      await expect(vault.connect(owner).setWithdrawReserveRatio(6000)).to.be.revertedWith("Reserve cannot exceed 50%");
-
-      await vault.connect(owner).setWithdrawReserveRatio(1000);
-      expect((await vault.withdrawReserveRatio()).toNumber() == 1000).to.be.true;
-    });
-
     it("should revert if someone tries to send ETH to the vault", async () => {
       await expect(depositor1.sendTransaction({ to: vault.address, value: utils.parseUnits("1") })).to.be.revertedWith(
         "Cannot receive ETH"
@@ -121,12 +115,16 @@ describe("OpynPerpVault Tests", function () {
     });
   });
 
-  describe("genesis: before first cycle start", async () => {
+  describe("Round 0, vault unlocked", async () => {
     const depositAmount = utils.parseUnits("10");
     before("mint some WETH for depositor 2", async () => {
       // deposit 10 eth into weth
       await weth.connect(depositor2).deposit({ value: depositAmount });
       await weth.connect(depositor2).approve(vault.address, ethers.constants.MaxUint256);
+    });
+    it("unlocked state checks", async () => {
+      expect(await vault.state()).to.eq(VaultState.Unlocked);
+      expect(await vault.round()).to.eq(0);
     });
     it("should revert if calling depositETH with no value", async () => {
       await expect(vault.connect(depositor1).depositETH()).to.be.revertedWith("!VALUE");
@@ -169,7 +167,7 @@ describe("OpynPerpVault Tests", function () {
     });
     it("should revert if rollover is called with total percentage > 100", async () => {
       // max percentage sum should be 90% (9000) because 10% is set for reserve
-      await expect(vault.connect(owner).rollOver([5000, 5000])).to.be.revertedWith("PERCENTAGE_SUM_EXCEED_MAX");
+      await expect(vault.connect(owner).rollOver([5000, 6000])).to.be.revertedWith("PERCENTAGE_SUM_EXCEED_MAX");
     });
     it("should revert if rollover is called with invalid percentage array", async () => {
       await expect(vault.connect(owner).rollOver([5000])).to.be.revertedWith("INVALID_INPUT");
@@ -181,30 +179,38 @@ describe("OpynPerpVault Tests", function () {
       const totalValueBefore = await vault.totalAsset();
 
       // Distribution:
-      // 40% - action1
-      // 50% - action2
-      await vault.connect(owner).rollOver([4000, 5000]);
+      // 60% - action1
+      // 40% - action2
+      await vault.connect(owner).rollOver([6000, 4000]);
 
       const vaultBalanceAfter = await weth.balanceOf(vault.address);
       const action1BalanceAfter = await weth.balanceOf(action1.address);
       const action2BalanceAfter = await weth.balanceOf(action2.address);
       const totalValueAfter = await vault.totalAsset();
 
-      expect(action1BalanceAfter.sub(action1BalanceBefore).eq(vaultBalanceBefore.mul(4).div(10))).to.be.true;
-      expect(action2BalanceAfter.sub(action2BalanceBefore).eq(vaultBalanceBefore.mul(5).div(10))).to.be.true;
+      expect(action1BalanceAfter.sub(action1BalanceBefore).eq(vaultBalanceBefore.mul(6).div(10))).to.be.true;
+      expect(action2BalanceAfter.sub(action2BalanceBefore).eq(vaultBalanceBefore.mul(4).div(10))).to.be.true;
 
-      expect(vaultBalanceAfter.eq(vaultBalanceBefore.div(10))).to.be.true;
+      expect(vaultBalanceAfter.isZero()).to.be.true;
 
       expect(totalValueAfter.eq(totalValueBefore), "total value should stay unaffected").to.be.true;
 
       expect((await vault.state()) === VaultState.Locked).to.be.true;
     });
-    it("should revert when trying to call rollover again", async () => {
-      await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith("Locked");
+  });
+  describe("Round 0, vault Locked", async () => {
+    it("locked state checks", async () => {
+      expect(await vault.state()).to.eq(VaultState.Locked);
+      expect(await vault.round()).to.eq(0);
     });
-    it("should revert when trying to do normal withdraw", async () => {
+    it("should revert when trying to call rollover again", async () => {
+      await expect(vault.connect(owner).rollOver([7000, 3000])).to.be.revertedWith("Locked");
+    });
+    it("should revert when trying to withdraw", async () => {
       const depositor1Shares = await vault.balanceOf(depositor1.address);
       await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("Locked");
+
+      await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("Locked");
       // withdraw 10%
       // const withdrawShareAmount = depositor1Shares.div(10);
       // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
@@ -231,47 +237,57 @@ describe("OpynPerpVault Tests", function () {
     });
 
     it("should be able to register a withdraw", async () => {
-      const shares = await vault.balanceOf(depositor3.address);
-      await vault.connect(depositor3).registerWithdraw(shares);
-      const balanceAfter = await vault.balanceOf(depositor3.address);
-      expect(balanceAfter.isZero()).to.be.true;
+      const d1Shares = await vault.balanceOf(depositor1.address);
+      await vault.connect(depositor1).registerWithdraw(d1Shares);
+      const d1SharesAfter = await vault.balanceOf(depositor1.address);
+      expect(d1SharesAfter.isZero()).to.be.true;
 
       const round = await vault.round();
-      const queuedShares = await vault.userRoundQueuedWithdrawShares(depositor3.address, round);
-      expect(queuedShares.eq(shares)).to.be.true;
+      const d1QueuedShares = await vault.userRoundQueuedWithdrawShares(depositor1.address, round);
+      expect(d1QueuedShares.eq(d1Shares)).to.be.true;
       const totalQueuedShares = await vault.roundTotalQueuedWithdrawShares(round);
-      expect(totalQueuedShares.eq(shares)).to.be.true;
+      expect(totalQueuedShares.eq(d1Shares)).to.be.true;
+
+      // let depositor 2 register withdraw half of his shares
+      const d2Shares = await vault.balanceOf(depositor2.address);
+      const sharesBurned = d2Shares.div(2);
+      await vault.connect(depositor2).registerWithdraw(sharesBurned);
+      const d2SharesAfter = await vault.balanceOf(depositor2.address);
+      expect(d2SharesAfter.eq(d2Shares.sub(sharesBurned))).to.be.true;
+
+      const d2QueuedShares = await vault.userRoundQueuedWithdrawShares(depositor2.address, round);
+      expect(d2QueuedShares.eq(sharesBurned)).to.be.true;
+      const finalQueuedShares = await vault.roundTotalQueuedWithdrawShares(round);
+      expect(finalQueuedShares.sub(totalQueuedShares).eq(sharesBurned)).to.be.true;
     });
 
-    it("should revert when trying withdraw WETH", async () => {
-      const depositor1Shares = await vault.balanceOf(depositor1.address);
-      await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("Locked");
+    // it("should revert when trying withdraw WETH", async () => {
 
-      // const depositor2Shares = await vault.balanceOf(depositor2.address);
-      // // withdraw 10%
-      // const withdrawShareAmount = depositor2Shares.div(10);
-      // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
+    // const depositor2Shares = await vault.balanceOf(depositor2.address);
+    // // withdraw 10%
+    // const withdrawShareAmount = depositor2Shares.div(10);
+    // const expectedAmount = await vault.getWithdrawAmountByShares(withdrawShareAmount);
 
-      // const vaultBalanceBefore = await weth.balanceOf(vault.address);
-      // const totalSupplyBefore = await vault.totalSupply();
-      // const wethBalanceBefore = await weth.balanceOf(depositor2.address);
+    // const vaultBalanceBefore = await weth.balanceOf(vault.address);
+    // const totalSupplyBefore = await vault.totalSupply();
+    // const wethBalanceBefore = await weth.balanceOf(depositor2.address);
 
-      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+    // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
-      // // withdraw weth
-      // await vault.connect(depositor2).withdraw(withdrawShareAmount);
+    // // withdraw weth
+    // await vault.connect(depositor2).withdraw(withdrawShareAmount);
 
-      // const vaultBalanceAfter = await weth.balanceOf(vault.address);
-      // const totalSupplyAfter = await vault.totalSupply();
-      // const wethBalanceAfter = await weth.balanceOf(depositor2.address);
+    // const vaultBalanceAfter = await weth.balanceOf(vault.address);
+    // const totalSupplyAfter = await vault.totalSupply();
+    // const wethBalanceAfter = await weth.balanceOf(depositor2.address);
 
-      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+    // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+    // const feeCollected = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
 
-      // expect(wethBalanceAfter.sub(wethBalanceBefore).eq(expectedAmount)).to.be.true;
-      // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
-      // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
-    });
+    // expect(wethBalanceAfter.sub(wethBalanceBefore).eq(expectedAmount)).to.be.true;
+    // expect(vaultBalanceBefore.sub(vaultBalanceAfter).eq(expectedAmount.add(feeCollected))).to.be.true;
+    // expect(totalSupplyBefore.sub(totalSupplyAfter).eq(withdrawShareAmount)).to.be.true;
+    // });
     it("should revert if calling resumeFrom pause when vault is normal", async () => {
       await expect(vault.connect(owner).resumeFromPause()).to.be.revertedWith("!Emergency");
     });
@@ -287,15 +303,11 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(owner).resumeFromPause();
       expect((await vault.state()) === stateBefore).to.be.true;
     });
-  });
-  describe("close position", async () => {
-    before("pretend that action1 made money", async () => {
+    it("should be able to close position", async () => {
       // mint 1 weth and send it to action1
       await weth.connect(random).deposit({ value: utils.parseUnits("1") });
       await weth.connect(random).transfer(action1.address, utils.parseUnits("1"));
-    });
 
-    it("should be able to close position", async () => {
       const totalAssetBefore = await vault.totalAsset();
       const vaultBalanceBefore = await weth.balanceOf(vault.address);
 
@@ -320,6 +332,12 @@ describe("OpynPerpVault Tests", function () {
           .eq(action2BalanceBefore.sub(action2BalanceAfter).add(action1BalanceBefore.sub(action1BalanceAfter))),
         "erc20 balance mismatch"
       ).to.be.true;
+    });
+  });
+  describe("Round 1: vault Unlocked", async () => {
+    it("unlocked state checks", async () => {
+      expect(await vault.state()).to.eq(VaultState.Unlocked);
+      expect(await vault.round()).to.eq(1);
     });
     it("should revert if calling closePositions again", async () => {
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith("!Locked");

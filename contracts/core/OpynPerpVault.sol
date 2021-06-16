@@ -23,8 +23,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   uint256 public constant BASE = 10000; // 100%
 
-  /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
-  uint256 public withdrawReserveRatio;
+  /// @dev amount of asset in the vault that's been registered to withdrawn, this amount won't go into the actions.
   uint256 public reservedForQueuedWithdraw;
 
   address public WETH;
@@ -254,13 +253,13 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     _distribute(_allocationPercentages);
   }
 
-  /**
-   * @dev set the percentage that should be reserved in vault for withdraw
-   */
-  function setWithdrawReserveRatio(uint256 _reserve) external onlyOwner {
-    require(_reserve < 5000, "Reserve cannot exceed 50%");
-    withdrawReserveRatio = _reserve;
-  }
+  // /**
+  //  * @dev set the percentage that should be reserved in vault for withdraw
+  //  */
+  // function setWithdrawReserveRatio(uint256 _reserve) external onlyOwner {
+  //   require(_reserve < 5000, "Reserve cannot exceed 50%");
+  //   withdrawReserveRatio = _reserve;
+  // }
 
   /**
    * @dev set the state to "Emergency", which disable all withdraw and deposit
@@ -348,7 +347,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 cacheBase = BASE;
 
     // keep track of total percentage to make sure we're summing up to 100%
-    uint256 sumPercentage = withdrawReserveRatio;
+    uint256 sumPercentage;
     address cacheAsset = asset;
 
     for (uint8 i = 0; i < actions.length; i = i + 1) {
