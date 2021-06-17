@@ -136,12 +136,6 @@ describe("Mainnet Fork Tests", function () {
       expect((await vault.totalAsset()).isZero(), "total asset should be zero").to.be.true;
       expect((await vault.WETH()) === weth.address).to.be.true;
     });
-
-    it("should set fee reserve", async () => {
-      // 10% reserve
-      await vault.connect(owner).setWithdrawReserveRatio(1000);
-      expect((await vault.withdrawReserveRatio()).toNumber() == 1000).to.be.true;
-    });
   });
 
   describe("profitable scenario", async () => {
@@ -149,12 +143,8 @@ describe("Mainnet Fork Tests", function () {
     const p2DepositAmount = utils.parseEther("70");
     const p3DepositAmount = utils.parseEther("20");
     const premium = utils.parseEther("1");
-    let totalAmountInVault;
-    let actualAmountInVault;
-    let actualAmountInAction;
     let otoken: IOToken;
     let expiry;
-    const reserveFactor = 10;
     this.beforeAll("deploy otoken that will be sold and set up counterparty", async () => {
       const otokenStrikePrice = 500000000000;
       const blockNumber = await provider.getBlockNumber();
@@ -182,19 +172,17 @@ describe("Mainnet Fork Tests", function () {
       await weth.connect(counterpartyWallet).approve(swapAddress, premium);
     });
     it("p1 deposits", async () => {
-      totalAmountInVault = p1DepositAmount;
-      actualAmountInVault = totalAmountInVault;
       await vault.connect(depositor1).depositETH({ value: p1DepositAmount });
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect((await vault.totalAsset()).eq(p1DepositAmount), "total asset should update").to.be.true;
+      expect(await weth.balanceOf(vault.address)).to.be.equal(p1DepositAmount);
     });
 
     it("p2 deposits", async () => {
-      totalAmountInVault = totalAmountInVault.add(p2DepositAmount);
-      actualAmountInVault = totalAmountInVault;
+      const existingAmount = await weth.balanceOf(vault.address);
       await vault.connect(depositor2).depositETH({ value: p2DepositAmount });
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      const newBalance = existingAmount.add(p2DepositAmount);
+      expect((await vault.totalAsset()).eq(newBalance), "total asset should update").to.be.true;
+      expect(await weth.balanceOf(vault.address)).to.be.equal(newBalance);
     });
 
     it("owner commits to the option", async () => {
@@ -211,11 +199,12 @@ describe("Mainnet Fork Tests", function () {
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
       await provider.send("evm_mine", []);
 
-      await vault.rollOver([(100 - reserveFactor) * 100]);
+      await vault.rollOver([10000]);
 
-      const collateralAmount = totalAmountInVault.mul(100 - reserveFactor).div(100);
-      actualAmountInVault = totalAmountInVault.sub(collateralAmount);
-      const sellAmount = collateralAmount.div(10000000000).toString(); // 72 * 10^ 8
+      const collateralAmount = await weth.balanceOf(action1.address);
+
+      const sellAmount = collateralAmount.div(10000000000).toNumber();
+
       const order = await getOrder(
         action1.address,
         otoken.address,
@@ -231,22 +220,9 @@ describe("Mainnet Fork Tests", function () {
 
       await action1.mintAndTradeAirSwapOTC(collateralAmount, sellAmount, order);
 
-      totalAmountInVault = totalAmountInVault.add(premium);
-
       expect(await otoken.balanceOf(counterpartyWallet.address)).to.be.equal(sellAmount);
       expect(await weth.balanceOf(action1.address)).to.be.equal(premium);
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should have increased").to.be.true;
       expect((await action1.lockedAsset()).eq(collateralAmount), "collateral should be locked").to.be.true;
-    });
-
-    it("p3 deposits", async () => {
-      totalAmountInVault = totalAmountInVault.add(p3DepositAmount);
-      actualAmountInVault = actualAmountInVault.add(p3DepositAmount);
-
-      await vault.connect(depositor3).depositETH({ value: p3DepositAmount });
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
     });
 
     it("option expires", async () => {
@@ -261,83 +237,45 @@ describe("Mainnet Fork Tests", function () {
       await provider.send("evm_increaseTime", [day]); // increase time
       await provider.send("evm_mine", []);
 
-      actualAmountInVault = totalAmountInVault;
-
       await vault.closePositions();
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should be same").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect((await action1.lockedAsset()).eq("0"), "all collateral should be unlocked").to.be.true;
     });
 
-    it("p1 withdraws", async () => {
-      const denominator = p1DepositAmount.add(p2DepositAmount);
-      const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
-      const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP1 = amountToWithdraw.sub(fee);
+    // it("p1 withdraws", async () => {
+    //   const denominator = p1DepositAmount.add(p2DepositAmount);
+    //   const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
+    //   const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
+    //   const fee = amountToWithdraw.mul(5).div(1000);
+    //   const amountTransferredToP1 = amountToWithdraw.sub(fee);
 
-      totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
-      actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
+    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
+    //   const balanceOfP1Before = await weth.balanceOf(depositor1.address);
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP1Before = await weth.balanceOf(depositor1.address);
+    //   await vault.connect(depositor1).withdraw(await vault.balanceOf(depositor1.address));
 
-      await vault.connect(depositor1).withdraw(await vault.balanceOf(depositor1.address));
+    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
+    //   const balanceOfP1After = await weth.balanceOf(depositor1.address);
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP1After = await weth.balanceOf(depositor1.address);
+    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
+    //   expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
+    // });
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-      expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
-    });
+    // it("p2 withdraws", async () => {
+    //   const denominator = p1DepositAmount.add(p2DepositAmount);
+    //   const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
+    //   const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
 
-    it("p2 withdraws", async () => {
-      const denominator = p1DepositAmount.add(p2DepositAmount);
-      const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
-      const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP2 = amountToWithdraw.sub(fee);
+    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
+    //   const balanceOfP2Before = await weth.balanceOf(depositor2.address);
 
-      totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
-      actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
+    //   await vault.connect(depositor2).withdraw(await vault.balanceOf(depositor2.address));
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP2Before = await weth.balanceOf(depositor2.address);
+    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
+    //   const balanceOfP2After = await weth.balanceOf(depositor2.address);
 
-      await vault.connect(depositor2).withdraw(await vault.balanceOf(depositor2.address));
-
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP2After = await weth.balanceOf(depositor2.address);
-
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-      expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
-    });
-
-    it("p3 withdraws", async () => {
-      const amountToWithdraw = p3DepositAmount;
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP3 = amountToWithdraw.sub(fee);
-
-      totalAmountInVault = "0";
-      actualAmountInVault = "0";
-
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP3Before = await weth.balanceOf(depositor3.address);
-
-      await vault.connect(depositor3).withdraw(await vault.balanceOf(depositor3.address));
-
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP3After = await weth.balanceOf(depositor3.address);
-
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-      expect(balanceOfP3Before.add(amountTransferredToP3)).to.be.equal(balanceOfP3After);
-    });
+    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
+    //   expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
+    // });
   });
 });
