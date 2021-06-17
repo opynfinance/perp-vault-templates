@@ -4,6 +4,8 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
 
+const precisionFactor = 1e18;
+
 enum VaultState {
   Locked,
   Unlocked,
@@ -473,9 +475,6 @@ describe("OpynPerpVault Tests", function () {
     });
 
     it("should be able to rollover again", async () => {
-      // const totalInWithdrawQueue = await vault.withdrawQueueAmount();
-      const totalInDepositQueue = await vault.withdrawQueueAmount();
-
       const action1BalanceBefore = await weth.balanceOf(action1.address);
       const action2BalanceBefore = await weth.balanceOf(action2.address);
       const totalValueBefore = await vault.totalAsset();

@@ -258,9 +258,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function registerWithdraw(uint256 _shares) external {
     require(state == VaultState.Locked, "!Locked");
-    // transfer token to the vault
     _burn(msg.sender, _shares);
-    // _mint(address(this), _shares);
     userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
     roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
   }
