@@ -3,5 +3,6 @@ module.exports = {
     'mocks/', 
     'packages/',
     'interfaces/',
+    'tests/'
   ]
 };

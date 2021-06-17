@@ -9,42 +9,49 @@ import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {IComptroller} from "../interfaces/IComptroller.sol";
 import {ICToken} from "../interfaces/ICToken.sol";
 import {ICEth} from "../interfaces/ICEth.sol";
-import {IPriceFeed} from "../interfaces/IPriceFeed.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 
 contract CompoundUtils {
-  IComptroller comptroller;
-  IPriceFeed priceFeed;
-  IWETH weth;
+  IComptroller public comptroller;
+  IWETH public weth;
+  ICEth public cEth;
 
-  function _initComompoundUtils(
+  address public compoundCollateral;
+  address public borrowingAsset;
+
+  function _initCompoundUtils(
     address _comptrollerAddress,
-    address _priceFeedAddress,
-    address _weth
+    address _weth,
+    address _cEth
   ) internal {
     comptroller = IComptroller(_comptrollerAddress);
-    priceFeed = IPriceFeed(_priceFeedAddress);
+
     weth = IWETH(_weth);
+    cEth = ICEth(_cEth);
   }
 
-  function _supplyWeth(address payable _cEtherAddress, uint256 _amount) internal {
+  /**
+   * @dev supply WETH into compound's ETH market, later used to borrow
+   * Useful if the asset in the action is weth
+   */
+  function _supplyWeth(uint256 _amount) internal {
     // convert weth back to eth
     weth.withdraw(_amount);
 
-    // Supply ETH as collateral, get cETH in return
-    ICEth cEth = ICEth(_cEtherAddress);
     cEth.mint{value: _amount}();
 
     // Enter the ETH market so you can borrow another type of asset
     // it is not an error to enter the same market more than once.
     address[] memory cTokens = new address[](1);
-    cTokens[0] = _cEtherAddress;
+    cTokens[0] = address(cEth);
     uint256[] memory errors = comptroller.enterMarkets(cTokens);
-    if (errors[0] != 0) {
-      revert("Comptroller.enterMarkets failed.");
-    }
+    require(errors[0] == 0, "Comptroller.enterMarkets failed.");
   }
 
+  /**
+   * @dev supply ERC20 into compound's market, later used to borrow
+   * Useful when the asset in the action is ERC20
+   */
   function _supplyERC20(
     address _cToken,
     address _underlying,
@@ -65,14 +72,15 @@ contract CompoundUtils {
     address[] memory cTokens = new address[](1);
     cTokens[0] = _cToken;
     uint256[] memory errors = comptroller.enterMarkets(cTokens);
-    if (errors[0] != 0) {
-      revert("Comptroller.enterMarkets failed.");
-    }
+    require(errors[0] == 0, "Comptroller.enterMarkets failed.");
   }
 
-  function _borrowWeth(address _cEther, uint256 _amountToBorrow) internal {
+  /**
+   * @dev borrow WETH from Compound.
+   * This function actually borrow eth and then convert it to WETH.
+   */
+  function _borrowWeth(uint256 _amountToBorrow) internal {
     // Borrow a fixed amount of ETH from cETH contract
-    ICEth cEth = ICEth(_cEther);
     uint256 error = cEth.borrow(_amountToBorrow);
     require(error == 0, "borrow failed");
 
@@ -80,29 +88,44 @@ contract CompoundUtils {
     weth.deposit{value: _amountToBorrow}();
   }
 
-  function _borrowERC20(address _cToken, uint256 _amountToBorrow) internal returns (uint256) {
+  /**
+   * @dev borrow ERC20 from Compound.
+   */
+  function _borrowERC20(address _cToken, uint256 _amountToBorrow) internal {
     ICToken cToken = ICToken(_cToken);
     // Borrow, check the underlying balance for this contract's address
     cToken.borrow(_amountToBorrow);
-
-    // Get the borrow balance
-    uint256 borrows = cToken.borrowBalanceCurrent(address(this));
-
-    return borrows;
   }
 
-  function repayBorrow(
-    address _erc20,
+  /**
+   * @dev repay the borrowed ERC20 asset.
+   */
+  function _repayERC20(
+    address _underlying,
     address _cToken,
     uint256 amount
-  ) public returns (bool) {
-    IERC20 underlying = IERC20(_erc20);
+  ) internal {
+    IERC20 underlying = IERC20(_underlying);
     ICToken cToken = ICToken(_cToken);
 
     underlying.approve(_cToken, amount);
     uint256 error = cToken.repayBorrow(amount);
 
     require(error == 0, "CErc20.repayBorrow Error");
-    return true;
   }
+
+  /**
+   * @dev repay borrowed WETH
+   * this function will unwarp WETH to ETH, then repay the debt
+   */
+  function _repayWETH(uint256 _amount) internal {
+    weth.withdraw(_amount);
+    // cETH reverts on error
+    cEth.repayBorrow{value: _amount}();
+  }
+
+  /**
+   * receive eth
+   */
+  receive() external payable {}
 }

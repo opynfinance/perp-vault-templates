@@ -6,9 +6,9 @@ interface ICToken {
 
   function borrow(uint256) external returns (uint256);
 
-  function borrowRatePerBlock() external view returns (uint256);
+  // function borrowRatePerBlock() external view returns (uint256);
 
-  function borrowBalanceCurrent(address) external returns (uint256);
+  // function borrowBalanceCurrent(address) external returns (uint256);
 
   function repayBorrow(uint256) external returns (uint256);
 }
