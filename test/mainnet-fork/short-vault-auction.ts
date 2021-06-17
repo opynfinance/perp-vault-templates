@@ -60,8 +60,6 @@ describe("Mainnet Fork Tests for auction action", function () {
   const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
   const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-  const reserveFactor = 10;
-
   /**
    *
    * Setup
@@ -128,14 +126,6 @@ describe("Mainnet Fork Tests for auction action", function () {
     await provider.send("hardhat_stopImpersonatingAccount", [opynOwner]);
   });
 
-  describe("check the admin setup", async () => {
-    it("should set fee reserve", async () => {
-      // 10% reserve
-      await vault.connect(owner).setWithdrawReserveRatio(reserveFactor * 100);
-      expect((await vault.withdrawReserveRatio()).toNumber() == reserveFactor * 100).to.be.true;
-    });
-  });
-
   /**
    * Test case:
    * A short action start a auction to sell 72 4000-ETH-C.
@@ -153,8 +143,6 @@ describe("Mainnet Fork Tests for auction action", function () {
     const p1DepositAmount = utils.parseEther("10");
     const p2DepositAmount = utils.parseEther("70");
     const minPremium = utils.parseEther("3");
-    let totalAmountInVault: BigNumber;
-    let actualAmountInVault: BigNumber;
     let otoken: IOToken;
     let expiry;
     let auctionId;
@@ -165,7 +153,7 @@ describe("Mainnet Fork Tests for auction action", function () {
     const buyer1BoughtAmount = 20 * 1e8; // 20 otoken
     const buyer1Premium = utils.parseEther("1");
 
-    const buyer2BoughtAmount = 42 * 1e8; // 52 otoken
+    const buyer2BoughtAmount = 42 * 1e8; // 42 otoken
     const buyer2Premium = utils.parseEther("3");
 
     this.beforeAll("deploy otoken that will be sold", async () => {
@@ -190,19 +178,17 @@ describe("Mainnet Fork Tests for auction action", function () {
     });
 
     it("p1 deposits", async () => {
-      totalAmountInVault = p1DepositAmount;
-      actualAmountInVault = totalAmountInVault;
       await vault.connect(depositor1).depositETH({ value: p1DepositAmount });
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect((await vault.totalAsset()).eq(p1DepositAmount), "total asset should update").to.be.true;
+      expect(await weth.balanceOf(vault.address)).to.be.equal(p1DepositAmount);
     });
 
     it("p2 deposits", async () => {
-      totalAmountInVault = totalAmountInVault.add(p2DepositAmount);
-      actualAmountInVault = totalAmountInVault;
+      const existingBalance = await weth.balanceOf(vault.address);
       await vault.connect(depositor2).depositETH({ value: p2DepositAmount });
-      expect((await vault.totalAsset()).eq(totalAmountInVault), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      const newBalance = existingBalance.add(p2DepositAmount);
+      expect((await vault.totalAsset()).eq(newBalance), "total asset should update").to.be.true;
+      expect(await weth.balanceOf(vault.address)).to.be.equal(newBalance);
     });
 
     it("owner commits to the option", async () => {
@@ -219,16 +205,12 @@ describe("Mainnet Fork Tests for auction action", function () {
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
       await provider.send("evm_mine", []);
 
-      await vault.rollOver([(100 - reserveFactor) * 100]);
+      await vault.rollOver([10000]);
 
-      const collateralAmount = totalAmountInVault.mul(100 - reserveFactor).div(100);
+      const collateralAmount = await weth.balanceOf(shortAction.address);
 
-      actualAmountInVault = totalAmountInVault.sub(collateralAmount);
-
-      // convert 1e18 to otoken amount (1e8)
-
-      const sellAmount = collateralAmount.div(10000000000).toString();
-      const mintAmount = sellAmount;
+      const mintAmount = collateralAmount.div(1e10).toString();
+      const sellAmount = mintAmount;
 
       expect((await shortAction.lockedAsset()).eq("0"), "collateral should not be locked").to.be.true;
 
@@ -281,9 +263,16 @@ describe("Mainnet Fork Tests for auction action", function () {
       await provider.send("evm_mine", []);
 
       const wethBalanceBefore = await weth.balanceOf(shortAction.address);
+
       await easyAuction.connect(owner).settleAuction(auctionId);
+
       const wethBalanceAfter = await weth.balanceOf(shortAction.address);
-      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(buyer1Premium)).to.be.true;
+
+      // mainnet easy auction can update their fee parameters, we will only estimate fee by 1%
+
+      const maxFee = buyer1Premium.div(100);
+
+      expect(wethBalanceAfter.sub(wethBalanceBefore).gt(buyer1Premium.sub(maxFee))).to.be.true;
     });
 
     it("buyer claim their tokens after auction", async () => {

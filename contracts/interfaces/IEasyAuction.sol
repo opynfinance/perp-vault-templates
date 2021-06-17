@@ -20,6 +20,10 @@ interface IEasyAuction {
     uint256 minFundingThreshold;
   }
 
+  function FEE_DENOMINATOR() external view returns (uint256);
+
+  function feeNumerator() external view returns (uint256);
+
   function auctionData(uint256 _id) external view returns (AuctionData memory);
 
   function auctionCounter() external view returns (uint256);
