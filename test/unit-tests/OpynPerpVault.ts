@@ -4,8 +4,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
 
-const precisionFactor = 1e18;
-
 enum VaultState {
   Locked,
   Unlocked,
@@ -26,8 +24,12 @@ describe("OpynPerpVault Tests", function () {
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
   let depositor4: SignerWithAddress;
+  // scheduled depositor
   let depositor5: SignerWithAddress;
   let depositor6: SignerWithAddress;
+  // join the second round
+  let depositor7: SignerWithAddress;
+
   let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
@@ -46,6 +48,7 @@ describe("OpynPerpVault Tests", function () {
       _depositor4,
       _depositor5,
       _depositor6,
+      _depositor7,
       _random,
     ] = accounts;
 
@@ -60,6 +63,7 @@ describe("OpynPerpVault Tests", function () {
     // scheduled depositors
     depositor5 = _depositor5;
     depositor6 = _depositor6;
+    depositor7 = _depositor7;
     random = _random;
   });
 
@@ -474,6 +478,12 @@ describe("OpynPerpVault Tests", function () {
       expect(amountFromWithdraw.sub(amountFromQueueWithdraw).abs().lt(10000)).to.be.true;
     });
 
+    it("should allow normal deposit", async () => {
+      // depositor7 deposit for round 1.
+      const depositAmount = utils.parseUnits("10");
+      await vault.connect(depositor7).depositETH({ value: depositAmount });
+    });
+
     it("should be able to rollover again", async () => {
       const action1BalanceBefore = await weth.balanceOf(action1.address);
       const action2BalanceBefore = await weth.balanceOf(action2.address);
@@ -501,6 +511,29 @@ describe("OpynPerpVault Tests", function () {
 
       const wethAfter = await weth.balanceOf(depositor4.address);
       expect(round0FullShareWithdrawAmount.eq(wethAfter.sub(wethBefore))).to.be.true;
+    });
+
+    it("should be able to close a non-profitable round", async () => {
+      const smallProfit = utils.parseUnits("0.00000001");
+      await weth.connect(random).deposit({ value: smallProfit });
+      await weth.connect(random).transfer(action1.address, smallProfit);
+      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+      await vault.connect(owner).closePositions();
+      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+      expect(fee.eq(smallProfit), "fee mismatch").to.be.true;
+    });
+
+    it("should be able to withdraw full amount if the round is not profitable", async () => {
+      // depositor 7 should get back 10eth he deposited, since this round is not profitable
+      const depositAmount = utils.parseUnits("10");
+      const shares = await vault.balanceOf(depositor7.address);
+      const wethBalanceBefore = await weth.balanceOf(depositor7.address);
+
+      vault.connect(depositor7).withdraw(shares);
+
+      const wethBalanceAfter = await weth.balanceOf(depositor7.address);
+      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(depositAmount), "malicious vault!");
     });
   });
 });
