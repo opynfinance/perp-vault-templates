@@ -3,6 +3,7 @@ import "@nomiclabs/hardhat-etherscan";
 import '@typechain/hardhat';
 import "solidity-coverage"
 import "hardhat-prettier";
+import "hardhat-contract-sizer"
 
 import * as fs from 'fs';
 import * as dotenv from 'dotenv'
@@ -28,7 +29,10 @@ export default {
       forking: {
         url: `https://mainnet.infura.io/v3/${infuraKey}`,
         enabled: process.env.FORK === 'true'
-      }
+      },
+      gas: 12000000,
+      blockGasLimit: 0x1fffffffffffff,
+      allowUnlimitedContractSize: true,
     },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,
@@ -47,8 +51,8 @@ export default {
   settings: {
     optimizer: {
       enabled: true,
-      runs: 200,
-    },
+      runs: 1
+    }
   },
   typechain: {
     outDir: 'typechain',

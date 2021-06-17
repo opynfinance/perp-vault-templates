@@ -21,10 +21,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   VaultState public stateBeforePause;
 
-  uint256 public constant BASE = 10000; // 100%
+  // @dev 100%, use to represent fee, allocation percentage
+  uint256 public constant BASE = 10000;
 
-  /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
-  uint256 public withdrawReserve;
+  /// @dev amount of asset that's been registered to be withdrawn. this amount will alwasys be reserved in the vault.
+  uint256 public withdrawQueueAmount;
+
+  /// @dev amount of asset that's been deposited into the vault, but hadn't mint share yet.
+  uint256 public depositQueueAmount;
 
   address public WETH;
 
@@ -38,13 +42,33 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public constant CAP = 1000 ether;
 
+  /// @dev the current round
+  uint256 public round;
+
+  /// @dev user's share in withdraw queue for a round
+  mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
+
+  /// @dev user's asset amount in deposit queue for a round
+  // mapping(address => mapping(uint256 => uint256)) public userRoundQueuedDepositAmount;
+
+  /// @dev total registered shares per round
+  mapping(uint256 => uint256) public roundTotalQueuedWithdrawShares;
+
+  /// @dev total asset recorded at end of each round
+  mapping(uint256 => uint256) public roundTotalAsset;
+
+  /// @dev total share supply recorded at end of each round
+  mapping(uint256 => uint256) public roundTotalShare;
+
   /*=====================
    *       Events       *
    *====================*/
 
   event Deposit(address account, uint256 amountDeposited, uint256 shareMinted);
 
-  event Withdraw(address account, uint256 amountWithdrawn, uint256 fee, uint256 shareBurned);
+  event Withdraw(address account, uint256 amountWithdrawn, uint256 shareBurned);
+
+  event WithdrawFromQueue(address account, uint256 amountWithdrawn, uint256 round);
 
   event Rollover(uint256[] allocations);
 
@@ -58,7 +82,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev can only be executed and unlock state. which bring the state back to "locked"
    */
   modifier locker {
-    require(state == VaultState.Unlocked, "!Unlocked");
+    require(state == VaultState.Unlocked, "Locked");
     _;
     state = VaultState.Locked;
     emit StateUpdated(VaultState.Locked);
@@ -132,6 +156,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @dev return how many shares you can get if you deposit asset into the pool
+   * @notice this number will change when someone register a withdraw when the vault is locked
    * @param _amount amount of asset you deposit
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
@@ -167,12 +192,13 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Withdraws ETH from vault using vault shares
+   * @notice Withdraws ETH from vault using vault shares.
    * @param share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 share) external nonReentrant notEmergency {
+  function withdrawETH(uint256 share) external nonReentrant {
+    require(state == VaultState.Unlocked, "Locked");
     require(asset == WETH, "!WETH");
-    uint256 withdrawAmount = _withdraw(share);
+    uint256 withdrawAmount = _regularWithdraw(share);
 
     IWETH(WETH).withdraw(withdrawAmount);
     (bool success, ) = msg.sender.call{value: withdrawAmount}("");
@@ -180,12 +206,45 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Withdraws asset from vault using vault shares
-   * @param share is the number of vault shares to be burned
+   * @notice Withdraws asset from vault using vault shares.
+   * @param _shares is the number of vault shares to be burned
    */
-  function withdraw(uint256 share) external nonReentrant notEmergency {
-    uint256 withdrawAmount = _withdraw(share);
+  function withdraw(uint256 _shares) external nonReentrant {
+    require(state == VaultState.Unlocked, "Locked");
+    uint256 withdrawAmount = _regularWithdraw(_shares);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  }
+
+  /**
+   * @dev register for a fair withdraw that can be executed after this round ends
+   */
+  function registerWithdraw(uint256 _shares) external {
+    require(state == VaultState.Locked, "!Locked");
+    _burn(msg.sender, _shares);
+    userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
+    roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
+  }
+
+  /**
+   * @notice Withdraws asset from vault using vault shares
+   * @param _round the round you registered a queue withdraw
+   */
+  function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
+    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
+  }
+
+  /**
+   * @notice Withdraws ETH from vault using vault shares
+   * @param _round the round you registered a queue withdraw
+   */
+  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
+    require(asset == WETH, "!WETH");
+    uint256 withdrawAmount = _withdrawFromQueue(_round);
+
+    IWETH(WETH).withdraw(withdrawAmount);
+    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
+    require(success, "ETH transfer failed");
   }
 
   /**
@@ -193,6 +252,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function closePositions() public unlocker {
     _closeAndWithdraw();
+
+    _fixShareToAssetRatio();
+
+    round = round.add(1);
   }
 
   /**
@@ -204,14 +267,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     emit Rollover(_allocationPercentages);
 
     _distribute(_allocationPercentages);
-  }
-
-  /**
-   * @dev set the percentage that should be reserved in vault for withdraw
-   */
-  function setWithdrawReserve(uint256 _reserve) external onlyOwner {
-    require(_reserve < 5000, "Reserve cannot exceed 50%");
-    withdrawReserve = _reserve;
   }
 
   /**
@@ -237,17 +292,17 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * total assets controlled by this vault
+   * @dev total assets controlled by this vault, which is effective balance + all the balance in the actions
    */
   function _totalAsset() internal view returns (uint256) {
-    return _balance().add(_totalDebt());
+    return _effectiveBalance().add(_totalDebt());
   }
 
   /**
-   * @dev returns remaining asset balance in the vault.
+   * @dev returns asset balance of the vault that's not registered to be withdrawn.
    */
-  function _balance() internal view returns (uint256) {
-    return IERC20(asset).balanceOf(address(this));
+  function _effectiveBalance() internal view returns (uint256) {
+    return IERC20(asset).balanceOf(address(this)).sub(depositQueueAmount).sub(withdrawQueueAmount);
   }
 
   /**
@@ -300,7 +355,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 cacheBase = BASE;
 
     // keep track of total percentage to make sure we're summing up to 100%
-    uint256 sumPercentage = withdrawReserve;
+    uint256 sumPercentage;
     address cacheAsset = asset;
 
     for (uint8 i = 0; i < actions.length; i = i + 1) {
@@ -317,25 +372,47 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
+   * @dev calculate withdraw amount from queued shares, return withdraw amount to be handled by queueWithdraw or queueWithdrawETH
+   * @param _round the round you registered a queue withdraw
+   */
+  function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
+    require(_round < round, "Invalid round");
+
+    uint256 queuedShares = userRoundQueuedWithdrawShares[msg.sender][_round];
+    uint256 withdrawAmount = queuedShares.mul(roundTotalAsset[_round]).div(roundTotalShare[_round]);
+
+    // remove user's queued shares
+    userRoundQueuedWithdrawShares[msg.sender][_round] = 0;
+    // decrease total asset we reserved for withdraw
+    withdrawQueueAmount = withdrawQueueAmount.sub(withdrawAmount);
+
+    uint256 amountPostFee = _payFee(withdrawAmount);
+
+    emit WithdrawFromQueue(msg.sender, amountPostFee, _round);
+
+    return amountPostFee;
+  }
+
+  /**
    * @dev burn shares, return withdraw amount handle by withdraw or withdrawETH
    * @param _share amount of shares burn to withdraw asset.
    */
-  function _withdraw(uint256 _share) internal returns (uint256) {
-    uint256 currentAssetBalance = _balance();
+  function _regularWithdraw(uint256 _share) internal returns (uint256) {
     uint256 withdrawAmount = _getWithdrawAmountByShares(_share);
-    require(withdrawAmount <= currentAssetBalance, "NOT_ENOUGH_BALANCE");
 
     _burn(msg.sender, _share);
 
-    uint256 fee = _getWithdrawFee(withdrawAmount);
+    uint256 amountPostFee = _payFee(withdrawAmount);
 
-    IERC20(asset).transfer(feeRecipient, fee);
-
-    uint256 amountPostFee = withdrawAmount.sub(fee);
-
-    emit Withdraw(msg.sender, amountPostFee, fee, _share);
+    emit Withdraw(msg.sender, amountPostFee, _share);
 
     return amountPostFee;
+  }
+
+  function _payFee(uint256 _withdrawAmount) internal returns (uint256 amountPostFee) {
+    uint256 fee = _getWithdrawFee(_withdrawAmount);
+    IERC20(asset).transfer(feeRecipient, fee);
+    amountPostFee = _withdrawAmount.sub(fee);
   }
 
   /**
@@ -344,7 +421,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _totalAssetAmount amont of asset already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
-    uint256 shareSupply = totalSupply();
+    uint256 shareSupply = totalSupply().add(roundTotalQueuedWithdrawShares[round]);
 
     uint256 shares = shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);
     return shares;
@@ -354,10 +431,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev return how many asset you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
-    uint256 totalAssetAmount = _totalAsset();
-    uint256 shareSupply = totalSupply();
-    uint256 withdrawAmount = _share.mul(totalAssetAmount).div(shareSupply);
-    return withdrawAmount;
+    uint256 effectiveShares = totalSupply();
+    return _share.mul(_totalAsset()).div(effectiveShares);
   }
 
   /**
@@ -367,6 +442,29 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     // todo: add fee model
     // currently fixed at 0.5%
     return _withdrawAmount.mul(50).div(BASE);
+  }
+
+  /**
+   * @dev calculate and set the ratio of how shares can be converted to asset amounts for the current round.
+   * this function is called after withdrawing from action contracts
+   */
+  function _fixShareToAssetRatio() internal {
+    uint256 vaultBalance = _effectiveBalance();
+    uint256 outStandingShares = totalSupply();
+    uint256 queuedShares = roundTotalQueuedWithdrawShares[round];
+
+    // all the queued shares + outstanding shares should equally spread the balance
+    uint256 totalShares = outStandingShares.add(queuedShares);
+
+    // add this round's reserved asset into withdrawQueue.
+    // these amount will be excluded from the totalAsset().
+    uint256 roundReservedAsset = queuedShares.mul(vaultBalance).div(totalShares);
+
+    withdrawQueueAmount = withdrawQueueAmount.add(roundReservedAsset);
+
+    // store this round's balance and shares
+    roundTotalShare[round] = totalShares;
+    roundTotalAsset[round] = vaultBalance;
   }
 
   /**
