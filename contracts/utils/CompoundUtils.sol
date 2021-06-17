@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {IComptroller} from "../interfaces/IComptroller.sol";
-import {ICErc20} from "../interfaces/ICErc20.sol";
+import {ICToken} from "../interfaces/ICToken.sol";
 import {ICEth} from "../interfaces/ICEth.sol";
 import {IPriceFeed} from "../interfaces/IPriceFeed.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
@@ -50,7 +50,7 @@ contract CompoundUtils {
     address _underlying,
     uint256 _amount
   ) internal {
-    ICErc20 cToken = ICErc20(_cToken);
+    ICToken cToken = ICToken(_cToken);
     IERC20 underlying = IERC20(_underlying);
 
     // Approve transfer of underlying
@@ -81,7 +81,7 @@ contract CompoundUtils {
   }
 
   function _borrowERC20(address _cToken, uint256 _amountToBorrow) internal returns (uint256) {
-    ICErc20 cToken = ICErc20(_cToken);
+    ICToken cToken = ICToken(_cToken);
     // Borrow, check the underlying balance for this contract's address
     cToken.borrow(_amountToBorrow);
 
@@ -92,14 +92,14 @@ contract CompoundUtils {
   }
 
   function repayBorrow(
-    address _erc20Address,
-    address _cErc20Address,
+    address _erc20,
+    address _cToken,
     uint256 amount
   ) public returns (bool) {
-    IERC20 underlying = IERC20(_erc20Address);
-    ICErc20 cToken = ICErc20(_cErc20Address);
+    IERC20 underlying = IERC20(_erc20);
+    ICToken cToken = ICToken(_cToken);
 
-    underlying.approve(_cErc20Address, amount);
+    underlying.approve(_cToken, amount);
     uint256 error = cToken.repayBorrow(amount);
 
     require(error == 0, "CErc20.repayBorrow Error");
