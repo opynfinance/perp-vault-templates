@@ -10,8 +10,10 @@ contract MockSwap is ISwap {
   function swap(SwapTypes.Order calldata order) external override {
     address sender = order.sender.wallet;
 
+    address signer = order.signer.wallet;
+
     // only try pulling token from sender
-    IERC20(order.sender.token).transferFrom(sender, address(this), order.sender.amount);
+    IERC20(order.sender.token).transferFrom(sender, signer, order.sender.amount);
 
     // todo: add send token to sender
   }

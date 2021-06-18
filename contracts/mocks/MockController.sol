@@ -67,6 +67,10 @@ contract MockController {
     oracle = _oracle;
   }
 
+  function setCollateralAsset(address _collateral) external {
+    cacheCollateralAsset = _collateral;
+  }
+
   function isSettlementAllowed(
     address /*otoken*/
   ) external view returns (bool) {
