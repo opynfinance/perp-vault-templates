@@ -22,7 +22,7 @@ enum ActionState {
 
 const QUEUE_START = "0x0000000000000000000000000000000000000000000000000000000000000001";
 
-describe("Mainnet Fork Tests for auction action", function () {
+describe("Mainnet: Short Call with Auction", function () {
   let shortAction: ShortOToken;
   // asset used by this action: in this case, weth
   let weth: IWETH;
