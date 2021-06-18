@@ -1,6 +1,5 @@
 const { createOrder, signTypedDataOrder } = require("@airswap/utils");
 import { BigNumber, constants } from "ethers";
-import BigNum from "bignumber.js";
 const v4orderUtils = require("@0x/protocol-utils");
 
 export const get0xLimitOrder = async (
@@ -29,8 +28,8 @@ export const get0xLimitOrder = async (
   // override the bignumber type with ether.Bignumber
   const newOrder = {
     ...order,
-    makerAmount: BigNumber.from(order.makerAmount), //.toString(),
-    takerAmount: BigNumber.from(order.takerAmount), //.toString(),
+    makerAmount: BigNumber.from(order.makerAmount.toString()), //.toString(),
+    takerAmount: BigNumber.from(order.takerAmount.toString()), //.toString(),
     salt: BigNumber.from(order.salt),
     takerTokenFeeAmount: BigNumber.from(takerTokenFeeAmount),
     signature,
@@ -63,8 +62,8 @@ export const get0xRFQOrder = async (
   // override the bignumber type with ether.Bignumber
   const newOrder = {
     ...order,
-    makerAmount: BigNumber.from(order.makerAmount), //.toString(),
-    takerAmount: BigNumber.from(order.takerAmount), //.toString(),
+    makerAmount: BigNumber.from(order.makerAmount.toString()), //.toString(),
+    takerAmount: BigNumber.from(order.takerAmount.toString()), //.toString(),
     salt: BigNumber.from(order.salt),
     signature,
   };

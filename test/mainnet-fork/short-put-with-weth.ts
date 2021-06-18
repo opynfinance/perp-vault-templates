@@ -70,8 +70,6 @@ describe("Mainnet: Short Put with ETH", function () {
   const cusdcAddress = "0x39aa39c021dfbae8fac545936693ac917d5e7563";
   const comptrollerAddress = "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b";
 
-  const uniswapETHUSDCPool = "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc";
-
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();
     const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3, _random] = accounts;

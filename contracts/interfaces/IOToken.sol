@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.2;
 
-interface IOToken {
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+interface IOToken is IERC20 {
   function underlyingAsset() external view returns (address);
 
   function strikeAsset() external view returns (address);
@@ -14,5 +16,5 @@ interface IOToken {
 
   function isPut() external view returns (bool);
 
-  function balanceOf(address account) external view returns (uint256);
+  // function balanceOf(address account) external view returns (uint256);
 }
