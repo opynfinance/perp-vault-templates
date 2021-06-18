@@ -24,6 +24,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   // @dev 100%, use to represent fee, allocation percentage
   uint256 public constant BASE = 10000;
 
+  // @dev how many percentage of profit go to the fee recipient
+  uint256 public performanceFeeInPercent = 100; // 1%
+
+  // @dev percentage of total asset charged as management fee every year.
+  uint256 public managementFeeInPercent = 50; // 0.5%
+
   /// @dev amount of asset that's been registered to be withdrawn. this amount will alwasys be reserved in the vault.
   uint256 public withdrawQueueAmount;
 
@@ -39,11 +45,19 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev actions that build up this strategy (vault)
   address[] public actions;
 
+  uint256 public currentRoundStartTimestamp;
+
+  /// @dev keep tracks of how much capital the current round start with
+  uint256 public currentRoundStartingAmount;
+
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public constant CAP = 1000 ether;
 
   /// @dev the current round
   uint256 public round;
+
+  /// @dev
+  mapping(uint256 => uint256) roundFee;
 
   /// @dev user's share in withdraw queue for a round
   mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
@@ -145,6 +159,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     }
 
     state = VaultState.Unlocked;
+
+    currentRoundStartTimestamp = block.timestamp;
   }
 
   /**
@@ -167,9 +183,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev return how many asset you can get if you burn the number of shares, after charging the fee.
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
-    uint256 withdrawAmount = _getWithdrawAmountByShares(_shares);
-    uint256 fee = _getWithdrawFee(withdrawAmount);
-    return withdrawAmount.sub(fee);
+    return _getWithdrawAmountByShares(_shares);
   }
 
   /**
@@ -291,9 +305,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function closePositions() public unlocker {
     _closeAndWithdraw();
 
+    _payRoundFee();
+
     _snapshotShareAndAsset();
 
     round = round.add(1);
+    currentRoundStartTimestamp = block.timestamp;
   }
 
   /**
@@ -344,7 +361,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev iterate through all actions and sum up "values" controlled by the action.
+   * @dev estimate amount of assets in all the actions
+   * this function iterates through all actions and sum up the currentValue reported by each action.
    */
   function _totalDebt() internal view returns (uint256) {
     uint256 debt = 0;
@@ -388,7 +406,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev redistribute all funds to diff actions
    */
   function _distribute(uint256[] memory _percentages) internal nonReentrant {
-    uint256 cacheTotalAsset = _totalAsset();
+    uint256 totalBalance = _effectiveBalance();
+
+    currentRoundStartingAmount = totalBalance;
 
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage;
@@ -396,7 +416,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
       sumPercentage = sumPercentage.add(_percentages[i]);
       require(sumPercentage <= BASE, "PERCENTAGE_SUM_EXCEED_MAX");
 
-      uint256 newAmount = cacheTotalAsset.mul(_percentages[i]).div(BASE);
+      uint256 newAmount = totalBalance.mul(_percentages[i]).div(BASE);
 
       if (newAmount > 0) IERC20(asset).safeTransfer(actions[i], newAmount);
       IAction(actions[i]).rolloverPosition();
@@ -420,11 +440,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     // decrease total asset we reserved for withdraw
     withdrawQueueAmount = withdrawQueueAmount.sub(withdrawAmount);
 
-    uint256 amountPostFee = _payFee(withdrawAmount);
+    emit WithdrawFromQueue(msg.sender, withdrawQueueAmount, _round);
 
-    emit WithdrawFromQueue(msg.sender, amountPostFee, _round);
-
-    return amountPostFee;
+    return withdrawAmount;
   }
 
   /**
@@ -436,17 +454,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     _burn(msg.sender, _share);
 
-    uint256 amountPostFee = _payFee(withdrawAmount);
+    emit Withdraw(msg.sender, withdrawAmount, _share);
 
-    emit Withdraw(msg.sender, amountPostFee, _share);
-
-    return amountPostFee;
-  }
-
-  function _payFee(uint256 _withdrawAmount) internal returns (uint256 amountPostFee) {
-    uint256 fee = _getWithdrawFee(_withdrawAmount);
-    IERC20(asset).transfer(feeRecipient, fee);
-    amountPostFee = _withdrawAmount.sub(fee);
+    return withdrawAmount;
   }
 
   /**
@@ -470,16 +480,33 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of asset withdrawing.
+   * @dev pay fee to fee recipient after we pull all assets back to the vault
    */
-  function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
-    // todo: add fee model
-    // currently fixed at 0.5%
-    return _withdrawAmount.mul(50).div(BASE);
+  function _payRoundFee() internal {
+    // don't need to call totalAsset() because actions are empty now.
+    uint256 newTotal = _effectiveBalance();
+    uint256 profit;
+
+    if (newTotal > currentRoundStartingAmount) profit = newTotal.sub(currentRoundStartingAmount);
+
+    uint256 performanceFee = profit.mul(performanceFeeInPercent).div(BASE);
+
+    uint256 managementFee =
+      currentRoundStartingAmount
+        .mul(managementFeeInPercent)
+        .mul((block.timestamp.sub(currentRoundStartTimestamp)))
+        .div(365 days)
+        .div(BASE);
+    uint256 totalFee = performanceFee.add(managementFee);
+    if (totalFee > profit) totalFee = profit;
+
+    currentRoundStartingAmount = 0;
+
+    IERC20(asset).transfer(feeRecipient, totalFee);
   }
 
   /**
-   * @dev calculate
+   * @dev snapshot last round's total shares and balance, excluding pending deposits.
    * this function is called after withdrawing from action contracts
    */
   function _snapshotShareAndAsset() internal {
@@ -505,7 +532,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     // we will calculate how much shares this amount can mint, mint it at once to the vault,
     // and reset the pendingDeposit, so that this amount can be used in the next round.
     uint256 sharesToMint = pendingDeposit.mul(totalShares).div(vaultBalance);
-
     _mint(address(this), sharesToMint);
     pendingDeposit = 0;
   }

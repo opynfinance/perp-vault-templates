@@ -4,8 +4,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../typechain";
 
-const precisionFactor = 1e18;
-
 enum VaultState {
   Locked,
   Unlocked,
@@ -26,8 +24,12 @@ describe("OpynPerpVault Tests", function () {
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
   let depositor4: SignerWithAddress;
+  // scheduled depositor
   let depositor5: SignerWithAddress;
   let depositor6: SignerWithAddress;
+  // join the second round
+  let depositor7: SignerWithAddress;
+
   let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
@@ -46,6 +48,7 @@ describe("OpynPerpVault Tests", function () {
       _depositor4,
       _depositor5,
       _depositor6,
+      _depositor7,
       _random,
     ] = accounts;
 
@@ -60,6 +63,7 @@ describe("OpynPerpVault Tests", function () {
     // scheduled depositors
     depositor5 = _depositor5;
     depositor6 = _depositor6;
+    depositor7 = _depositor7;
     random = _random;
   });
 
@@ -347,6 +351,7 @@ describe("OpynPerpVault Tests", function () {
 
       const action1BalanceBefore = await weth.balanceOf(action1.address);
       const action2BalanceBefore = await weth.balanceOf(action2.address);
+      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
       await vault.connect(owner).closePositions();
 
@@ -356,14 +361,16 @@ describe("OpynPerpVault Tests", function () {
       const vaultBalanceAfter = await weth.balanceOf(vault.address);
       const action1BalanceAfter = await weth.balanceOf(action1.address);
       const action2BalanceAfter = await weth.balanceOf(action2.address);
-
+      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
       // after calling rollover, total asset will exclude amount reserved for queue withdraw
       expect(
-        totalAssetBefore.add(pendingDeposit).eq(totalAssetAfter.add(totalReservedForQueueWithdraw)),
+        totalAssetBefore.add(pendingDeposit).sub(fee).eq(totalAssetAfter.add(totalReservedForQueueWithdraw)),
         "total asset mismatch"
       ).to.be.true;
       expect(
         vaultBalanceAfter
+          .add(fee)
           .sub(vaultBalanceBefore)
           .eq(action2BalanceBefore.sub(action2BalanceAfter).add(action1BalanceBefore.sub(action1BalanceAfter))),
         "erc20 balance mismatch"
@@ -395,13 +402,13 @@ describe("OpynPerpVault Tests", function () {
 
       // how much shares you should get
       const calculatedShares = await vault.getSharesByDepositAmount(depositAmount);
-
       await vault.connect(random).claimShares(depositor5.address, 0);
 
       const totalSupplyAfter = await vault.totalSupply();
       const shareBalanceAfter = await vault.balanceOf(depositor5.address);
       expect(totalSupplyBefore.eq(totalSupplyAfter)).to.be.true;
-      expect(shareBalanceAfter.sub(shareBalanceBefore).eq(calculatedShares)).to.be.true;
+      const shareReceived = shareBalanceAfter.sub(shareBalanceBefore);
+      expect(shareReceived.sub(calculatedShares).abs(), "share calculation error too big").to.be.lte(10);
     });
 
     it("should allow queue withdraw weth", async () => {
@@ -411,21 +418,18 @@ describe("OpynPerpVault Tests", function () {
 
       const amountTestDeposit = utils.parseUnits("1");
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
-      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
       await vault.connect(depositor1).withdrawFromQueue(0);
 
       const wethAfter = await weth.balanceOf(depositor1.address);
       const reserveAfter = await vault.withdrawQueueAmount();
       const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
-      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
-
-      expect(wethAfter.add(fee).sub(wethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
-      expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
 
       // store how much depositor 1 get
       round0FullShareWithdrawAmount = wethAfter.sub(wethBefore);
+
+      expect(wethAfter.sub(wethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
+      expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
     });
 
     it("should allow queue withdraw eth", async () => {
@@ -435,17 +439,17 @@ describe("OpynPerpVault Tests", function () {
 
       const amountTestDeposit = utils.parseUnits("1");
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
-      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
       await vault.connect(depositor2).withdrawETHFromQueue(0, { gasPrice: 0 });
 
       const ethAfter = await depositor2.getBalance();
       const reserveAfter = await vault.withdrawQueueAmount();
       const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
-      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      // const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
 
-      expect(ethAfter.add(fee).sub(ethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
+      expect(ethAfter.sub(ethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
       expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
     });
 
@@ -472,6 +476,12 @@ describe("OpynPerpVault Tests", function () {
 
       // error < 10000 wei
       expect(amountFromWithdraw.sub(amountFromQueueWithdraw).abs().lt(10000)).to.be.true;
+    });
+
+    it("should allow normal deposit", async () => {
+      // depositor7 deposit for round 1.
+      const depositAmount = utils.parseUnits("10");
+      await vault.connect(depositor7).depositETH({ value: depositAmount });
     });
 
     it("should be able to rollover again", async () => {
@@ -501,6 +511,29 @@ describe("OpynPerpVault Tests", function () {
 
       const wethAfter = await weth.balanceOf(depositor4.address);
       expect(round0FullShareWithdrawAmount.eq(wethAfter.sub(wethBefore))).to.be.true;
+    });
+
+    it("should be able to close a non-profitable round", async () => {
+      const smallProfit = utils.parseUnits("0.00000001");
+      await weth.connect(random).deposit({ value: smallProfit });
+      await weth.connect(random).transfer(action1.address, smallProfit);
+      const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
+      await vault.connect(owner).closePositions();
+      const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
+      const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+      expect(fee.eq(smallProfit), "fee mismatch").to.be.true;
+    });
+
+    it("should be able to withdraw full amount if the round is not profitable", async () => {
+      // depositor 7 should get back 10eth he deposited, since this round is not profitable
+      const depositAmount = utils.parseUnits("10");
+      const shares = await vault.balanceOf(depositor7.address);
+      const wethBalanceBefore = await weth.balanceOf(depositor7.address);
+
+      vault.connect(depositor7).withdraw(shares);
+
+      const wethBalanceAfter = await weth.balanceOf(depositor7.address);
+      expect(wethBalanceAfter.sub(wethBalanceBefore).eq(depositAmount), "malicious vault!");
     });
   });
 });
