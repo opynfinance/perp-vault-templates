@@ -2,7 +2,7 @@ import { ethers, waffle } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { getOrder } from "../utils/orders";
+import { getOrder } from "../../utils/orders";
 import {
   ShortPutWithETH,
   MockERC20,
@@ -15,7 +15,7 @@ import {
   MockCErc20,
   MockCEth,
   MockComptroller,
-} from "../../typechain";
+} from "../../../typechain";
 import { parseUnits } from "@ethersproject/units";
 
 import * as fs from "fs";

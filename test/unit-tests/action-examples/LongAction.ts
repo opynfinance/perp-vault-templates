@@ -1,10 +1,10 @@
 import { ethers, waffle } from "hardhat";
-import { BigNumber, utils } from "ethers";
+import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { getOrder } from "../utils/orders";
+import { getOrder } from "../../utils/orders";
 import {
-  ShortOToken,
+  LongOToken,
   MockERC20,
   MockWhitelist,
   MockSwap,
@@ -13,9 +13,8 @@ import {
   MockOToken,
   MockOpynOracle,
   MockEasyAuction,
-} from "../../typechain";
+} from "../../../typechain";
 import * as fs from "fs";
-import { parseUnits } from "@ethersproject/units";
 
 const mnemonic = fs.existsSync(".secret")
   ? fs.readFileSync(".secret").toString().trim()
@@ -27,14 +26,14 @@ enum ActionState {
   Activated,
 }
 
-describe("ShortAction", function () {
+describe("LongAction: Buying Puts", function () {
   const provider = waffle.provider;
 
   const counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
 
-  let action: ShortOToken;
+  let action: LongOToken;
   // asset used by this action: in this case, weth
-  let token: MockERC20;
+  let weth: MockERC20;
   //
   let usdc: MockERC20;
 
@@ -55,9 +54,10 @@ describe("ShortAction", function () {
   let otoken1: MockOToken;
   let otoken2: MockOToken;
 
-  const otokenBadStrikePrice = 10 * 1e8;
-  const otoken1StrikePrice = 4000 * 1e8; // 4000
-  const otoken2StrikePrice = 5000 * 1e8; // 5000
+  const wethPrice = 2500 * 1e8;
+  const otokenBadStrikePrice = 2400 * 1e8; // strike too high
+  const otoken1StrikePrice = 2000 * 1e8;
+  const otoken2StrikePrice = 2100 * 1e8;
 
   let otoken1Expiry = BigNumber.from(0);
   let otoken2Expiry = BigNumber.from(0);
@@ -84,8 +84,8 @@ describe("ShortAction", function () {
 
   this.beforeAll("Deploy Mock contracts", async () => {
     const ERC20 = await ethers.getContractFactory("MockERC20");
-    token = (await ERC20.deploy()) as MockERC20;
-    await token.init("WETH", "WETH", 18);
+    weth = (await ERC20.deploy()) as MockERC20;
+    await weth.init("WETH", "WETH", 18);
 
     usdc = (await ERC20.deploy()) as MockERC20;
     await usdc.init("USDC", "USDC", 6);
@@ -116,24 +116,20 @@ describe("ShortAction", function () {
 
   describe("deployment test", () => {
     it("deploy", async () => {
-      const ShortActionContract = await ethers.getContractFactory("ShortOToken");
-      action = (await ShortActionContract.deploy(
+      const LongActionContract = await ethers.getContractFactory("LongOToken");
+      action = (await LongActionContract.deploy(
         vault.address,
-        token.address,
+        usdc.address,
         swap.address,
         auction.address,
-        controller.address,
-        0 // type 0 vault
-      )) as ShortOToken;
+        controller.address
+      )) as LongOToken;
 
       expect((await action.owner()) == owner.address).to.be.true;
 
-      expect((await action.asset()) === token.address).to.be.true;
+      expect((await action.asset()) === usdc.address).to.be.true;
 
-      expect(await controller.vaultOpened()).to.be.true;
-
-      expect((await token.allowance(action.address, pool.address)).eq(ethers.constants.MaxUint256)).to.be.true;
-      expect((await token.allowance(action.address, vault.address)).eq(ethers.constants.MaxUint256)).to.be.true;
+      expect((await usdc.allowance(action.address, vault.address)).eq(ethers.constants.MaxUint256)).to.be.true;
 
       // init state should be idle
       expect((await action.state()) === ActionState.Idle).to.be.true;
@@ -141,83 +137,67 @@ describe("ShortAction", function () {
       // whitelist is set
       expect((await action.opynWhitelist()) === whitelist.address).to.be.true;
     });
-    it("should deploy with type 1 vault", async () => {
-      const ShortActionContract = await ethers.getContractFactory("ShortOToken");
-      await ShortActionContract.deploy(
-        vault.address,
-        token.address,
-        swap.address,
-        ethers.constants.AddressZero,
-        controller.address,
-        1 // type 0 vault
-      );
-      expect((await action.owner()) == owner.address).to.be.true;
-      expect((await action.asset()) === token.address).to.be.true;
-      expect(await controller.vaultOpened()).to.be.true;
-    });
   });
 
-  const totalDepositInAction = utils.parseUnits("100");
+  const totalDepositInAction = 100000 * 1e6;
 
   describe("idle phase", () => {
-    before("Mint some eth to action", async () => {
-      // mint 100 weth
-      await token.mint(action.address, totalDepositInAction);
+    before("Mint some usdc to action", async () => {
+      // mint 100000 usdc
+      await usdc.mint(action.address, totalDepositInAction);
     });
     before("Deploy mock otokens", async () => {
       const MockOToken = await ethers.getContractFactory("MockOToken");
       otoken1 = (await MockOToken.deploy()) as MockOToken;
-      await otoken1.init("oWETHUSDC", "oWETHUSDC", 18);
+      await otoken1.init("oWETHUSDC-P", "oWETHUSDC-P", 18);
       await otoken1.initMockOTokenDetail(
-        token.address,
+        weth.address,
         usdc.address,
-        token.address,
+        usdc.address,
         otoken1StrikePrice,
         otoken1Expiry,
-        false
+        true
       );
 
       otoken2 = (await MockOToken.deploy()) as MockOToken;
-      await otoken2.init("oWETHUSDC", "oWETHUSDC", 18);
+      await otoken2.init("oWETHUSDC-P", "oWETHUSDC-P", 18);
       await otoken2.initMockOTokenDetail(
-        token.address,
+        weth.address,
         usdc.address,
-        token.address,
+        usdc.address,
         otoken2StrikePrice,
         otoken2Expiry,
-        false
+        true
       );
 
       otokenBad = (await MockOToken.deploy()) as MockOToken;
       await otokenBad.init("oWETHUSDC", "oWETHUSDC", 18);
       await otokenBad.initMockOTokenDetail(
-        token.address,
+        weth.address,
         usdc.address,
-        token.address,
+        usdc.address,
         otokenBadStrikePrice,
         otoken2Expiry,
-        false
+        true
       );
 
-      await oracle.setAssetPrice(token.address, 10000000000);
+      await oracle.setAssetPrice(weth.address, wethPrice); // 1000 USD
     });
-    it("should revert if calling mint + sell in idle phase", async () => {
-      const collateral = utils.parseUnits("10");
-      const amountOTokenToMint = 10 * 1e8;
-      const premium = parseUnits("1");
+    it("should revert if calling trade in idle phase", async () => {
+      const premium = 5000 * 1e6;
+      const buyAmount = 20 * 1e8;
+
       const order = await getOrder(
         action.address,
-        otoken1.address,
-        amountOTokenToMint,
+        usdc.address,
+        premium,
         counterpartyWallet.address,
-        token.address,
-        premium.toString(),
+        otoken1.address,
+        buyAmount,
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(
-        action.connect(owner).mintAndTradeAirSwapOTC(collateral, amountOTokenToMint, order)
-      ).to.be.revertedWith("!Activated");
+      await expect(action.connect(owner).tradeAirswapOTC(order)).to.be.revertedWith("!Activated");
     });
     it("should not be able to token with invalid strike price", async () => {
       await expect(action.connect(owner).commitOToken(otokenBad.address)).to.be.revertedWith("Bad Strike Price");
@@ -233,7 +213,6 @@ describe("ShortAction", function () {
   });
 
   describe("activating the action", () => {
-    const mintOTokenAmount = 10 * 1e8;
     before("increase blocktime to get it over with minimal commit period", async () => {
       const minPeriod = await action.MIN_COMMIT_PERIOD();
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
@@ -250,158 +229,107 @@ describe("ShortAction", function () {
     it("should get currentValue as total amount in gamma as ", async () => {
       expect((await action.currentValue()).eq(totalDepositInAction)).to.be.true;
     });
-    describe("short with AirSwap", async () => {
-      it("should not be able to mint and sell if less than min premium", async () => {
-        const collateralAmount = utils.parseUnits("10");
-        const sellAmount = 10 * 1e8;
-        const premium = utils.parseUnits("0");
-        const order = await getOrder(
-          action.address,
-          otoken1.address,
-          sellAmount,
-          counterpartyWallet.address,
-          token.address,
-          premium.toString(),
-          swap.address,
-          counterpartyWallet.privateKey
-        );
-        await expect(
-          action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, order)
-        ).revertedWith("Need minimum option premium");
+    describe("long with AirSwap", async () => {
+      before("mint some option ", async () => {
+        await otoken1.connect(owner).mint(counterpartyWallet.address, 20 * 1e8);
       });
-      it("should be able to mint and sell in this phase", async () => {
-        const collateralAmount = utils.parseUnits("10");
-        const otokenBalanceBefore = await otoken1.balanceOf(action.address);
-        const sellAmount = 10 * 1e8;
-        const premium = utils.parseUnits("1");
+      it("should be able to buy in this phase", async () => {
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
         const order = await getOrder(
           action.address,
-          otoken1.address,
-          sellAmount,
+          usdc.address,
+          premium,
           counterpartyWallet.address,
-          token.address,
-          premium.toString(),
+          otoken1.address,
+          buyAmount,
           swap.address,
           counterpartyWallet.privateKey
         );
-        await action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, order);
-        const otokenBalanceAfter = await otoken1.balanceOf(action.address);
-        expect(otokenBalanceAfter.sub(otokenBalanceBefore).eq("0")).to.be.true;
+
+        const usdcBalanceBefore = await usdc.balanceOf(action.address);
+        await action.connect(owner).tradeAirswapOTC(order);
+        const usdcBalanceAfter = await usdc.balanceOf(action.address);
+        expect(usdcBalanceBefore.sub(usdcBalanceAfter).eq(premium)).to.be.true;
       });
       it("should revert when trying to fill wrong order", async () => {
-        const collateralAmount = utils.parseUnits("10");
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
         const badOrder1 = await getOrder(
           action.address,
-          ethers.constants.AddressZero,
-          mintOTokenAmount,
+          weth.address, // this is wong
+          premium,
           counterpartyWallet.address,
-          token.address,
-          "1",
+          otoken1.address,
+          buyAmount,
           swap.address,
           counterpartyWallet.privateKey
         );
-        await expect(
-          action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, badOrder1)
-        ).to.be.revertedWith("Can only sell otoken");
+        await expect(action.connect(owner).tradeAirswapOTC(badOrder1)).to.be.revertedWith("Can only pay with asset");
 
         const badOrder2 = await getOrder(
           action.address,
-          otoken1.address,
-          mintOTokenAmount,
+          usdc.address,
+          premium,
           counterpartyWallet.address,
-          ethers.constants.AddressZero,
-          "1",
+          otoken2.address, // this is wrong
+          buyAmount,
           swap.address,
           counterpartyWallet.privateKey
         );
-        await expect(
-          action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, badOrder2)
-        ).to.be.revertedWith("Can only sell for asset");
+        await expect(action.connect(owner).tradeAirswapOTC(badOrder2)).to.be.revertedWith("Can only buy otoken");
       });
     });
-    describe("short by starting an EasyAuction", async () => {
+    describe("long by starting an EasyAuction", async () => {
       let auctionDeadline: number;
 
-      it("should be able to mint and start an auction phase", async () => {
-        const collateralAmount = utils.parseUnits("10");
-        const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
-        const mintAmount = 10 * 1e8;
-        const sellAmount = 5 * 1e8;
-        const minPremium = utils.parseUnits("1"); // 1 eth min premium
+      it("should be able to start an auction", async () => {
+        const auctionUSDCBalanceBefore = await usdc.balanceOf(auction.address);
+        const minBuy = 10 * 1e8;
+        const premium = 2000 * 1e6; // amount usdc paying
 
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
         auctionDeadline = currentTimestamp + 86400 * 1;
 
-        const minimalBidAmountPerOrder = 0.1 * 1e8; // min bid each order: 0.1 otoken
+        const minimalBidAmountPerOrder = 50 * 1e6; // min bid each order: 50 USDC
         const minFundingThreshold = 0;
 
-        await action.connect(owner).mintAndStartAuction(
-          collateralAmount,
-          mintAmount,
-          sellAmount,
+        await action.connect(owner).startAuction(
           auctionDeadline, // order cancel deadline
           auctionDeadline,
-          minPremium,
+          premium,
+          minBuy,
           minimalBidAmountPerOrder,
           minFundingThreshold,
           false
         );
-        const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
-        expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(sellAmount)).to.be.true;
+        const auctionUSDCBalanceAfter = await usdc.balanceOf(auction.address);
+        expect(auctionUSDCBalanceAfter.sub(auctionUSDCBalanceBefore).eq(premium)).to.be.true;
       });
 
-      it("should start another auction with otoken left in the contract", async () => {
-        const collateralAmount = 0;
-        const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
-        const mintAmount = 0;
-        const sellAmount = 5 * 1e8;
-        const minPremium = utils.parseUnits("1"); // 1 eth min premium
-
-        const blockNumber = await provider.getBlockNumber();
-        const block = await provider.getBlock(blockNumber);
-        const currentTimestamp = block.timestamp;
-        auctionDeadline = currentTimestamp + 86400 * 1;
-
-        const minimalBidAmountPerOrder = 0.1 * 1e8; // min bid each order: 0.1 otoken
-        const minFundingThreshold = 0;
-
-        await action
-          .connect(owner)
-          .mintAndStartAuction(
-            collateralAmount,
-            mintAmount,
-            sellAmount,
-            auctionDeadline,
-            auctionDeadline,
-            minPremium,
-            minimalBidAmountPerOrder,
-            minFundingThreshold,
-            false
-          );
-        const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
-        expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(sellAmount)).to.be.true;
-      });
-
-      it('can short by participate in a "buy otoken auction"', async () => {
+      it('can long by participate in a "otoken selling auction"', async () => {
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
         const auctionDeadline = currentTimestamp + 86400 * 1;
         // buyer create an auction to use 5 eth to buy 60 otokens
-        const buyer = accounts[3];
-        const sellAmount = utils.parseUnits("5");
-        await token.mint(buyer.address, sellAmount);
-        await token.connect(buyer).approve(auction.address, sellAmount);
-        await auction.connect(buyer).initiateAuction(
-          token.address,
+        const sellAmount = 100 * 1e8;
+        const minPremium = 6000 * 1e6;
+        const seller = accounts[3];
+        const minBidPerOrder = 1 * 1e8;
+
+        await otoken1.mint(seller.address, sellAmount);
+        await otoken1.connect(seller).approve(auction.address, sellAmount);
+        await auction.connect(seller).initiateAuction(
           otoken1.address,
+          usdc.address,
           auctionDeadline,
           auctionDeadline,
           sellAmount,
-          60 * 1e8, // min buy amount
-          1e6, // minimumBiddingAmountPerOrder
+          minPremium, // min premium amount
+          minBidPerOrder, // minimumBiddingAmountPerOrder
           0, // minFundingThreshold
           false, // isAtomicClosureAllowed
           ethers.constants.AddressZero, // accessManagerContract
@@ -410,25 +338,21 @@ describe("ShortAction", function () {
 
         const auctionIdToParticipate = await auction.auctionCounter();
 
-        // the action participate in the action
-        const collateralAmount = utils.parseUnits("5");
-        const mintAmount = 5 * 1e8;
-        const minPremium = utils.parseUnits("0.2");
+        const minBuyAmount = 10 * 1e8;
+        const premiumToPay = 700 * 1e6;
 
-        const auctionOtokenBalanceBefore = await otoken1.balanceOf(auction.address);
+        const auctionUSDCBalanceBefore = await usdc.balanceOf(auction.address);
         await action
           .connect(owner)
-          .mintAndBidInAuction(
+          .bidInAuction(
             auctionIdToParticipate,
-            collateralAmount,
-            mintAmount,
-            [minPremium],
-            [mintAmount],
+            [minBuyAmount],
+            [premiumToPay],
             ["0x0000000000000000000000000000000000000000000000000000000000000001"],
             "0x00"
           );
-        const auctionOtokenBalanceAfter = await otoken1.balanceOf(auction.address);
-        expect(auctionOtokenBalanceAfter.sub(auctionOtokenBalanceBefore).eq(mintAmount)).to.be.true;
+        const auctionUSDCBalanceAfter = await usdc.balanceOf(auction.address);
+        expect(auctionUSDCBalanceAfter.sub(auctionUSDCBalanceBefore).eq(premiumToPay)).to.be.true;
       });
     });
     it("should not be able to commit next token", async () => {
@@ -448,32 +372,32 @@ describe("ShortAction", function () {
       await expect(action.connect(owner).closePosition()).to.be.revertedWith("!VAULT");
     });
     it("should be able to close the position", async () => {
-      const actionBalanceBefore = await token.balanceOf(action.address);
-      const settlePayout = utils.parseUnits("9"); // assume we can get back 9 eth
-      await controller.setSettlePayout(settlePayout);
+      const actionBalanceBefore = await usdc.balanceOf(action.address);
+      const redeemPayout = 4000 * 1e6;
+
+      // mock payout asset
+      await usdc.mint(pool.address, redeemPayout);
+      await controller.setRedeemPayout(usdc.address, redeemPayout);
 
       await action.connect(vault).closePosition();
-      const actionBalanceAfter = await token.balanceOf(action.address);
-      expect(actionBalanceAfter.sub(actionBalanceBefore).eq(settlePayout)).to.be.true;
+      const actionBalanceAfter = await usdc.balanceOf(action.address);
+      expect(actionBalanceAfter.sub(actionBalanceBefore).eq(redeemPayout)).to.be.true;
       expect((await action.state()) === ActionState.Idle).to.be.true;
     });
     it("should revert if calling mint in idle phase", async () => {
-      const collateral = utils.parseUnits("10");
-      const amountOTokenToMint = 10 * 1e8;
-      const premium = utils.parseUnits("1");
+      const premium = 5000 * 1e6;
+      const buyAmount = 20 * 1e8;
       const order = await getOrder(
         action.address,
-        otoken1.address,
-        amountOTokenToMint,
+        usdc.address,
+        premium,
         counterpartyWallet.address,
-        token.address,
-        premium.toString(),
+        otoken1.address,
+        buyAmount,
         swap.address,
         counterpartyWallet.privateKey
       );
-      await expect(
-        action.connect(owner).mintAndTradeAirSwapOTC(collateral, amountOTokenToMint, order)
-      ).to.be.revertedWith("!Activated");
+      await expect(action.connect(owner).tradeAirswapOTC(order)).to.be.revertedWith("!Activated");
     });
   });
 });
