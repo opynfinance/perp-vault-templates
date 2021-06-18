@@ -2,10 +2,17 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+
 /**
  * @dev ZeroX Exchange contract interface.
  */
-interface Mock0xV4 {
+contract MockZeroXV4 {
+  using SafeMath for uint256;
+
   // solhint-disable max-line-length
   /// @dev Canonical order structure
   struct LimitOrder {
@@ -45,34 +52,20 @@ interface Mock0xV4 {
   }
 
   /// @dev Executes multiple calls of fillLimitOrder.
-  /// @param orders Array of order specifications.
-  /// @param takerTokenFillAmounts Array of desired amounts of takerToken to sell in orders.
-  /// @param signatures Array of proofs that orders have been created by makers.
-  /// @return takerTokenFilledAmounts Array of amount of takerToken(s) filled.
-  /// @return makerTokenFilledAmounts Array of amount of makerToken(s) filled.
-  function batchFillLimitOrders(
-    LimitOrder[] memory orders,
-    Signature[] memory signatures,
-    uint128[] memory takerTokenFillAmounts,
-    bool revertIfIncomplete
-  ) external payable returns (uint128[] memory takerTokenFilledAmounts, uint128[] memory makerTokenFilledAmounts);
-
   function fillLimitOrder(
-    LimitOrder calldata order, // The order
-    Signature calldata signature, // The signature
-    uint128 takerTokenFillAmount // How much taker token to fill the order with
-  ) external payable returns (uint128 _takerTokenFillAmount, uint128 makerTokenFillAmount);
+    LimitOrder calldata order,
+    Signature calldata, /*signature*/
+    uint128 takerTokenFillAmount
+  ) external payable returns (uint128 _takerTokenFillAmount, uint128 makerTokenFillAmount) {
+    IERC20(order.takerToken).transferFrom(msg.sender, order.maker, takerTokenFillAmount);
+    return (0, 0);
+  }
 
   function fillRfqOrder(
     RfqOrder calldata order, // The order
-    Signature calldata signature, // The signature
+    Signature calldata, /*signature*/ // The signature
     uint128 takerTokenFillAmount // How much taker token to fill the order with
-  )
-    external
-    payable
-    returns (
-      // How much maker token from the order the taker received.
-      uint128 _takerTokenFillAmount,
-      uint128 makerTokenFillAmount
-    );
+  ) external payable {
+    IERC20(order.takerToken).transferFrom(msg.sender, order.maker, takerTokenFillAmount);
+  }
 }
