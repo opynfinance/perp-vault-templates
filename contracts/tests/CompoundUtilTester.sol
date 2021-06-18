@@ -73,4 +73,18 @@ contract CompoundUtilsTester is CompoundUtils {
   function repayWETH(uint256 _amount) external {
     _repayWETH(_amount);
   }
+
+  /**
+   * @dev get back collateral from Compound
+   */
+  function redeemERC20(address _cToken, uint256 _redeemAmount) external {
+    _redeemERC20(_cToken, _redeemAmount);
+  }
+
+  /**
+   * @dev get back collateral as WETH from Compound
+   */
+  function redeemWETH(uint256 _redeemAmount) external {
+    _redeemWETH(_redeemAmount);
+  }
 }

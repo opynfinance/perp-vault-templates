@@ -11,4 +11,6 @@ interface ICToken {
   // function borrowBalanceCurrent(address) external returns (uint256);
 
   function repayBorrow(uint256) external returns (uint256);
+
+  function redeem(uint256 _amount) external returns (uint256);
 }

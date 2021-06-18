@@ -42,6 +42,12 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
     IERC20(underlying).transferFrom(msg.sender, address(this), _amount);
     return 0;
   }
+
+  function redeem(uint256 _amount) external override returns (uint256) {
+    _burn(msg.sender, _amount);
+    IERC20(underlying).transfer(msg.sender, _amount);
+    return 0;
+  }
 }
 
 contract MockCEth is ERC20Upgradeable, ICEth {
@@ -65,6 +71,13 @@ contract MockCEth is ERC20Upgradeable, ICEth {
 
   function repayBorrow() external payable override {
     repaidAmount = repaidAmount + msg.value;
+  }
+
+  function redeem(uint256 _amount) external override returns (uint256) {
+    _burn(msg.sender, _amount);
+    address payable sender = msg.sender;
+    sender.transfer(_amount);
+    return 0;
   }
 
   receive() external payable {}

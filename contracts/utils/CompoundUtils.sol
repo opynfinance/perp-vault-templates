@@ -103,13 +103,13 @@ contract CompoundUtils {
   function _repayERC20(
     address _underlying,
     address _cToken,
-    uint256 amount
+    uint256 _repayAmount
   ) internal {
     IERC20 underlying = IERC20(_underlying);
     ICToken cToken = ICToken(_cToken);
 
-    underlying.approve(_cToken, amount);
-    uint256 error = cToken.repayBorrow(amount);
+    underlying.approve(_cToken, _repayAmount);
+    uint256 error = cToken.repayBorrow(_repayAmount);
 
     require(error == 0, "CErc20.repayBorrow Error");
   }
@@ -118,10 +118,30 @@ contract CompoundUtils {
    * @dev repay borrowed WETH
    * this function will unwarp WETH to ETH, then repay the debt
    */
-  function _repayWETH(uint256 _amount) internal {
-    weth.withdraw(_amount);
+  function _repayWETH(uint256 _repayAmount) internal {
+    weth.withdraw(_repayAmount);
     // cETH reverts on error
-    cEth.repayBorrow{value: _amount}();
+    cEth.repayBorrow{value: _repayAmount}();
+  }
+
+  /**
+   * @dev get back collateral from Compound
+   */
+  function _redeemERC20(address _cToken, uint256 _redeemAmount) internal {
+    ICToken cToken = ICToken(_cToken);
+    uint256 error = cToken.redeem(_redeemAmount);
+    require(error == 0, "CErc20.redeem Error");
+  }
+
+  /**
+   * @dev get back collateral as WETH from Compound
+   */
+  function _redeemWETH(uint256 _redeemAmount) internal {
+    uint256 error = cEth.redeem(_redeemAmount);
+
+    require(error == 0, "CErc20.redeem Error");
+    // todo: use exchange rate to calculate how much eth we got back
+    weth.deposit{value: address(this).balance}();
   }
 
   /**

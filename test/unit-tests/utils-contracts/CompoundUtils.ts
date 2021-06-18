@@ -76,6 +76,12 @@ describe("CompoundUtils", function () {
       const testerUSDC = await usdc.balanceOf(testerWithWETH.address);
       expect(testerUSDC.isZero()).to.be.true;
     });
+    it("can redeem WETH", async () => {
+      const cTokenBalance = await ceth.balanceOf(testerWithWETH.address);
+      await testerWithWETH.redeemWETH(cTokenBalance);
+      const wethBalance = await weth.balanceOf(testerWithWETH.address);
+      expect(wethBalance.eq(ethAmount)).to.be.true;
+    });
   });
   describe("tester contract with USDC in it", () => {
     const usdcAmount = 10000 * 1e6;
@@ -103,6 +109,12 @@ describe("CompoundUtils", function () {
       await testerWithUSDC.repayWETH(borrowAmount);
       const testerWETH = await weth.balanceOf(testerWithUSDC.address);
       expect(testerWETH.isZero()).to.be.true;
+    });
+    it("can redeem USDC", async () => {
+      const cTokenBalance = await cusdc.balanceOf(testerWithUSDC.address);
+      await testerWithUSDC.redeemERC20(cusdc.address, cTokenBalance);
+      const usdcBalance = await usdc.balanceOf(testerWithUSDC.address);
+      expect(usdcBalance.eq(usdcAmount)).to.be.true;
     });
   });
 });

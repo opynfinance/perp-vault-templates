@@ -8,5 +8,7 @@ interface ICEth {
 
   function repayBorrow() external payable;
 
+  function redeem(uint256 _amount) external returns (uint256);
+
   // function borrowBalanceCurrent(address) external returns (uint256);
 }
