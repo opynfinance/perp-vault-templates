@@ -107,17 +107,20 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
    * @dev the function that the vault will call when the round is over
    */
   function closePosition() external override onlyVault {
+    // get back usdc from settlement
     _settleGammaVault();
 
-    uint256 usdcLeft = IERC20(usdc).balanceOf(address(this));
+    // repay USD, so we can get back ETH from Compound
+    // todo: prepare contract with extra usd to get back full amount
+    uint256 repayAmount = IERC20(usdc).balanceOf(address(this));
+    _repayERC20(usdc, cusdc, repayAmount);
+    // _repayERC20(usdc, cusdc, uint256(-1)); // to pay back full amount, use this line
 
-    _repayERC20(usdc, cusdc, usdcLeft);
+    // get back ETH (and wrap to WETH)
+    uint256 wethToRedeem = (IERC20(address(cEth)).balanceOf(address(this)) * 99) / 100;
+    _redeemWETH(wethToRedeem);
 
-    uint256 cethLeft = IERC20(address(cEth)).balanceOf(address(this));
-
-    // get back WETH
-    _redeemWETH(cethLeft);
-
+    // set action state.
     _setActionIdle();
   }
 

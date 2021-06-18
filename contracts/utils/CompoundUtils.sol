@@ -139,7 +139,7 @@ contract CompoundUtils {
   function _redeemWETH(uint256 _redeemAmount) internal {
     uint256 error = cEth.redeem(_redeemAmount);
 
-    require(error == 0, "CErc20.redeem Error");
+    require(error == 0, "CEth.redeem Error");
     // todo: use exchange rate to calculate how much eth we got back
     weth.deposit{value: address(this).balance}();
   }

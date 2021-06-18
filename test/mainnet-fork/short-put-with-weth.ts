@@ -10,7 +10,7 @@ import {
   IOToken,
   MockPricer,
   IOracle,
-  ShortOToken,
+  ShortPutWithETH,
 } from "../../typechain";
 import * as fs from "fs";
 import { getOrder } from "../utils/orders";
@@ -31,9 +31,9 @@ enum ActionState {
   Activated,
 }
 
-describe("Mainnet: Short Call with Airswap", function () {
+describe("Mainnet: Short Put with ETH", function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
-  let action1: ShortOToken;
+  let action1: ShortPutWithETH;
   // asset used by this action: in this case, weth
   let weth: IWETH;
   let usdc: MockERC20;
@@ -66,11 +66,11 @@ describe("Mainnet: Short Call with Airswap", function () {
   const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
   const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-  /**
-   *
-   * Setup
-   *
-   */
+  const cethAddress = "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5";
+  const cusdcAddress = "0x39aa39c021dfbae8fac545936693ac917d5e7563";
+  const comptrollerAddress = "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b";
+
+  const uniswapETHUSDCPool = "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc";
 
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();
@@ -97,15 +97,17 @@ describe("Mainnet: Short Call with Airswap", function () {
     vault = (await VaultContract.deploy()) as OpynPerpVault;
 
     // deploy the short action contract
-    const ShortActionContract = await ethers.getContractFactory("ShortOToken");
-    action1 = (await ShortActionContract.deploy(
+    const ShortPutWithETHContract = await ethers.getContractFactory("ShortPutWithETH");
+    action1 = (await ShortPutWithETHContract.deploy(
       vault.address,
-      weth.address,
+      wethAddress,
+      cethAddress,
+      usdc.address,
+      cusdcAddress,
       swapAddress,
-      ethers.constants.AddressZero,
       controllerAddress,
-      0 // type 0 vault
-    )) as ShortOToken;
+      comptrollerAddress
+    )) as ShortPutWithETH;
 
     await vault
       .connect(owner)
@@ -139,31 +141,30 @@ describe("Mainnet: Short Call with Airswap", function () {
   });
 
   describe("profitable scenario", async () => {
-    const p1DepositAmount = utils.parseEther("10");
-    const p2DepositAmount = utils.parseEther("70");
-    const p3DepositAmount = utils.parseEther("20");
-    const premium = utils.parseEther("1");
-    let otoken: IOToken;
+    const p1DepositAmount = utils.parseEther("30");
+    const premium = utils.parseEther("1.5");
+
+    let ethPut: IOToken;
+    const putStrike = 2000 * 1e8;
     let expiry;
     this.beforeAll("deploy otoken that will be sold and set up counterparty", async () => {
-      const otokenStrikePrice = 500000000000;
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
       const currentTimestamp = block.timestamp;
       expiry = (Math.floor(currentTimestamp / day) + 10) * day + 28800;
 
-      await otokenFactory.createOtoken(weth.address, usdc.address, weth.address, otokenStrikePrice, expiry, false);
+      await otokenFactory.createOtoken(weth.address, usdc.address, usdc.address, putStrike, expiry, true);
 
       const otokenAddress = await otokenFactory.getOtoken(
         weth.address,
         usdc.address,
-        weth.address,
-        otokenStrikePrice,
+        usdc.address,
+        putStrike,
         expiry,
-        false
+        true
       );
 
-      otoken = (await ethers.getContractAt("IOToken", otokenAddress)) as IOToken;
+      ethPut = (await ethers.getContractAt("IOToken", otokenAddress)) as IOToken;
 
       // prepare counterparty
       counterpartyWallet = counterpartyWallet.connect(provider);
@@ -177,38 +178,33 @@ describe("Mainnet: Short Call with Airswap", function () {
       expect(await weth.balanceOf(vault.address)).to.be.equal(p1DepositAmount);
     });
 
-    it("p2 deposits", async () => {
-      const existingAmount = await weth.balanceOf(vault.address);
-      await vault.connect(depositor2).depositETH({ value: p2DepositAmount });
-      const newBalance = existingAmount.add(p2DepositAmount);
-      expect((await vault.totalAsset()).eq(newBalance), "total asset should update").to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(newBalance);
-    });
-
     it("owner commits to the option", async () => {
       // set live price as 3000
       await pricer.setPrice("300000000000");
       expect(await action1.state()).to.be.equal(ActionState.Idle);
-      await action1.commitOToken(otoken.address);
+      await action1.commitOToken(ethPut.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    it("owner mints and sells options", async () => {
-      // increase time
+    it("rollover", async () => {
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
       await provider.send("evm_mine", []);
-
       await vault.rollOver([10000]);
+    });
 
-      const collateralAmount = await weth.balanceOf(action1.address);
+    it("owner mints and sells options", async () => {
+      const supplyWETHAmount = await weth.balanceOf(action1.address);
+      const otokenMintAmountHumanReadable = 3;
+      // amount usdc needed to mint
+      const otokenCollateral = (putStrike / 1e8) * otokenMintAmountHumanReadable * 1e6;
 
-      const sellAmount = collateralAmount.div(10000000000).toNumber();
+      const otokenSellAmount = otokenMintAmountHumanReadable * 1e8;
 
       const order = await getOrder(
         action1.address,
-        otoken.address,
-        sellAmount,
+        ethPut.address,
+        otokenSellAmount,
         counterpartyWallet.address,
         weth.address,
         premium.toString(),
@@ -218,11 +214,10 @@ describe("Mainnet: Short Call with Airswap", function () {
 
       expect((await action1.lockedAsset()).eq("0"), "collateral should not be locked").to.be.true;
 
-      await action1.mintAndTradeAirSwapOTC(collateralAmount, sellAmount, order);
+      await action1.borrowMintAndTradeOTC(supplyWETHAmount, otokenCollateral, otokenSellAmount, order);
 
-      expect(await otoken.balanceOf(counterpartyWallet.address)).to.be.equal(sellAmount);
+      expect(await ethPut.balanceOf(counterpartyWallet.address)).to.be.equal(otokenSellAmount);
       expect(await weth.balanceOf(action1.address)).to.be.equal(premium);
-      expect((await action1.lockedAsset()).eq(collateralAmount), "collateral should be locked").to.be.true;
     });
 
     it("option expires", async () => {
@@ -231,51 +226,16 @@ describe("Mainnet: Short Call with Airswap", function () {
       await provider.send("evm_mine", []);
 
       // set settlement price
-      await pricer.setExpiryPriceInOracle(weth.address, expiry, "200000000000");
+      await pricer.setExpiryPriceInOracle(weth.address, expiry, 3000 * 1e8);
 
       // increase time
       await provider.send("evm_increaseTime", [day]); // increase time
       await provider.send("evm_mine", []);
 
       await vault.closePositions();
-
+      const finalWeth = await weth.balanceOf(vault.address);
+      expect(finalWeth.gt(p1DepositAmount)).to.be.true;
       expect((await action1.lockedAsset()).eq("0"), "all collateral should be unlocked").to.be.true;
     });
-
-    // it("p1 withdraws", async () => {
-    //   const denominator = p1DepositAmount.add(p2DepositAmount);
-    //   const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
-    //   const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-    //   const fee = amountToWithdraw.mul(5).div(1000);
-    //   const amountTransferredToP1 = amountToWithdraw.sub(fee);
-
-    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP1Before = await weth.balanceOf(depositor1.address);
-
-    //   await vault.connect(depositor1).withdraw(await vault.balanceOf(depositor1.address));
-
-    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP1After = await weth.balanceOf(depositor1.address);
-
-    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-    //   expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
-    // });
-
-    // it("p2 withdraws", async () => {
-    //   const denominator = p1DepositAmount.add(p2DepositAmount);
-    //   const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
-    //   const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
-
-    //   const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP2Before = await weth.balanceOf(depositor2.address);
-
-    //   await vault.connect(depositor2).withdraw(await vault.balanceOf(depositor2.address));
-
-    //   const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-    //   const balanceOfP2After = await weth.balanceOf(depositor2.address);
-
-    //   expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
-    //   expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
-    // });
   });
 });

@@ -39,7 +39,13 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
   }
 
   function repayBorrow(uint256 _amount) external override returns (uint256) {
-    IERC20(underlying).transferFrom(msg.sender, address(this), _amount);
+    if (_amount != uint256(-1)) {
+      IERC20(underlying).transferFrom(msg.sender, address(this), _amount);
+    } else {
+      // mock the full repay behavior by pulling all token from it.
+      uint256 amount = IERC20(underlying).balanceOf(msg.sender);
+      IERC20(underlying).transferFrom(msg.sender, address(this), amount);
+    }
     return 0;
   }
 
