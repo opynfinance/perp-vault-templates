@@ -13,7 +13,7 @@ import {
   ShortOToken,
 } from "../../typechain";
 import * as fs from "fs";
-import { getOrder } from "../utils/orders";
+import { getAirSwapOrder } from "../utils/orders";
 
 const mnemonic = fs.existsSync(".secret")
   ? fs.readFileSync(".secret").toString().trim()
@@ -205,7 +205,7 @@ describe("Mainnet: Short Call with Airswap", function () {
 
       const sellAmount = collateralAmount.div(10000000000).toNumber();
 
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action1.address,
         otoken.address,
         sellAmount,

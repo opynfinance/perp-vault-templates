@@ -65,7 +65,16 @@ contract MockZeroXV4 {
     RfqOrder calldata order, // The order
     Signature calldata, /*signature*/ // The signature
     uint128 takerTokenFillAmount // How much taker token to fill the order with
-  ) external payable {
+  )
+    external
+    payable
+    returns (
+      // How much maker token from the order the taker received.
+      uint128 _takerTokenFillAmount,
+      uint128 makerTokenFillAmount
+    )
+  {
     IERC20(order.takerToken).transferFrom(msg.sender, order.maker, takerTokenFillAmount);
+    return (0, 0);
   }
 }
