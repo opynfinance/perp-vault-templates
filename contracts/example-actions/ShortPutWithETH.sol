@@ -117,7 +117,8 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
     // _repayERC20(usdc, cusdc, uint256(-1)); // to pay back full amount, use this line
 
     // get back ETH (and wrap to WETH)
-    uint256 wethToRedeem = (IERC20(address(cEth)).balanceOf(address(this)) * 99) / 100;
+    // todo: change to use full balance once we can repay full debt
+    uint256 wethToRedeem = (IERC20(address(cEth)).balanceOf(address(this)) * 995) / 1000;
     _redeemWETH(wethToRedeem);
 
     // set action state.

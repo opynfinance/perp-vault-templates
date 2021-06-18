@@ -223,8 +223,6 @@ describe("Short Put with ETH Action", function () {
         counterpartyWallet.privateKey
       );
       await action.connect(owner).borrowMintAndTradeOTC(wethSupply, usdcAmountToBorrow, amountOTokenToMint, order);
-      const usdcInPool = await usdc.balanceOf(pool.address);
-      console.log(`usdcInPool`, usdcInPool.toString());
       const counterPartyOToken = await otoken1.balanceOf(counterpartyWallet.address);
       expect(counterPartyOToken.eq(amountOTokenToMint)).to.be.true;
     });
@@ -256,7 +254,10 @@ describe("Short Put with ETH Action", function () {
 
       const wethSupplied = utils.parseUnits("10");
       const actionBalanceAfter = await weth.balanceOf(action.address);
-      expect(actionBalanceAfter.sub(actionBalanceBefore).eq(wethSupplied)).to.be.true;
+
+      const amountGotBack = actionBalanceAfter.sub(actionBalanceBefore);
+
+      expect(amountGotBack.eq(wethSupplied.mul(995).div(1000))).to.be.true;
       expect((await action.state()) === ActionState.Idle).to.be.true;
     });
   });
