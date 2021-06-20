@@ -2,7 +2,7 @@ import { ethers, waffle } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { getOrder } from "../../utils/orders";
+import { getAirSwapOrder } from "../../utils/orders";
 import {
   ShortPutWithETH,
   MockERC20,
@@ -169,7 +169,7 @@ describe("Short Put with ETH Action", function () {
       const usdcAmountToBorrow = otoken1StrikePriceHumanReadable * 1e6 * amountOTokenToMintHumanReadable;
       const amountOTokenToMint = amountOTokenToMintHumanReadable * 1e8;
       const premium = parseUnits("1");
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,
@@ -212,7 +212,7 @@ describe("Short Put with ETH Action", function () {
       const usdcAmountToBorrow = otoken1StrikePriceHumanReadable * 1e6 * amountOTokenToMintHumanReadable;
       const amountOTokenToMint = amountOTokenToMintHumanReadable * 1e8;
       const premium = parseUnits("1");
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,

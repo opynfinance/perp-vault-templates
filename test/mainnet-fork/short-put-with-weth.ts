@@ -13,7 +13,7 @@ import {
   ShortPutWithETH,
 } from "../../typechain";
 import * as fs from "fs";
-import { getOrder } from "../utils/orders";
+import { getAirSwapOrder } from "../utils/orders";
 
 const mnemonic = fs.existsSync(".secret")
   ? fs.readFileSync(".secret").toString().trim()
@@ -69,8 +69,6 @@ describe("Mainnet: Short Put with ETH", function () {
   const cethAddress = "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5";
   const cusdcAddress = "0x39aa39c021dfbae8fac545936693ac917d5e7563";
   const comptrollerAddress = "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b";
-
-  const uniswapETHUSDCPool = "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc";
 
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();
@@ -201,7 +199,7 @@ describe("Mainnet: Short Put with ETH", function () {
 
       const otokenSellAmount = otokenMintAmountHumanReadable * 1e8;
 
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action1.address,
         ethPut.address,
         otokenSellAmount,

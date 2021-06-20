@@ -10,6 +10,7 @@ import {GammaUtils} from "../utils/GammaUtils.sol";
 import {AirswapUtils} from "../utils/AirswapUtils.sol";
 // use auction to long
 import {AuctionUtils} from "../utils/AuctionUtils.sol";
+import {ZeroXUtils} from "../utils/ZeroXUtils.sol";
 
 import {SwapTypes} from "../libraries/SwapTypes.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -20,12 +21,13 @@ import {IController} from "../interfaces/IController.sol";
 import {IAction} from "../interfaces/IAction.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IOToken} from "../interfaces/IOToken.sol";
+import {IZeroXV4} from "../interfaces/IZeroXV4.sol";
 
 /**
  * This is an Long Action template that inherit lots of util functions to "Long" an option.
  * You can remove the function you don't need.
  */
-contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, GammaUtils {
+contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, RollOverBase, ZeroXUtils, GammaUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -41,6 +43,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
     address _vault,
     address _asset,
     address _airswap,
+    address _zeroxExchange,
     address _easyAuction,
     address _controller
   ) {
@@ -57,6 +60,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
     // init the contract used to execute trades
     _initAuction(_easyAuction);
     _initSwapContract(_airswap);
+    _init0x(_zeroxExchange);
 
     _initRollOverBase(controller.whitelist());
     __Ownable_init();
@@ -161,6 +165,34 @@ contract LongOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils, 
     require(_order.signer.token == otoken, "Can only buy otoken");
 
     _fillAirswapOrder(_order);
+  }
+
+  /**
+   * @dev execute limit order to buy oToken via 0x v4.
+   */
+  function trade0xLimit(
+    IZeroXV4.LimitOrder calldata _order,
+    IZeroXV4.Signature calldata _signature,
+    uint128 _takerTokenFillAmount
+  ) external payable onlyOwner {
+    // custom checks
+    require(_order.makerToken == otoken, "Can only buy otoken");
+    require(_order.takerToken == asset, "Can only buy with asset");
+    _fillLimitOrder(_order, _signature, _takerTokenFillAmount);
+  }
+
+  /**
+   * @dev execute limit order to buy oToken via 0x v4.
+   */
+  function trade0xRFQ(
+    IZeroXV4.RfqOrder calldata _order,
+    IZeroXV4.Signature calldata _signature,
+    uint128 _takerTokenFillAmount
+  ) external onlyOwner {
+    // custom checks
+    require(_order.makerToken == otoken, "Can only buy otoken");
+    require(_order.takerToken == asset, "Can only buy with asset");
+    _fillRFQOrder(_order, _signature, _takerTokenFillAmount);
   }
 
   // End of Long Funtions

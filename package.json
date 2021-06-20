@@ -24,6 +24,7 @@
     "account": "hardhat account"
   },
   "devDependencies": {
+    "@0x/protocol-utils": "^1.7.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "chai": "^4.3.4",

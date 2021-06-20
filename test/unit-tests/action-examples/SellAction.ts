@@ -2,7 +2,7 @@ import { ethers, waffle } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { getOrder } from "../../utils/orders";
+import { getAirSwapOrder } from "../../utils/orders";
 import {
   ShortOToken,
   MockERC20,
@@ -205,7 +205,7 @@ describe("ShortAction", function () {
       const collateral = utils.parseUnits("10");
       const amountOTokenToMint = 10 * 1e8;
       const premium = parseUnits("1");
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,
@@ -255,7 +255,7 @@ describe("ShortAction", function () {
         const collateralAmount = utils.parseUnits("10");
         const sellAmount = 10 * 1e8;
         const premium = utils.parseUnits("0");
-        const order = await getOrder(
+        const order = await getAirSwapOrder(
           action.address,
           otoken1.address,
           sellAmount,
@@ -274,7 +274,7 @@ describe("ShortAction", function () {
         const otokenBalanceBefore = await otoken1.balanceOf(action.address);
         const sellAmount = 10 * 1e8;
         const premium = utils.parseUnits("1");
-        const order = await getOrder(
+        const order = await getAirSwapOrder(
           action.address,
           otoken1.address,
           sellAmount,
@@ -290,7 +290,7 @@ describe("ShortAction", function () {
       });
       it("should revert when trying to fill wrong order", async () => {
         const collateralAmount = utils.parseUnits("10");
-        const badOrder1 = await getOrder(
+        const badOrder1 = await getAirSwapOrder(
           action.address,
           ethers.constants.AddressZero,
           mintOTokenAmount,
@@ -304,7 +304,7 @@ describe("ShortAction", function () {
           action.connect(owner).mintAndTradeAirSwapOTC(collateralAmount, mintOTokenAmount, badOrder1)
         ).to.be.revertedWith("Can only sell otoken");
 
-        const badOrder2 = await getOrder(
+        const badOrder2 = await getAirSwapOrder(
           action.address,
           otoken1.address,
           mintOTokenAmount,
@@ -461,7 +461,7 @@ describe("ShortAction", function () {
       const collateral = utils.parseUnits("10");
       const amountOTokenToMint = 10 * 1e8;
       const premium = utils.parseUnits("1");
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         otoken1.address,
         amountOTokenToMint,

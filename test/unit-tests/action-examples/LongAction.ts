@@ -2,9 +2,10 @@ import { ethers, waffle } from "hardhat";
 import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { getOrder } from "../../utils/orders";
+import { getAirSwapOrder, get0xLimitOrder, get0xRFQOrder } from "../../utils/orders";
 import {
   LongOToken,
+  MockZeroXV4,
   MockERC20,
   MockWhitelist,
   MockSwap,
@@ -40,6 +41,7 @@ describe("LongAction: Buying Puts", function () {
   // mock external contracts
   let swap: MockSwap;
   let auction: MockEasyAuction;
+  let zeroXExchange: MockZeroXV4;
 
   let whitelist: MockWhitelist;
   let controller: MockController;
@@ -100,6 +102,9 @@ describe("LongAction: Buying Puts", function () {
     const Auction = await ethers.getContractFactory("MockEasyAuction");
     auction = (await Auction.deploy()) as MockEasyAuction;
 
+    const MockZero = await ethers.getContractFactory("MockZeroXV4");
+    zeroXExchange = (await MockZero.deploy()) as MockZeroXV4;
+
     const MockPool = await ethers.getContractFactory("MockPool");
     pool = (await MockPool.deploy()) as MockPool;
 
@@ -121,6 +126,7 @@ describe("LongAction: Buying Puts", function () {
         vault.address,
         usdc.address,
         swap.address,
+        zeroXExchange.address,
         auction.address,
         controller.address
       )) as LongOToken;
@@ -187,7 +193,7 @@ describe("LongAction: Buying Puts", function () {
       const premium = 5000 * 1e6;
       const buyAmount = 20 * 1e8;
 
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         usdc.address,
         premium,
@@ -236,7 +242,7 @@ describe("LongAction: Buying Puts", function () {
       it("should be able to buy in this phase", async () => {
         const premium = 5000 * 1e6;
         const buyAmount = 20 * 1e8;
-        const order = await getOrder(
+        const order = await getAirSwapOrder(
           action.address,
           usdc.address,
           premium,
@@ -255,7 +261,7 @@ describe("LongAction: Buying Puts", function () {
       it("should revert when trying to fill wrong order", async () => {
         const premium = 5000 * 1e6;
         const buyAmount = 20 * 1e8;
-        const badOrder1 = await getOrder(
+        const badOrder1 = await getAirSwapOrder(
           action.address,
           weth.address, // this is wong
           premium,
@@ -267,7 +273,7 @@ describe("LongAction: Buying Puts", function () {
         );
         await expect(action.connect(owner).tradeAirswapOTC(badOrder1)).to.be.revertedWith("Can only pay with asset");
 
-        const badOrder2 = await getOrder(
+        const badOrder2 = await getAirSwapOrder(
           action.address,
           usdc.address,
           premium,
@@ -278,6 +284,104 @@ describe("LongAction: Buying Puts", function () {
           counterpartyWallet.privateKey
         );
         await expect(action.connect(owner).tradeAirswapOTC(badOrder2)).to.be.revertedWith("Can only buy otoken");
+      });
+    });
+    describe("long with 0x V4", async () => {
+      before("mint some option ", async () => {
+        await otoken1.connect(owner).mint(counterpartyWallet.address, 20 * 1e8);
+      });
+
+      it("should be able to buy by filling Limit order", async () => {
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
+        const order = await get0xLimitOrder(
+          otoken1.address,
+          usdc.address,
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          counterpartyWallet.privateKey
+        );
+
+        const usdcBalanceBefore = await usdc.balanceOf(action.address);
+        await action.connect(owner).trade0xLimit(order, order.signature, premium);
+        const usdcBalanceAfter = await usdc.balanceOf(action.address);
+        expect(usdcBalanceBefore.sub(usdcBalanceAfter).eq(premium)).to.be.true;
+      });
+      it("should revert when trying to fill wrong order", async () => {
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
+        const badOrder1 = await get0xLimitOrder(
+          otoken1.address,
+          weth.address, // wrong
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          counterpartyWallet.privateKey
+        );
+        await expect(action.connect(owner).trade0xLimit(badOrder1, badOrder1.signature, premium)).to.be.revertedWith(
+          "Can only buy with asset"
+        );
+
+        const badOrder2 = await get0xLimitOrder(
+          weth.address, // wrong
+          usdc.address,
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          counterpartyWallet.privateKey
+        );
+        await expect(action.connect(owner).trade0xLimit(badOrder2, badOrder2.signature, premium)).to.be.revertedWith(
+          "Can only buy otoken"
+        );
+      });
+
+      it("should be able to buy by filling RFQ order", async () => {
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
+        const order = await get0xRFQOrder(
+          otoken1.address,
+          usdc.address,
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          owner.address, // tx origin
+          counterpartyWallet.privateKey
+        );
+
+        const usdcBalanceBefore = await usdc.balanceOf(action.address);
+        await action.connect(owner).trade0xRFQ(order, order.signature, premium);
+        const usdcBalanceAfter = await usdc.balanceOf(action.address);
+        expect(usdcBalanceBefore.sub(usdcBalanceAfter).eq(premium)).to.be.true;
+      });
+      it("should revert when trying to fill wrong order", async () => {
+        const premium = 5000 * 1e6;
+        const buyAmount = 20 * 1e8;
+        const badOrder1 = await get0xRFQOrder(
+          otoken1.address,
+          weth.address, // wrong
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          owner.address, // tx origin
+          counterpartyWallet.privateKey
+        );
+        await expect(action.connect(owner).trade0xRFQ(badOrder1, badOrder1.signature, premium)).to.be.revertedWith(
+          "Can only buy with asset"
+        );
+
+        const badOrder2 = await get0xRFQOrder(
+          weth.address, // wrong
+          usdc.address,
+          buyAmount,
+          premium,
+          counterpartyWallet.address,
+          owner.address, // tx origin
+          counterpartyWallet.privateKey
+        );
+        await expect(action.connect(owner).trade0xRFQ(badOrder2, badOrder2.signature, premium)).to.be.revertedWith(
+          "Can only buy otoken"
+        );
       });
     });
     describe("long by starting an EasyAuction", async () => {
@@ -387,7 +491,7 @@ describe("LongAction: Buying Puts", function () {
     it("should revert if calling mint in idle phase", async () => {
       const premium = 5000 * 1e6;
       const buyAmount = 20 * 1e8;
-      const order = await getOrder(
+      const order = await getAirSwapOrder(
         action.address,
         usdc.address,
         premium,
