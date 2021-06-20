@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils } from "ethers";
+import { utils, providers } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
@@ -50,7 +50,7 @@ describe("Mainnet: Short Put with ETH", function () {
   let otokenFactory: IOtokenFactory;
   let pricer: MockPricer;
   let oracle: IOracle;
-  let provider;
+  let provider: providers.JsonRpcProvider;
 
   /**
    *
@@ -143,8 +143,9 @@ describe("Mainnet: Short Put with ETH", function () {
     const premium = utils.parseEther("1.5");
 
     let ethPut: IOToken;
+    let expiry: number;
     const putStrike = 2000 * 1e8;
-    let expiry;
+
     this.beforeAll("deploy otoken that will be sold and set up counterparty", async () => {
       const blockNumber = await provider.getBlockNumber();
       const block = await provider.getBlock(blockNumber);
