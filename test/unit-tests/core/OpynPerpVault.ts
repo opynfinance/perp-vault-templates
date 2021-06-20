@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils } from "ethers";
+import { utils, BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../../typechain";
@@ -35,7 +35,7 @@ describe("OpynPerpVault Tests", function () {
   let vault: OpynPerpVault;
 
   //
-  let round0FullShareWithdrawAmount;
+  let round0FullShareWithdrawAmount: BigNumber;
 
   this.beforeAll("Set accounts", async () => {
     accounts = await ethers.getSigners();

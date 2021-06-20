@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils, BigNumber } from "ethers";
+import { utils, BigNumber, providers } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
@@ -42,7 +42,7 @@ describe("Mainnet: Short Call with Auction", function () {
   let pricer: MockPricer;
   let oracle: IOracle;
   let easyAuction: IEasyAuction;
-  let provider;
+  let provider: providers.JsonRpcProvider;
 
   /**
    *
@@ -144,9 +144,9 @@ describe("Mainnet: Short Call with Auction", function () {
     const p2DepositAmount = utils.parseEther("70");
     const minPremium = utils.parseEther("3");
     let otoken: IOToken;
-    let expiry;
-    let auctionId;
-    let auction2Id;
+    let expiry: number;
+    let auctionId: BigNumber;
+    let auction2Id: BigNumber;
     let auctionDeadline: number;
     let auction2Deadline: number;
 

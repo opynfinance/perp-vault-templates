@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils, Wallet, constants, BigNumber } from "ethers";
+import { utils, Wallet, constants } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
@@ -37,12 +37,6 @@ const mnemonic = fs.existsSync(".secret")
   ? fs.readFileSync(".secret").toString().trim()
   : "test test test test test test test test test test test junk";
 
-enum VaultState {
-  Locked,
-  Unlocked,
-  Emergency,
-}
-
 enum ActionState {
   Idle,
   Committed,
@@ -68,7 +62,6 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
   let otokenFactory: IOtokenFactory;
   let pricer: MockPricer;
   let oracle: IOracle;
-  let provider;
   let controller: IController;
 
   /**
@@ -136,7 +129,7 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
   });
 
   this.beforeAll("Deploy pricer and update pricer in opyn's oracle", async () => {
-    provider = ethers.provider;
+    const provider = ethers.provider;
 
     const PricerContract = await ethers.getContractFactory("MockPricer");
     pricer = (await PricerContract.deploy(oracleAddress)) as MockPricer;
@@ -161,6 +154,7 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
     const collateralAmount = utils.parseEther("5");
 
     this.beforeAll("deploy otoken that will be bought ", async () => {
+      const provider = ethers.provider;
       const otokenStrikePrice = 4000 * 1e8;
 
       const blockNumber = await provider.getBlockNumber();
@@ -183,6 +177,7 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
     });
 
     this.beforeAll("mint otoken from counterparty wallet", async () => {
+      const provider = ethers.provider;
       // prepare counterparty: minting 10 calls
       counterpartyWallet = counterpartyWallet.connect(provider);
       // send 20 eth to counter party
@@ -244,6 +239,7 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
     });
     it("rollover", async () => {
       // increase time
+      const provider = ethers.provider;
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
       await provider.send("evm_mine", []);
