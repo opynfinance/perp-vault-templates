@@ -30,9 +30,9 @@ export default {
         url: `https://mainnet.infura.io/v3/${infuraKey}`,
         enabled: process.env.FORK === 'true'
       },
-      gas: 12000000,
-      blockGasLimit: 0x1fffffffffffff,
-      allowUnlimitedContractSize: true,
+      // gas: 12000000,
+      // blockGasLimit: 0x1fffffffffffff,
+      // allowUnlimitedContractSize: true,
     },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,

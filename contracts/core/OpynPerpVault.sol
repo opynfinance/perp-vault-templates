@@ -187,18 +187,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Deposits ETH into the contract and mint vault shares. Reverts if the underlying is not WETH.
-   */
-  function depositETH() external payable nonReentrant {
-    require(state == VaultState.Unlocked, "!Unlocked");
-    require(asset == WETH, "!WETH");
-    require(msg.value > 0, "!VALUE");
-
-    IWETH(WETH).deposit{value: msg.value}();
-    _deposit(msg.value);
-  }
-
-  /**
    * @dev deposit ERC20 asset and get shares
    */
   function deposit(uint256 _amount) external {
@@ -208,23 +196,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev register for a fair deposit
-   */
-  function registerDepositETH() external payable {
-    require(asset == WETH, "!WETH");
-    require(state == VaultState.Locked, "!Locked");
-    IWETH(WETH).deposit{value: msg.value}();
-    userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(msg.value);
-    pendingDeposit = pendingDeposit.add(msg.value);
-  }
-
-  /**
    * @dev register for a fair deposit with ERC20
    */
-  function registerDeposit(uint256 _amount) external {
+  function registerDeposit(uint256 _amount, address _shareRecipient) external {
     require(state == VaultState.Locked, "!Locked");
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
-    userRoundQueuedDepositAmount[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_amount);
+    userRoundQueuedDepositAmount[_shareRecipient][round] = userRoundQueuedWithdrawShares[_shareRecipient][round].add(
+      _amount
+    );
     pendingDeposit = pendingDeposit.add(_amount);
   }
 
@@ -241,20 +220,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     // transfer shares from vault to user
     _transfer(address(this), _depositor, equivilentShares);
-  }
-
-  /**
-   * @notice Withdraws ETH from vault using vault shares.
-   * @param share is the number of vault shares to be burned
-   */
-  function withdrawETH(uint256 share) external nonReentrant {
-    require(state == VaultState.Unlocked, "!Unlocked");
-    require(asset == WETH, "!WETH");
-    uint256 withdrawAmount = _regularWithdraw(share);
-
-    IWETH(WETH).withdraw(withdrawAmount);
-    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
-    require(success, "ETH transfer failed");
   }
 
   /**
@@ -278,25 +243,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Withdraws asset from vault using vault shares
+   * @notice Withdraws asset from the withdraw queue
    * @param _round the round you registered a queue withdraw
    */
   function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
     uint256 withdrawAmount = _withdrawFromQueue(_round);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
-  }
-
-  /**
-   * @notice Withdraws ETH from vault using vault shares
-   * @param _round the round you registered a queue withdraw
-   */
-  function withdrawETHFromQueue(uint256 _round) external nonReentrant notEmergency {
-    require(asset == WETH, "!WETH");
-    uint256 withdrawAmount = _withdrawFromQueue(_round);
-
-    IWETH(WETH).withdraw(withdrawAmount);
-    (bool success, ) = msg.sender.call{value: withdrawAmount}("");
-    require(success, "ETH transfer failed");
   }
 
   /**
@@ -534,12 +486,5 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 sharesToMint = pendingDeposit.mul(totalShares).div(vaultBalance);
     _mint(address(this), sharesToMint);
     pendingDeposit = 0;
-  }
-
-  /**
-   * @notice the receive ether function is called whenever the call data is empty
-   */
-  receive() external payable {
-    require(msg.sender == address(WETH), "Cannot receive ETH");
   }
 }
