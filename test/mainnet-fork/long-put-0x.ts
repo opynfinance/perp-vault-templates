@@ -225,7 +225,9 @@ describe("Mainnet: Long ETH Call with 0x RFQ", function () {
       await otoken.connect(counterpartyWallet).approve(zeroXExchange, constants.MaxUint256);
     });
     it("p1 deposits", async () => {
-      await vault.connect(depositor1).depositETH({ value: p1DepositAmount });
+      await weth.connect(depositor1).deposit({ value: p1DepositAmount });
+      await weth.connect(depositor1).approve(vault.address, p1DepositAmount);
+      await vault.connect(depositor1).deposit(p1DepositAmount);
       expect((await vault.totalAsset()).eq(p1DepositAmount), "total asset should update").to.be.true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(p1DepositAmount);
     });

@@ -1,8 +1,8 @@
 import { ethers } from "hardhat";
-import { utils, BigNumber } from "ethers";
+import { utils, BigNumber, constants } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { MockAction, MockERC20, OpynPerpVault, MockWETH } from "../../../typechain";
+import { MockAction, MockERC20, OpynPerpVault, MockWETH, ETHProxy } from "../../../typechain";
 
 enum VaultState {
   Locked,
@@ -33,6 +33,7 @@ describe("OpynPerpVault Tests", function () {
   let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
+  let proxy: ETHProxy;
 
   //
   let round0FullShareWithdrawAmount: BigNumber;
@@ -80,6 +81,9 @@ describe("OpynPerpVault Tests", function () {
   this.beforeAll("Deploy vault and mock actions", async () => {
     const VaultContract = await ethers.getContractFactory("OpynPerpVault");
     vault = (await VaultContract.deploy()) as OpynPerpVault;
+
+    const ProxyContract = await ethers.getContractFactory("ETHProxy");
+    proxy = (await ProxyContract.deploy(vault.address, weth.address)) as ETHProxy;
 
     // deploy 2 mock actions
     const MockActionContract = await ethers.getContractFactory("MockAction");
@@ -131,12 +135,6 @@ describe("OpynPerpVault Tests", function () {
       expect((await vault.totalAsset()).isZero(), "total asset should be zero").to.be.true;
       expect((await vault.WETH()) === weth.address).to.be.true;
     });
-
-    it("should revert if someone tries to send ETH to the vault", async () => {
-      await expect(depositor1.sendTransaction({ to: vault.address, value: utils.parseUnits("1") })).to.be.revertedWith(
-        "Cannot receive ETH"
-      );
-    });
   });
 
   describe("Round 0, vault unlocked", async () => {
@@ -150,15 +148,12 @@ describe("OpynPerpVault Tests", function () {
       expect(await vault.state()).to.eq(VaultState.Unlocked);
       expect(await vault.round()).to.eq(0);
     });
-    it("should revert if calling depositETH with no value", async () => {
-      await expect(vault.connect(depositor1).depositETH()).to.be.revertedWith("!VALUE");
-    });
     it("should be able to deposit ETH and WETH", async () => {
       const shares1Before = await vault.balanceOf(depositor1.address);
       const expectedShares = await vault.getSharesByDepositAmount(depositAmount);
 
       // depositor 1 deposits 10 eth
-      await vault.connect(depositor1).depositETH({ value: depositAmount });
+      await proxy.connect(depositor1).depositETH({ value: depositAmount });
       expect((await vault.totalAsset()).eq(depositAmount), "total asset should update").to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address);
@@ -168,20 +163,23 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(depositor2).deposit(depositAmount);
 
       // depositor 3 deposits 10 eth
-      await vault.connect(depositor3).depositETH({ value: depositAmount });
+      await proxy.connect(depositor3).depositETH({ value: depositAmount });
     });
     it("should be able to withdraw eth", async () => {
       // depositor 4 deposit 10 eth and withdraw 10 eth
-      await vault.connect(depositor4).depositETH({ value: depositAmount });
-      await vault.connect(depositor4).withdrawETH(depositAmount);
+      await proxy.connect(depositor4).depositETH({ value: depositAmount });
+
+      const shares = await vault.balanceOf(depositor4.address);
+      await vault.connect(depositor4).approve(proxy.address, constants.MaxUint256);
+      await proxy.connect(depositor4).withdrawETH(shares);
+
       expect((await vault.balanceOf(depositor4.address)).isZero()).to.be.true;
 
       // deposit 10 eth back
-      await vault.connect(depositor4).depositETH({ value: depositAmount });
+      await proxy.connect(depositor4).depositETH({ value: depositAmount });
     });
     it("should revert when trying to register a deposit", async () => {
-      await expect(vault.connect(depositor3).registerDeposit(depositAmount)).to.be.revertedWith("!Locked");
-      await expect(vault.connect(depositor3).registerDepositETH({ value: depositAmount })).to.be.revertedWith(
+      await expect(vault.connect(depositor3).registerDeposit(depositAmount, depositor3.address)).to.be.revertedWith(
         "!Locked"
       );
     });
@@ -235,13 +233,14 @@ describe("OpynPerpVault Tests", function () {
     });
     it("should revert when trying to withdraw", async () => {
       const depositor1Shares = await vault.balanceOf(depositor1.address);
-      await expect(vault.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("!Unlocked");
+      await vault.connect(depositor1).approve(proxy.address, constants.MaxUint256);
+      await expect(proxy.connect(depositor1).withdrawETH(depositor1Shares)).to.be.revertedWith("!Unlocked");
 
       await expect(vault.connect(depositor1).withdraw(depositor1Shares)).to.be.revertedWith("!Unlocked");
     });
     it("should revert when trying to deposit", async () => {
       await expect(vault.connect(depositor1).deposit(depositAmount)).to.be.revertedWith("!Unlocked");
-      await expect(vault.connect(depositor1).depositETH({ value: depositAmount })).to.be.revertedWith("!Unlocked");
+      await expect(proxy.connect(depositor1).depositETH({ value: depositAmount })).to.be.revertedWith("!Unlocked");
     });
 
     it("should be able to register a withdraw", async () => {
@@ -283,7 +282,7 @@ describe("OpynPerpVault Tests", function () {
       const vaultWethBefore = await weth.balanceOf(vault.address);
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(depositAmount);
 
-      await vault.connect(depositor5).registerDepositETH({ value: depositAmount });
+      await proxy.connect(depositor5).registerDepositETH({ value: depositAmount });
 
       const totalAssetAfter = await vault.totalAsset();
       const sharesAfter = await vault.balanceOf(depositor5.address);
@@ -305,7 +304,7 @@ describe("OpynPerpVault Tests", function () {
       const vaultWethBefore = await weth.balanceOf(vault.address);
       const testAmountToGetBefore = await vault.getSharesByDepositAmount(depositAmount);
 
-      await vault.connect(depositor6).registerDeposit(depositAmount);
+      await vault.connect(depositor6).registerDeposit(depositAmount, depositor6.address);
 
       const totalAssetAfter = await vault.totalAsset();
       const sharesAfter = await vault.balanceOf(depositor6.address);
@@ -331,7 +330,7 @@ describe("OpynPerpVault Tests", function () {
       await vault.connect(owner).emergencyPause();
       expect((await vault.state()) === VaultState.Emergency).to.be.true;
 
-      await expect(vault.connect(depositor1).depositETH({ value: utils.parseUnits("1") })).to.be.revertedWith(
+      await expect(proxy.connect(depositor1).depositETH({ value: utils.parseUnits("1") })).to.be.revertedWith(
         "!Unlocked"
       );
 
@@ -432,27 +431,6 @@ describe("OpynPerpVault Tests", function () {
       expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
     });
 
-    it("should allow queue withdraw eth", async () => {
-      // depositor2 use withdrawETHFromQueue
-      const ethBefore = await depositor2.getBalance();
-      const reserveBefore = await vault.withdrawQueueAmount();
-
-      const amountTestDeposit = utils.parseUnits("1");
-      const testAmountToGetBefore = await vault.getSharesByDepositAmount(amountTestDeposit);
-      // const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
-
-      await vault.connect(depositor2).withdrawETHFromQueue(0, { gasPrice: 0 });
-
-      const ethAfter = await depositor2.getBalance();
-      const reserveAfter = await vault.withdrawQueueAmount();
-      const testAmountToGetAfter = await vault.getSharesByDepositAmount(amountTestDeposit);
-      // const feeRecipientBalanceAfter = await weth.balanceOf(feeRecipient.address);
-      // const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
-
-      expect(ethAfter.sub(ethBefore).eq(reserveBefore.sub(reserveAfter))).to.be.true;
-      expect(testAmountToGetAfter.eq(testAmountToGetBefore), "shares from deposit should remain the same").to.be.true;
-    });
-
     it("queue withdraw and normal withdraw should act the same now", async () => {
       // depositor 3 has half registered as queued withdraw, half as pure share
       // using both withdraw method should give him the same result now.
@@ -481,7 +459,7 @@ describe("OpynPerpVault Tests", function () {
     it("should allow normal deposit", async () => {
       // depositor7 deposit for round 1.
       const depositAmount = utils.parseUnits("10");
-      await vault.connect(depositor7).depositETH({ value: depositAmount });
+      await proxy.connect(depositor7).depositETH({ value: depositAmount });
     });
 
     it("should be able to rollover again", async () => {
