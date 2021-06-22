@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils, providers } from "ethers";
+import { utils, providers, constants } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
@@ -171,14 +171,18 @@ describe("Mainnet: Short Call with Airswap", function () {
       await weth.connect(counterpartyWallet).approve(swapAddress, premium);
     });
     it("p1 deposits", async () => {
-      await vault.connect(depositor1).depositETH({ value: p1DepositAmount });
+      await weth.connect(depositor1).deposit({ value: p1DepositAmount });
+      await weth.connect(depositor1).approve(vault.address, constants.MaxUint256);
+      await vault.connect(depositor1).deposit(p1DepositAmount);
       expect((await vault.totalAsset()).eq(p1DepositAmount), "total asset should update").to.be.true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(p1DepositAmount);
     });
 
     it("p2 deposits", async () => {
       const existingAmount = await weth.balanceOf(vault.address);
-      await vault.connect(depositor2).depositETH({ value: p2DepositAmount });
+      await weth.connect(depositor2).deposit({ value: p2DepositAmount });
+      await weth.connect(depositor2).approve(vault.address, constants.MaxUint256);
+      await vault.connect(depositor2).deposit(p2DepositAmount);
       const newBalance = existingAmount.add(p2DepositAmount);
       expect((await vault.totalAsset()).eq(newBalance), "total asset should update").to.be.true;
       expect(await weth.balanceOf(vault.address)).to.be.equal(newBalance);
