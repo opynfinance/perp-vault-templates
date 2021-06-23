@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.2;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface ICToken {
   function mint(uint256) external returns (uint256);
 
@@ -14,3 +16,5 @@ interface ICToken {
 
   function redeem(uint256 _amount) external returns (uint256);
 }
+
+interface ICTokenERC20 is ICToken, IERC20 {}
