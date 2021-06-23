@@ -14,7 +14,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 contract MockCErc20 is ERC20Upgradeable, ICToken {
   IERC20 underlying;
 
-  // uint256 mockRate = 90;
+  uint256 exchangeRate = 0;
 
   constructor(
     address _underlying,
@@ -25,6 +25,19 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
     underlying = IERC20(_underlying);
     __ERC20_init(_name, _symbol);
     _setupDecimals(_decimals);
+  }
+
+  function setExchangeRate(uint256 _rate) external {
+    exchangeRate = _rate;
+  }
+
+  function exchangeRateStored() external view override returns (uint256) {
+    return exchangeRate;
+  }
+
+  function exchangeRateCurrent() external override returns (uint256) {
+    exchangeRate = exchangeRate + 100;
+    return exchangeRate;
   }
 
   function mint(uint256 _amount) external override returns (uint256) {

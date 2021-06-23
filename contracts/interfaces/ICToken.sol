@@ -8,6 +8,10 @@ interface ICToken {
 
   function borrow(uint256) external returns (uint256);
 
+  function exchangeRateCurrent() external returns (uint256);
+
+  function exchangeRateStored() external view returns (uint256);
+
   // function borrowRatePerBlock() external view returns (uint256);
 
   // function borrowBalanceCurrent(address) external returns (uint256);
