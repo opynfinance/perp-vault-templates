@@ -11,7 +11,7 @@ async function main() {
 
   const [deployer,] = await ethers.getSigners();
 
-  // We get the contract to deploy
+  // Deploy the PerpVault contract first
   const OpynPerpVault = await ethers.getContractFactory('OpynPerpVault');
   const vault = await OpynPerpVault.deploy();
 
@@ -28,7 +28,7 @@ async function main() {
     vaultType
   );
 
-  console.log(`🍩 MyAction deployed at ${action.address}`)
+  console.log(`🍣 MyAction deployed at ${action.address}`)
 
   await vault.init(
     weth, // asset (weth)
@@ -40,6 +40,13 @@ async function main() {
     'MVs',
     [action.address]
   )
+
+  // deploy ETH Proxy to support ETH deposit
+  const ETHProxy = await ethers.getContractFactory('ETHProxy');
+  const proxy = await ETHProxy.deploy(vault.address, weth);
+  await proxy.deployed();
+  console.log(`🍙 Proxy deployed at ${proxy.address}`)
+
 
   // verify contracts at the end, so we make sure etherscan is aware of their existence
   // verify the vault
@@ -58,6 +65,16 @@ async function main() {
       swap,
       controller,
       vaultType
+    ]
+  })  
+
+  // verify the proxy
+  await run("verify:verify", {
+    address: proxy.address, 
+    network: ethers.provider.network,
+    constructorArguments: [
+      vault.address,
+      weth
     ]
   })  
 }
