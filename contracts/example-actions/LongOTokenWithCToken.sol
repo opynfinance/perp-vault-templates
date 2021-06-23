@@ -153,10 +153,10 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     IOToken otokenToCheck = IOToken(_nextOToken);
     bool newOTokenIsPut = otokenToCheck.isPut();
     require(newOTokenIsPut == isPut, "Wrong otoken type");
-    // require(
-    //   _isValidStrike(otokenToCheck.underlyingAsset(), otokenToCheck.strikePrice(), newOTokenIsPut),
-    //   "Bad Strike Price"
-    // );
+    require(
+      _isValidStrike(otokenToCheck.underlyingAsset(), otokenToCheck.strikePrice(), newOTokenIsPut),
+      "Bad Strike Price"
+    );
     // require(_isValidExpiry(otokenToCheck.expiryTimestamp()), "Invalid expiry");
     // add more checks here
   }
