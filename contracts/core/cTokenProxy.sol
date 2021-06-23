@@ -30,6 +30,7 @@ contract CTokenProxy {
     underlying = IERC20(_underlying);
 
     IERC20(_cToken).safeApprove(_vault, uint256(-1));
+    IERC20(_underlying).safeApprove(_cToken, uint256(-1));
   }
 
   /**

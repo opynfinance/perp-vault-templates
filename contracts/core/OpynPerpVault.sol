@@ -370,8 +370,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
       uint256 newAmount = totalBalance.mul(_percentages[i]).div(BASE);
 
-      if (newAmount > 0) IERC20(asset).safeTransfer(actions[i], newAmount);
-      IAction(actions[i]).rolloverPosition();
+      if (newAmount > 0) {
+        IERC20(asset).safeTransfer(actions[i], newAmount);
+        IAction(actions[i]).rolloverPosition();
+      }
     }
 
     require(sumPercentage == BASE, "PERCENTAGE_DOESNT_ADD_UP");
