@@ -24,7 +24,7 @@ import {IERC20Detailed} from "../interfaces/IERC20Detailed.sol";
 /**
  * This is an Long Action template that use cToken to buy put
  */
-contract LongOToken is IAction, OwnableUpgradeable, AirswapUtils, RollOverBase, GammaUtils {
+contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, RollOverBase, GammaUtils {
   using SafeERC20 for IERC20Detailed;
   using SafeMath for uint256;
 
@@ -100,7 +100,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AirswapUtils, RollOverBase, 
     if (isPut) {
       // get back usdc
     } else {}
-
+    // get back eth
     _setActionIdle();
   }
 
@@ -125,7 +125,7 @@ contract LongOToken is IAction, OwnableUpgradeable, AirswapUtils, RollOverBase, 
   }
 
   /**
-   * @dev execute OTC trade to buy oToken.
+   * @dev redeem cToken for underlying, and execute OTC trade to buy oToken.
    */
   function tradeAirswapOTC(SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), "!Sender");
