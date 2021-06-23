@@ -34,6 +34,8 @@ describe("CompoundUtils", function () {
     const MockCERC20Contract = await ethers.getContractFactory("MockCErc20");
     cusdc = (await MockCERC20Contract.deploy(usdc.address, "compound USDC", "cUSDC", 8)) as MockCErc20;
 
+    await cusdc.setExchangeRate(240000000000000);
+
     const MockCETHContract = await ethers.getContractFactory("MockCEth");
     ceth = (await MockCETHContract.deploy()) as MockCEth;
 
