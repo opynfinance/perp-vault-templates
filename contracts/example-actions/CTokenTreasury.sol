@@ -6,16 +6,25 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {IAction} from "../interfaces/IAction.sol";
+import {ICToken} from "../interfaces/ICToken.sol";
+import {ITreasury} from "../interfaces/ITreasury.sol";
 
 /**
  * This is an Action only store cUSDC and farm comp
  */
-contract CTokenTreasury is IAction {
+contract CTokenTreasury is IAction, ITreasury {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
   address public immutable vault;
   address public immutable asset;
+
+  // exposed for other actions to read from
+  uint256 public override roundStartExchangeRate;
+  uint256 public override roundEndExchangeRate;
+
+  /// @dev interest in cUSDC term.
+  uint256 public override lastRoundProfit;
 
   constructor(address _vault, address _asset) {
     vault = _vault;
@@ -42,6 +51,13 @@ contract CTokenTreasury is IAction {
    * @dev the function that the vault will call when the round is over
    */
   function closePosition() external override onlyVault {
+    uint256 balance = IERC20(asset).balanceOf(address(this));
+
+    roundEndExchangeRate = ICToken(asset).exchangeRateCurrent();
+
+    lastRoundProfit = balance.mul(roundEndExchangeRate).div(roundStartExchangeRate).sub(balance);
+
+    // todo:
     // check comp farming
     // convert comp to cusdc
   }
@@ -51,5 +67,6 @@ contract CTokenTreasury is IAction {
    */
   function rolloverPosition() external override onlyVault {
     // vault will send the cUSDC into this action
+    roundStartExchangeRate = ICToken(asset).exchangeRateCurrent();
   }
 }

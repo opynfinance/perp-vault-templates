@@ -20,9 +20,10 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {IOToken} from "../interfaces/IOToken.sol";
 import {IZeroXV4} from "../interfaces/IZeroXV4.sol";
 import {IERC20Detailed} from "../interfaces/IERC20Detailed.sol";
+import {ITreasury} from "../interfaces/ITreasury.sol";
 
 /**
- * This is an Long Action template that use cToken to buy put
+ * This is an Action Action template design for PPN: use ctoken to long otoken
  */
 contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, RollOverBase, GammaUtils {
   using SafeERC20 for IERC20Detailed;
@@ -32,12 +33,17 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
   uint256 public constant BASE = 10000;
   uint256 public rolloverTime;
 
+  uint256 public lastRound;
+  uint256 public roundStoredExchangeRate;
+
   bool public isPut;
 
   address public immutable vault;
   address public immutable cToken;
   address public immutable underlying;
-  IOracle public oracle;
+
+  ITreasury public immutable treasuryAction;
+  IOracle public immutable oracle;
 
   uint256 public underlyingDecimals;
 
@@ -45,13 +51,16 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     address _vault,
     address _cToken,
     address _underlying,
+    address _treasury,
     address _airswap,
     address _controller,
     bool _isPut
   ) {
     vault = _vault;
-    underlying = _underlying;
     cToken = _cToken;
+    underlying = _underlying;
+
+    treasuryAction = ITreasury(_treasury);
 
     underlyingDecimals = IERC20Detailed(_underlying).decimals();
 
@@ -108,8 +117,12 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
    * @dev the function that the vault will call when the new round is starting
    */
   function rolloverPosition() external override onlyVault {
-    _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
+    _rollOverNextOTokenAndActivate();
     rolloverTime = block.timestamp;
+
+    uint256 expectedCTokenAmount = treasuryAction.lastRoundProfit();
+    uint256 balance = IERC20Detailed(cToken).balanceOf(address(this));
+    require(expectedCTokenAmount > balance, "too many cTokens");
   }
 
   /**

@@ -128,6 +128,7 @@ describe("PPN Vault", function () {
       vault.address,
       cusdc.address,
       usdc.address,
+      action1.address, // treasury address
       swap.address,
       controller.address,
       false
@@ -149,7 +150,7 @@ describe("PPN Vault", function () {
   });
 
   describe("Round 0, vault unlocked", async () => {
-    const depositAmount = "1000000000"; // 1000 USDC
+    const depositAmount = "10000000000"; // 10000 USDC
 
     it("unlocked state checks", async () => {
       expect(await vault.state()).to.eq(VaultState.Unlocked);
@@ -162,7 +163,7 @@ describe("PPN Vault", function () {
       const shares1Before = await vault.balanceOf(depositor1.address);
       const expectedShares = await vault.getSharesByDepositAmount(cusdcBalance);
 
-      // depositor 1 deposits 1000 cUSDC directly
+      // depositor 1 deposits 10000 cUSDC directly
       await cusdc.connect(depositor1).approve(vault.address, ethers.constants.MaxUint256);
       await vault.connect(depositor1).deposit(cusdcBalance);
 
@@ -172,7 +173,7 @@ describe("PPN Vault", function () {
 
     it("should be able to deposit USDC through Proxy", async () => {
       await usdc.connect(depositor2).approve(proxy.address, ethers.constants.MaxUint256);
-      // depositor 2 deposits 1000 USDC through proxy
+      // depositor 2 deposits 10000 USDC through proxy
       await proxy.connect(depositor2).depositUnderlying(depositAmount);
       const d2Shares = await vault.balanceOf(depositor2.address);
       const d1Shares = await vault.balanceOf(depositor1.address);
@@ -203,8 +204,8 @@ describe("PPN Vault", function () {
     });
   });
   describe("Round 0, vault Locked", async () => {
-    this.beforeAll("increase exchange rate over time", async () => {
-      await cusdc.setExchangeRate("245000000000000");
+    it("increase exchange rate over time", async () => {
+      await cusdc.setExchangeRate("250000000000000");
     });
     it("should be able to close position, once there's interest to collect ", async () => {
       const vaultBalanceBefore = await cusdc.balanceOf(vault.address);
@@ -215,6 +216,9 @@ describe("PPN Vault", function () {
       const vaultBalanceAfter = await cusdc.balanceOf(vault.address);
       const action1BalanceAfter = await cusdc.balanceOf(action1.address);
       expect(vaultBalanceAfter.sub(vaultBalanceBefore).eq(action1BalanceBefore.sub(action1BalanceAfter))).to.be.true;
+
+      const profit = await action1.lastRoundProfit();
+      expect(profit.gt(0)).to.be.true;
     });
   });
 
@@ -241,7 +245,6 @@ describe("PPN Vault", function () {
       const action1BalanceBefore = await cusdc.balanceOf(action1.address);
       const action2BalanceBefore = await cusdc.balanceOf(action2.address);
       const totalValueBefore = await vault.totalAsset();
-      console.log(`totalValueBefore`, totalValueBefore.toString());
       // Distribution:
       // 99% - action1
       // 1% - action2

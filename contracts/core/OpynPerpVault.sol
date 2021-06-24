@@ -268,7 +268,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev distribute funds to each action
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner locker {
+  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner locker {
     require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
 
     emit Rollover(_allocationPercentages);
