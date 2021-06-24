@@ -18,7 +18,7 @@ import {
   MockOpynOracle,
   MockPool,
 } from "../../typechain";
-
+import { BigNumber } from "ethers";
 import * as fs from "fs";
 
 const mnemonic = fs.existsSync(".secret")
@@ -298,17 +298,24 @@ describe("PPN Vault", function () {
     });
 
     it("should close a round with profit in cusdc", async () => {
+      const payout = 100 * 1e6;
+
       const expiry = (await otoken1.expiryTimestamp()).toNumber();
       await provider.send("evm_setNextBlockTimestamp", [expiry + 60]);
       await provider.send("evm_mine", []);
 
-      await controller.setRedeemPayout(usdc.address, 100 * 1e6);
+      await controller.setRedeemPayout(usdc.address, payout);
 
       const totalAssetBefore = await vault.totalAsset();
 
       await vault.connect(owner).closePositions();
+
+      // const exchangeRate = await cusdc.exchangeRateStored()
+      // const profitCUSDC = BigNumber.from(payout.toString()).mul(BigNumber.from(10).pow(18)).div(exchangeRate)
+
       const totalAssetAfter = await vault.totalAsset();
       expect(totalAssetAfter.gt(totalAssetBefore)).to.be.true;
+      // console.log(`profitCUSDC`, totalAssetAfter.sub(totalAssetBefore).toString())
     });
   });
 });

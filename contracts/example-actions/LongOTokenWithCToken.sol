@@ -112,6 +112,8 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     if (isPut) {
       // get back usdc
       uint256 usdcBalance = IERC20Detailed(underlying).balanceOf(address(this));
+
+      // convert USDC into cUSDC
       ICToken(cToken).mint(usdcBalance);
     } else {
       // get back eth
