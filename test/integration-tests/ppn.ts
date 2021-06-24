@@ -1,5 +1,7 @@
 import { ethers, waffle } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { getAirSwapOrder } from "../utils/orders";
+
 import { expect } from "chai";
 import {
   MockOToken,
@@ -17,6 +19,12 @@ import {
   MockPool,
 } from "../../typechain";
 
+import * as fs from "fs";
+
+const mnemonic = fs.existsSync(".secret")
+  ? fs.readFileSync(".secret").toString().trim()
+  : "test test test test test test test test test test test junk";
+
 enum VaultState {
   Locked,
   Unlocked,
@@ -24,10 +32,12 @@ enum VaultState {
 }
 
 describe("PPN Vault", function () {
+  const counterpartyWallet = ethers.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/30");
+
   const provider = waffle.provider;
 
   const ethPrice = 2000 * 1e8;
-  const callStrikePrice = 2200 * 1e8;
+  const putStrikePrice = 1800 * 1e8;
 
   // core components
   let proxy: CTokenProxy;
@@ -105,6 +115,8 @@ describe("PPN Vault", function () {
     await controller.setOracle(oracle.address);
 
     await oracle.setAssetPrice(weth.address, ethPrice);
+
+    await usdc.mint(pool.address, "1000000000000");
   });
 
   this.beforeAll("Mint USDC for participants", async () => {
@@ -131,7 +143,7 @@ describe("PPN Vault", function () {
       action1.address, // treasury address
       swap.address,
       controller.address,
-      false
+      true // put
     )) as LongOTokenWithCToken;
   });
 
@@ -233,8 +245,8 @@ describe("PPN Vault", function () {
 
       const MockOToken = await ethers.getContractFactory("MockOToken");
       otoken1 = (await MockOToken.deploy()) as MockOToken;
-      await otoken1.init("oWETHUSDC", "oWETHUSDC", 18);
-      await otoken1.initMockOTokenDetail(weth.address, usdc.address, usdc.address, callStrikePrice, expiry, false);
+      await otoken1.init("oWETHUSDP", "oWETHUSDP", 18);
+      await otoken1.initMockOTokenDetail(weth.address, usdc.address, usdc.address, putStrikePrice, expiry, true);
 
       await action2.connect(owner).commitOToken(otoken1.address);
 
@@ -263,36 +275,40 @@ describe("PPN Vault", function () {
     });
   });
 
-  // describe("Round 1: vault Locked", async () => {
-  //   it("should be able to call withdrawQueue", async () => {
-  //     const wethBefore = await cusdc.balanceOf(depositor4.address);
-  //     await vault.connect(depositor4).withdrawFromQueue(0);
+  describe("Round 1: vault Locked", async () => {
+    it("should be able to buy otoken", async () => {
+      const premium = 12 * 1000000; // 12 USD
+      const buyAmount = 0.2 * 1e8;
+      const order = await getAirSwapOrder(
+        action2.address,
+        usdc.address,
+        premium,
+        counterpartyWallet.address,
+        otoken1.address,
+        buyAmount,
+        swap.address,
+        counterpartyWallet.privateKey
+      );
 
-  //     const wethAfter = await cusdc.balanceOf(depositor4.address);
-  //     expect(round0FullShareWithdrawAmount.eq(wethAfter.sub(wethBefore))).to.be.true;
-  //   });
+      const cTokenBefore = await cusdc.balanceOf(action2.address);
+      await action2.connect(owner).tradeAirswapOTC(order);
 
-  //   it("should be able to close a non-profitable round", async () => {
-  //     const smallProfit = utils.parseUnits("0.00000001");
-  //     await cusdc.connect(random).deposit({ value: smallProfit });
-  //     await cusdc.connect(random).transfer(action1.address, smallProfit);
-  //     const feeRecipientBalanceBefore = await cusdc.balanceOf(feeRecipient.address);
-  //     await vault.connect(owner).closePositions();
-  //     const feeRecipientBalanceAfter = await cusdc.balanceOf(feeRecipient.address);
-  //     const fee = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
-  //     expect(fee.eq(smallProfit), "fee mismatch").to.be.true;
-  //   });
+      const cTokenAfter = await cusdc.balanceOf(action2.address);
+      expect(cTokenBefore.gt(cTokenAfter)).to.be.true;
+    });
 
-  //   it("should be able to withdraw full amount if the round is not profitable", async () => {
-  //     // depositor 7 should get back 10eth he deposited, since this round is not profitable
-  //     const depositAmount = utils.parseUnits("10");
-  //     const shares = await vault.balanceOf(depositor7.address);
-  //     const wethBalanceBefore = await cusdc.balanceOf(depositor7.address);
+    it("should close a round with profit in cusdc", async () => {
+      const expiry = (await otoken1.expiryTimestamp()).toNumber();
+      await provider.send("evm_setNextBlockTimestamp", [expiry + 60]);
+      await provider.send("evm_mine", []);
 
-  //     vault.connect(depositor7).withdraw(shares);
+      await controller.setRedeemPayout(usdc.address, 100 * 1e6);
 
-  //     const wethBalanceAfter = await cusdc.balanceOf(depositor7.address);
-  //     expect(wethBalanceAfter.sub(wethBalanceBefore).eq(depositAmount), "malicious vault!");
-  //   });
-  // });
+      const totalAssetBefore = await vault.totalAsset();
+
+      await vault.connect(owner).closePositions();
+      const totalAssetAfter = await vault.totalAsset();
+      expect(totalAssetAfter.gt(totalAssetBefore)).to.be.true;
+    });
+  });
 });

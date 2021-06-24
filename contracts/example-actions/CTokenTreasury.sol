@@ -76,22 +76,3 @@ contract CTokenTreasury is IAction, ITreasury {
     roundStartExchangeRate = ICToken(asset).exchangeRateCurrent();
   }
 }
-
-/**
-
-round 0
-
-[vault]
-vaultBalance 100
-totalAsset 70
-pendingDeposit 20
-queuedWithdraw 10
-
-profit: 10
-
-vaultBalance 120
-totalAsset 110
-pendingDeposit 0 (===0)
-queuedWithdraw 10
-
- */

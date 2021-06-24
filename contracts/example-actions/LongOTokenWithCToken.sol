@@ -68,6 +68,8 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     // enable vault to take all the asset back and re-distribute.
     IERC20Detailed(_cToken).safeApprove(_vault, uint256(-1));
 
+    IERC20Detailed(_underlying).safeApprove(_cToken, uint256(-1));
+
     _initGammaUtil(_controller);
 
     oracle = IOracle(controller.oracle());
@@ -109,8 +111,12 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
 
     if (isPut) {
       // get back usdc
-    } else {}
-    // get back eth
+      uint256 usdcBalance = IERC20Detailed(underlying).balanceOf(address(this));
+      ICToken(cToken).mint(usdcBalance);
+    } else {
+      // get back eth
+    }
+
     _setActionIdle();
   }
 
@@ -161,17 +167,15 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     require(_order.signer.token == otoken, "Can only buy otoken");
 
     uint256 exchangeRate = ICToken(cToken).exchangeRateCurrent();
-    uint256 requiredCToken = _order.sender.amount.mul(10**18).div(exchangeRate);
+    // add 50 at the end to make sure we round up the underlying amount we can get back.
+    uint256 requiredCToken = _order.sender.amount.mul(10**18).div(exchangeRate).add(50);
 
     ICToken(cToken).redeem(requiredCToken);
 
     _fillAirswapOrder(_order);
   }
 
-  // End of Long Funtions
-
   // Custom Checks
-
   /**
    * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
    * this hook is triggered while action owner calls "commitNextOption"
