@@ -205,7 +205,9 @@ describe("PPN Vault", function () {
   });
   describe("Round 0, vault Locked", async () => {
     it("increase exchange rate over time", async () => {
-      await cusdc.setExchangeRate("250000000000000");
+      const oldExchangeRate = (await cusdc.exchangeRateStored()).toNumber();
+      // cusdc value increase by 1%
+      await cusdc.setExchangeRate(Math.floor(oldExchangeRate * 1.01));
     });
     it("should be able to close position, once there's interest to collect ", async () => {
       const vaultBalanceBefore = await cusdc.balanceOf(vault.address);
@@ -240,6 +242,9 @@ describe("PPN Vault", function () {
       const minPeriod = await action2.MIN_COMMIT_PERIOD();
       await provider.send("evm_increaseTime", [minPeriod.toNumber()]); // increase time
       await provider.send("evm_mine", []);
+    });
+    it("should revert when trying to rollover with incorrect percentage", async () => {
+      await expect(vault.connect(owner).rollOver([9850, 150])).to.be.revertedWith("too many cTokens");
     });
     it("should be able to rollover again", async () => {
       const action1BalanceBefore = await cusdc.balanceOf(action1.address);

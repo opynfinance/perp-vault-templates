@@ -11,4 +11,10 @@ interface IVault is IERC20 {
   function withdraw(uint256 _shares) external;
 
   function withdrawFromQueue(uint256 _round) external;
+
+  function pendingDeposit() external view returns (uint256);
+
+  function withdrawQueueAmount() external view returns (uint256);
+
+  function totalAsset() external view returns (uint256);
 }

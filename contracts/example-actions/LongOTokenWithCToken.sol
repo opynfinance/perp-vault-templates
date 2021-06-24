@@ -14,6 +14,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {IController} from "../interfaces/IController.sol";
+import {IVault} from "../interfaces/IVault.sol";
 import {IAction} from "../interfaces/IAction.sol";
 import {ICToken} from "../interfaces/ICToken.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
@@ -120,9 +121,23 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
     _rollOverNextOTokenAndActivate();
     rolloverTime = block.timestamp;
 
-    uint256 expectedCTokenAmount = treasuryAction.lastRoundProfit();
+    uint256 lastRoundTotalProfit = treasuryAction.lastRoundProfit();
     uint256 balance = IERC20Detailed(cToken).balanceOf(address(this));
-    require(expectedCTokenAmount > balance, "too many cTokens");
+
+    // calculate expected max cusdc used to purchase otoken
+    uint256 lastRoundTotalAsset = treasuryAction.lastRoundAssetSnapshot();
+    uint256 currentRoundTotalAsset = IVault(vault).totalAsset();
+
+    uint256 maxAsset;
+    if (currentRoundTotalAsset >= lastRoundTotalAsset) {
+      // more people deposit in the vault, use all
+      maxAsset = lastRoundTotalProfit;
+    } else {
+      // more people withdraw from the vault, can't use full profit locked last time.
+      maxAsset = lastRoundTotalProfit.mul(currentRoundTotalAsset).div(lastRoundTotalAsset);
+    }
+
+    require(maxAsset > balance, "too many cTokens");
   }
 
   /**

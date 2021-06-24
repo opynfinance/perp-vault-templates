@@ -164,7 +164,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * total assets controlled by this vault
+   * total assets controlled by this vault, excluding pending deposit and withdraw
    */
   function totalAsset() external view returns (uint256) {
     return _totalAsset();

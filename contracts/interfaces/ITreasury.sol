@@ -7,4 +7,6 @@ interface ITreasury {
   function roundEndExchangeRate() external view returns (uint256);
 
   function lastRoundProfit() external view returns (uint256);
+
+  function lastRoundAssetSnapshot() external view returns (uint256);
 }

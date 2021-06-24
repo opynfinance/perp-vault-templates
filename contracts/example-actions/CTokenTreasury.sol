@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {IAction} from "../interfaces/IAction.sol";
+import {IVault} from "../interfaces/IVault.sol";
 import {ICToken} from "../interfaces/ICToken.sol";
 import {ITreasury} from "../interfaces/ITreasury.sol";
 
@@ -25,6 +26,9 @@ contract CTokenTreasury is IAction, ITreasury {
 
   /// @dev interest in cUSDC term.
   uint256 public override lastRoundProfit;
+
+  /// @dev total asset balance in vault + balance in actions - pending deposit.
+  uint256 public override lastRoundAssetSnapshot;
 
   constructor(address _vault, address _asset) {
     vault = _vault;
@@ -55,11 +59,13 @@ contract CTokenTreasury is IAction, ITreasury {
 
     roundEndExchangeRate = ICToken(asset).exchangeRateCurrent();
 
+    // todo:
+    // farm COMP, convert COMP to cusdc and include in profit
     lastRoundProfit = balance.mul(roundEndExchangeRate).div(roundStartExchangeRate).sub(balance);
 
-    // todo:
-    // check comp farming
-    // convert comp to cusdc
+    // keep track of the total asset the vault controll when we freeze the profit.
+    // if someone withdraw later, the amount we can use to purchase option will decrease.
+    lastRoundAssetSnapshot = IVault(vault).totalAsset();
   }
 
   /**
@@ -70,3 +76,22 @@ contract CTokenTreasury is IAction, ITreasury {
     roundStartExchangeRate = ICToken(asset).exchangeRateCurrent();
   }
 }
+
+/**
+
+round 0
+
+[vault]
+vaultBalance 100
+totalAsset 70
+pendingDeposit 20
+queuedWithdraw 10
+
+profit: 10
+
+vaultBalance 120
+totalAsset 110
+pendingDeposit 0 (===0)
+queuedWithdraw 10
+
+ */
