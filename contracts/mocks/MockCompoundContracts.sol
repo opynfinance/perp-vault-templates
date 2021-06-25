@@ -16,6 +16,8 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
 
   uint256 exchangeRate = 1e18;
 
+  uint256 lastTimestamp = 0;
+
   constructor(
     address _underlying,
     string memory _name,
@@ -82,7 +84,10 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
   }
 
   function _accrueInterest() internal {
+    if (lastTimestamp == block.timestamp) return;
+
     exchangeRate = exchangeRate + 100;
+    lastTimestamp = block.timestamp;
   }
 }
 

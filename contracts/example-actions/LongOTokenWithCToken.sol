@@ -116,7 +116,7 @@ contract LongOTokenWithCToken is IAction, OwnableUpgradeable, AirswapUtils, Roll
       // convert USDC into cUSDC
       ICToken(cToken).mint(usdcBalance);
     } else {
-      // get back eth
+      // todo: handle get back eth
     }
 
     _setActionIdle();

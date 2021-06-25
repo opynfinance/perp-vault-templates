@@ -277,7 +277,7 @@ describe("PPN Vault", function () {
 
   describe("Round 1: vault Locked", async () => {
     it("should be able to buy otoken", async () => {
-      const premium = 12 * 1000000; // 12 USD
+      const premium = 12 * 1e6; // 12 USD
       const buyAmount = 0.2 * 1e8;
       const order = await getAirSwapOrder(
         action2.address,
@@ -297,6 +297,12 @@ describe("PPN Vault", function () {
       expect(cTokenBefore.gt(cTokenAfter)).to.be.true;
     });
 
+    it("increase exchange rate over time", async () => {
+      const oldExchangeRate = (await cusdc.exchangeRateStored()).toNumber();
+      // cusdc value increase by 1%
+      await cusdc.setExchangeRate(Math.floor(oldExchangeRate * 1.01));
+    });
+
     it("should close a round with profit in cusdc", async () => {
       const payout = 100 * 1e6;
 
@@ -304,18 +310,13 @@ describe("PPN Vault", function () {
       await provider.send("evm_setNextBlockTimestamp", [expiry + 60]);
       await provider.send("evm_mine", []);
 
-      await controller.setRedeemPayout(usdc.address, payout);
-
       const totalAssetBefore = await vault.totalAsset();
 
+      await controller.setRedeemPayout(usdc.address, payout);
       await vault.connect(owner).closePositions();
-
-      // const exchangeRate = await cusdc.exchangeRateStored()
-      // const profitCUSDC = BigNumber.from(payout.toString()).mul(BigNumber.from(10).pow(18)).div(exchangeRate)
 
       const totalAssetAfter = await vault.totalAsset();
       expect(totalAssetAfter.gt(totalAssetBefore)).to.be.true;
-      // console.log(`profitCUSDC`, totalAssetAfter.sub(totalAssetBefore).toString())
     });
   });
 });
