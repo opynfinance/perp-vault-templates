@@ -14,7 +14,9 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 contract MockCErc20 is ERC20Upgradeable, ICToken {
   IERC20 underlying;
 
-  // uint256 mockRate = 90;
+  uint256 exchangeRate = 1e18;
+
+  uint256 lastTimestamp = 0;
 
   constructor(
     address _underlying,
@@ -27,9 +29,28 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
     _setupDecimals(_decimals);
   }
 
+  function setExchangeRate(uint256 _rate) external {
+    exchangeRate = _rate;
+  }
+
+  function exchangeRateStored() external view override returns (uint256) {
+    return exchangeRate;
+  }
+
+  function exchangeRateCurrent() external override returns (uint256) {
+    _accrueInterest();
+    return exchangeRate;
+  }
+
   function mint(uint256 _amount) external override returns (uint256) {
     underlying.transferFrom(msg.sender, address(this), _amount);
-    _mint(msg.sender, _amount);
+
+    _accrueInterest();
+
+    uint256 cTokenAmount = (_amount * 1e18) / exchangeRate;
+
+    _mint(msg.sender, cTokenAmount);
+
     return 0;
   }
 
@@ -39,6 +60,8 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
   }
 
   function repayBorrow(uint256 _amount) external override returns (uint256) {
+    _accrueInterest();
+
     if (_amount != uint256(-1)) {
       IERC20(underlying).transferFrom(msg.sender, address(this), _amount);
     } else {
@@ -49,10 +72,22 @@ contract MockCErc20 is ERC20Upgradeable, ICToken {
     return 0;
   }
 
-  function redeem(uint256 _amount) external override returns (uint256) {
-    _burn(msg.sender, _amount);
-    IERC20(underlying).transfer(msg.sender, _amount);
+  function redeem(uint256 _cTokenAmount) external override returns (uint256) {
+    _burn(msg.sender, _cTokenAmount);
+
+    _accrueInterest();
+
+    uint256 underlyingAmount = (exchangeRate * _cTokenAmount) / 1e18;
+
+    IERC20(underlying).transfer(msg.sender, underlyingAmount);
     return 0;
+  }
+
+  function _accrueInterest() internal {
+    if (lastTimestamp == block.timestamp) return;
+
+    exchangeRate = exchangeRate + 100;
+    lastTimestamp = block.timestamp;
   }
 }
 

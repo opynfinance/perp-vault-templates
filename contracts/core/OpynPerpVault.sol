@@ -164,7 +164,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * total assets controlled by this vault
+   * total assets controlled by this vault, excluding pending deposit and withdraw
    */
   function totalAsset() external view returns (uint256) {
     return _totalAsset();
@@ -268,7 +268,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev distribute funds to each action
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner locker {
+  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner locker {
     require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
 
     emit Rollover(_allocationPercentages);
@@ -370,8 +370,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
       uint256 newAmount = totalBalance.mul(_percentages[i]).div(BASE);
 
-      if (newAmount > 0) IERC20(asset).safeTransfer(actions[i], newAmount);
-      IAction(actions[i]).rolloverPosition();
+      if (newAmount > 0) {
+        IERC20(asset).safeTransfer(actions[i], newAmount);
+        IAction(actions[i]).rolloverPosition();
+      }
     }
 
     require(sumPercentage == BASE, "PERCENTAGE_DOESNT_ADD_UP");

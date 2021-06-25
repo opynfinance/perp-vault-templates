@@ -88,8 +88,13 @@ describe("Short Put with ETH Action", function () {
     const MockCERC20Contract = await ethers.getContractFactory("MockCErc20");
     cusdc = (await MockCERC20Contract.deploy(usdc.address, "compound USDC", "cUSDC", 8)) as MockCErc20;
 
+    await cusdc.setExchangeRate(240000000000000);
+
     const MockCETHContract = await ethers.getContractFactory("MockCEth");
     ceth = (await MockCETHContract.deploy()) as MockCEth;
+
+    // once we mock ceth exchange rate
+    // await ceth.setExchangeRate(249136934438441580419980843)
 
     const Swap = await ethers.getContractFactory("MockSwap");
     swap = (await Swap.deploy()) as MockSwap;
