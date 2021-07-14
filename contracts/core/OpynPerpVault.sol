@@ -21,19 +21,19 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   VaultState public stateBeforePause;
 
-  // @dev 100%, use to represent fee, allocation percentage
+  // @dev 100%
   uint256 public constant BASE = 10000;
 
-  // @dev how many percentage of profit go to the fee recipient
+  // @dev percentage of profits that will go to the fee recipient
   uint256 public performanceFeeInPercent = 100; // 1%
 
   // @dev percentage of total asset charged as management fee every year.
   uint256 public managementFeeInPercent = 50; // 0.5%
 
-  /// @dev amount of asset that's been registered to be withdrawn. this amount will alwasys be reserved in the vault.
+  // @dev amount of asset that has been registered to be withdrawn. This amount will be reserved in the vault after the current round ends.
   uint256 public withdrawQueueAmount;
 
-  /// @dev amount of asset that's been deposited into the vault, but hadn't mint share yet.
+  /// @dev amount of asset that's been deposited into the vault, but hasn't minted a share yet.
   uint256 public pendingDeposit;
 
   address public WETH;
@@ -93,9 +93,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * @dev can only be executed and unlock state. which bring the state back to 'Locked'
+   * @dev can only be executed in the unlocked state. Sets the state to 'Locked'
    */
-  modifier locker {
+  modifier lockState {
     require(state == VaultState.Unlocked, "!Unlocked");
     _;
     state = VaultState.Locked;
@@ -103,9 +103,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev can only be executed in locked state. which bring the state back to "unlocked"
+   * @dev can only be executed in the locked state. Sets the state to 'Unlocked'
    */
-  modifier unlocker {
+  modifier unlockState {
     require(state == VaultState.Locked, "!Locked");
     _;
 
@@ -114,7 +114,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev can only be executed if vault is not in emergency state.
+   * @dev can only be executed if vault is not in the 'Emergency' state.
    */
   modifier notEmergency {
     require(state != VaultState.Emergency, "Emergency");
@@ -254,7 +254,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
    */
-  function closePositions() public unlocker {
+  function closePositions() public unlockState {
     _closeAndWithdraw();
 
     _payRoundFee();
@@ -268,7 +268,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev distribute funds to each action
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner locker {
+  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner lockState {
     require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
 
     emit Rollover(_allocationPercentages);
