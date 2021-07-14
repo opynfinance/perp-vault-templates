@@ -6,13 +6,31 @@ This is a repo containing Opyn's Perpetual Vault Template Smart Contracts. These
 
 We reccomend starting out by reading the [documentation](https://opyn.gitbook.io/perp-vault/)
 
-## Install
+## Setup
+
+### Installing Packages
+
+Run the following to install the required packages. 
 
 ```
 npm install
 ```
 
-add a `.secret` file containing your testing mnemonic in the current folder.
+### Setting up mnemonic
+
+add a `.secret` file containing your testing mnemonic in the current folder. You will need to set up the mnemonic to deploy any contracts on mainnet. 
+
+### Setting up infura and etherscan keys
+
+Run the following to set your infura key. You will need to set up an infura key to run any mainnet fork tests. 
+```
+export INFURA_KEY="YOUR-KEY-HERE"
+```
+
+Run the following to set your etherscan key. You will need to set up the etherscan key to verify contracts on etherscan. 
+```
+export ETHERSCAN_KEY="YOUR-KEY-HERE"
+```
 
 ## Testing
 
