@@ -18,7 +18,7 @@ npm install
 
 ### Setting up mnemonic
 
-add a `.secret` file containing your testing mnemonic in the current folder. You will need to set up the mnemonic to deploy any contracts on mainnet. 
+Add a `.secret` file containing your testing mnemonic in the current folder. You will need to set up the mnemonic to deploy any contracts on mainnet. 
 
 ### Setting up infura and etherscan keys
 
