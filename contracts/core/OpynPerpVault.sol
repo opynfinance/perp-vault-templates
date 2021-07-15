@@ -17,47 +17,50 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   enum VaultState {Locked, Unlocked, Emergency}
 
+  /// @dev current state of the vault
   VaultState public state;
 
+  /// @dev state of the vault before it was paused
   VaultState public stateBeforePause;
 
-  // @dev 100%
+  /// @dev 100%
   uint256 public constant BASE = 10000;
 
-  // @dev percentage of profits that will go to the fee recipient
+  /// @dev percentage of profits that will go to the fee recipient
   uint256 public performanceFeeInPercent = 100; // 1%
 
-  // @dev percentage of total asset charged as management fee every year.
+  /// @dev percentage of total asset charged as management fee every year
   uint256 public managementFeeInPercent = 50; // 0.5%
 
-  // @dev amount of asset that has been registered to be withdrawn. This amount will be reserved in the vault after the current round ends.
+  /// @dev amount of asset that has been registered to be withdrawn. This amount will be reserved in the vault after the current round ends
   uint256 public withdrawQueueAmount;
 
-  /// @dev amount of asset that's been deposited into the vault, but hasn't minted a share yet.
+  /// @dev amount of asset that has been deposited into the vault, but hasn't minted a share yet
   uint256 public pendingDeposit;
 
+  /// @dev address of WETH
   address public WETH;
 
+  /// @dev asset which can be deposited into this strategy
   address public asset;
 
+  /// @dev address to which all fees are sent
   address public feeRecipient;
 
   /// @dev actions that build up this strategy (vault)
   address[] public actions;
 
+  /// @dev the timestamp at which the current round started
   uint256 public currentRoundStartTimestamp;
 
   /// @dev keep tracks of how much capital the current round start with
   uint256 public currentRoundStartingAmount;
 
-  /// @dev Cap for the vault. hardcoded at 1000 for initial release
-  uint256 public constant CAP = 1000 ether;
+  /// @dev cap for the vault
+  uint256 public cap = 1000 ether;
 
   /// @dev the current round
   uint256 public round;
-
-  /// @dev
-  mapping(uint256 => uint256) roundFee;
 
   /// @dev user's share in withdraw queue for a round
   mapping(address => mapping(uint256 => uint256)) public userRoundQueuedWithdrawShares;
@@ -87,6 +90,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   event Rollover(uint256[] allocations);
 
   event StateUpdated(VaultState state);
+
+  event CapUpdated(uint256 newCap);
 
   /*=====================
    *     Modifiers      *
@@ -122,12 +127,20 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /*=====================
-   * external function *
+   * External Functions *
    *====================*/
 
   /**
-   * @dev init the vault.
+   * @dev function to init the vault
    * this will set the "action" for this strategy vault and won't be able to change
+   * @param _asset The asset that this vault will manage. Cannot be changed after initializing. 
+   * @param _owner The address that will be the owner of this vault. 
+   * @param _feeRecipient The address to which all the fees will be sent. Cannot be changed after initializing. 
+   * @param _weth address of WETH
+   * @param _decimals of the _asset
+   * @param _tokenName name of the share given to depositors of this vault
+   * @param _tokenSymbol symbol of the share given to depositors of this vault
+   * @param _actions array of addresses of the action contracts
    */
   function init(
     address _asset,
@@ -162,6 +175,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     currentRoundStartTimestamp = block.timestamp;
   }
+
+  /**
+   * @notice allows owner to change cap
+   */
+   function setCap(uint256 _cap) external onlyOwner{
+     cap = _cap;
+     emit CapUpdated(cap);
+   }
 
   /**
    * total assets controlled by this vault, excluding pending deposit and withdraw
@@ -330,7 +351,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function _deposit(uint256 _amount) internal {
     // the asset is already deposited into the contract at this point, need to substract it from total
     uint256 totalWithDepositedAmount = _totalAsset();
-    require(totalWithDepositedAmount < CAP, "Cap exceeded");
+    require(totalWithDepositedAmount < cap, "Cap exceeded");
     uint256 totalBeforeDeposit = totalWithDepositedAmount.sub(_amount);
 
     uint256 share = _getSharesByDepositAmount(_amount, totalBeforeDeposit);
