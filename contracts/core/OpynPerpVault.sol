@@ -98,24 +98,37 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * @dev can only be executed in the unlocked state. Sets the state to 'Locked'
+   * @dev can only be executed in the unlocked state.
    */
-  modifier lockState {
+  modifier onlyUnlocked {
     require(state == VaultState.Unlocked, "!Unlocked");
     _;
-    state = VaultState.Locked;
-    emit StateUpdated(VaultState.Locked);
   }
 
   /**
-   * @dev can only be executed in the locked state. Sets the state to 'Unlocked'
+   * @dev can only be executed in the locked state.
    */
-  modifier unlockState {
+  modifier onlyLocked {
     require(state == VaultState.Locked, "!Locked");
     _;
+  }
 
+  /**
+   * @dev can only be executed in the unlocked state. Sets the state to 'Locked'
+   */
+  modifier lockState {
+    state = VaultState.Locked;
+    emit StateUpdated(VaultState.Locked);
+    _;
+  }
+
+  /**
+   * @dev Sets the state to 'Unlocked'
+   */
+  modifier unlockState {
     state = VaultState.Unlocked;
     emit StateUpdated(VaultState.Unlocked);
+    _;
   }
 
   /**
@@ -177,7 +190,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice allows owner to change cap
+   * @notice allows the owner to change the vault cap
+   * @param _cap the new cap of the vault
    */
    function setCap(uint256 _cap) external onlyOwner{
      cap = _cap;
@@ -185,42 +199,48 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    }
 
   /**
-   * total assets controlled by this vault, excluding pending deposit and withdraw
+   * @notice returns the total assets controlled by this vault, excluding pending deposit and withdraw
    */
   function totalAsset() external view returns (uint256) {
     return _totalAsset();
   }
 
   /**
-   * @dev return how many shares you can get if you deposit asset into the pool
-   * @notice this number will change when someone register a withdraw when the vault is locked
-   * @param _amount amount of asset you deposit
+   * @notice returns how many shares a user can get if they deposit `_amount` of asset into the vault
+   * @dev this number will change when someone registers a withdraw when the vault is locked
+   * @param _amount amount of asset that the user will deposit
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
     return _getSharesByDepositAmount(_amount, _totalAsset());
   }
 
   /**
-   * @dev return how many asset you can get if you burn the number of shares, after charging the fee.
+   * @notice returns how much of the asset a user can get back if they burn `_shares` amount of shares. The 
+   * asset amount returned also takes into account fees charged.
+   * @param _shares amount of shares the user will burn
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
     return _getWithdrawAmountByShares(_shares);
   }
 
   /**
-   * @dev deposit ERC20 asset and get shares
+   * @notice deposits `amount` of the asset into the vault and issues shares
+   * @dev deposit ERC20 asset and get shares. Direct deposits can only happen when the vault is unlocked.
+   * @param _amount The amount of asset that is deposited. 
    */
-  function deposit(uint256 _amount) external {
-    require(state == VaultState.Unlocked, "!Unlocked");
+  function deposit(uint256 _amount) external onlyUnlocked {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
     _deposit(_amount);
   }
 
   /**
-   * @dev register for a fair deposit with ERC20
+   * @notice deposits `amount` of the asset into the vault without issuing shares
+   * @dev deposit ERC20 asset into the pending queue. This is called when the vault is locked. Note that if 
+   * a user deposits before the start of the end of the current round, they will not be able to withdraw their 
+   * funds until the current round is over. They will also not be able to earn any premiums on their current deposit. 
+   * @param _amount The amount of asset that is deposited. 
    */
-  function registerDeposit(uint256 _amount, address _shareRecipient) external {
-    require(state == VaultState.Locked, "!Locked");
+  function registerDeposit(uint256 _amount, address _shareRecipient) external onlyLocked {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
     userRoundQueuedDepositAmount[_shareRecipient][round] = userRoundQueuedWithdrawShares[_shareRecipient][round].add(
       _amount
@@ -229,7 +249,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * anyone can call this function and claim the shares
+   * @notice anyone can call this function to actually transfer the minted shares to the depositors
+   * @dev this can only be called once closePosition is called to end the current round. The depositor needs a share
+   * to be able to withdraw their assets in the future. 
+   * @param _depositor the address of the depositor 
+   * @param _round the round in which the depositor called `registerDeposit`
    */
   function claimShares(address _depositor, uint256 _round) external {
     require(_round < round, "Invalid round");
@@ -237,18 +261,20 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     userRoundQueuedDepositAmount[_depositor][_round] = 0;
 
-    uint256 equivilentShares = amountDeposited.mul(roundTotalShare[_round]).div(roundTotalAsset[_round]);
+    uint256 equivalentShares = amountDeposited.mul(roundTotalShare[_round]).div(roundTotalAsset[_round]);
 
     // transfer shares from vault to user
-    _transfer(address(this), _depositor, equivilentShares);
+    _transfer(address(this), _depositor, equivalentShares);
   }
 
   /**
    * @notice Withdraws asset from vault using vault shares.
+   * @dev The msg.sender needs to burn the vault shares to be able to withdraw. If the user called `registerDeposit`
+   * without someone calling `claimShares` for them, they wont be able to withdraw. They need to have the shares in their wallet. 
+   * This can only be called when the vault is unlocked.
    * @param _shares is the number of vault shares to be burned
    */
-  function withdraw(uint256 _shares) external nonReentrant {
-    require(state == VaultState.Unlocked, "!Unlocked");
+  function withdraw(uint256 _shares) external nonReentrant onlyUnlocked {
     uint256 withdrawAmount = _regularWithdraw(_shares);
     IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
   }
@@ -256,8 +282,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev register for a fair withdraw that can be executed after this round ends
    */
-  function registerWithdraw(uint256 _shares) external {
-    require(state == VaultState.Locked, "!Locked");
+  function registerWithdraw(uint256 _shares) external onlyLocked {
     _burn(msg.sender, _shares);
     userRoundQueuedWithdrawShares[msg.sender][round] = userRoundQueuedWithdrawShares[msg.sender][round].add(_shares);
     roundTotalQueuedWithdrawShares[round] = roundTotalQueuedWithdrawShares[round].add(_shares);
@@ -275,7 +300,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
    */
-  function closePositions() public unlockState {
+  function closePositions() public onlyLocked unlockState {
     _closeAndWithdraw();
 
     _payRoundFee();
@@ -289,7 +314,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev distribute funds to each action
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner lockState {
+  function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner onlyUnlocked lockState {
     require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
 
     emit Rollover(_allocationPercentages);
@@ -346,7 +371,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev mint the shares to depositor, and emit the deposit event
+   * @notice mints the shares to depositor, and emits the deposit event
    */
   function _deposit(uint256 _amount) internal {
     // the asset is already deposited into the contract at this point, need to substract it from total
