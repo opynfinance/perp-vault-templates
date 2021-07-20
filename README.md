@@ -1,4 +1,4 @@
-# OpynPerpVault Template Contracts
+# OpynPerpVault Template Contracts [![CircleCI](https://circleci.com/gh/opynfinance/perp-vault-templates.svg?style=svg)](https://circleci.com/gh/opynfinance/perp-vault-templates/tree/master) [![Coverage Status](https://coveralls.io/repos/github/opynfinance/perp-vault-templates/badge.svg?branch=master)](https://coveralls.io/github/opynfinance/perp-vault-templates?branch=master)
 
 This is a repo containing Opyn's Perpetual Vault Template Smart Contracts. These are a set of templates designed to make it easier for developers to build option-powered perpetual products on top of Opyn v2. With these templates, anyone can create custom vaults with different strategies and open up for users to invest. 
 

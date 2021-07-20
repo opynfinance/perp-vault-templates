@@ -146,9 +146,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @dev function to init the vault
    * this will set the "action" for this strategy vault and won't be able to change
-   * @param _asset The asset that this vault will manage. Cannot be changed after initializing. 
-   * @param _owner The address that will be the owner of this vault. 
-   * @param _feeRecipient The address to which all the fees will be sent. Cannot be changed after initializing. 
+   * @param _asset The asset that this vault will manage. Cannot be changed after initializing.
+   * @param _owner The address that will be the owner of this vault.
+   * @param _feeRecipient The address to which all the fees will be sent. Cannot be changed after initializing.
    * @param _weth address of WETH
    * @param _decimals of the _asset
    * @param _tokenName name of the share given to depositors of this vault
@@ -193,10 +193,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice allows the owner to change the vault cap
    * @param _cap the new cap of the vault
    */
-   function setCap(uint256 _cap) external onlyOwner{
-     cap = _cap;
-     emit CapUpdated(cap);
-   }
+  function setCap(uint256 _cap) external onlyOwner {
+    cap = _cap;
+    emit CapUpdated(cap);
+  }
 
   /**
    * @notice returns the total assets controlled by this vault, excluding pending deposit and withdraw
@@ -215,7 +215,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice returns how much of the asset a user can get back if they burn `_shares` amount of shares. The 
+   * @notice returns how much of the asset a user can get back if they burn `_shares` amount of shares. The
    * asset amount returned also takes into account fees charged.
    * @param _shares amount of shares the user will burn
    */
@@ -226,7 +226,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice deposits `amount` of the asset into the vault and issues shares
    * @dev deposit ERC20 asset and get shares. Direct deposits can only happen when the vault is unlocked.
-   * @param _amount The amount of asset that is deposited. 
+   * @param _amount The amount of asset that is deposited.
    */
   function deposit(uint256 _amount) external onlyUnlocked {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
@@ -235,10 +235,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @notice deposits `amount` of the asset into the vault without issuing shares
-   * @dev deposits the ERC20 asset into the pending queue. This is called when the vault is locked. Note that if 
-   * a user deposits before the start of the end of the current round, they will not be able to withdraw their 
-   * funds until the current round is over. They will also not be able to earn any premiums on their current deposit. 
-   * @param _amount The amount of asset that is deposited. 
+   * @dev deposits the ERC20 asset into the pending queue. This is called when the vault is locked. Note that if
+   * a user deposits before the start of the end of the current round, they will not be able to withdraw their
+   * funds until the current round is over. They will also not be able to earn any premiums on their current deposit.
+   * @param _amount The amount of asset that is deposited.
    */
   function registerDeposit(uint256 _amount, address _shareRecipient) external onlyLocked {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
@@ -253,8 +253,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice anyone can call this function to actually transfer the minted shares to the depositors
    * @dev this can only be called once closePosition is called to end the current round. The depositor needs a share
-   * to be able to withdraw their assets in the future. 
-   * @param _depositor the address of the depositor 
+   * to be able to withdraw their assets in the future.
+   * @param _depositor the address of the depositor
    * @param _round the round in which the depositor called `registerDeposit`
    */
   function claimShares(address _depositor, uint256 _round) external {
@@ -272,7 +272,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice withdraws asset from vault using vault shares.
    * @dev The msg.sender needs to burn the vault shares to be able to withdraw. If the user called `registerDeposit`
-   * without someone calling `claimShares` for them, they wont be able to withdraw. They need to have the shares in their wallet. 
+   * without someone calling `claimShares` for them, they wont be able to withdraw. They need to have the shares in their wallet.
    * This can only be called when the vault is unlocked.
    * @param _shares is the number of vault shares to be burned
    */
@@ -282,9 +282,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice allows someone to request to withdraw their assets once this round ends. 
-   * @dev assets can only be withdrawn after this round ends and closePosition is called. Calling this will burn the 
-   * shares right now but the assets will be transferred back to the user only when `withdrawFromQueue` is called. 
+   * @notice allows someone to request to withdraw their assets once this round ends.
+   * @dev assets can only be withdrawn after this round ends and closePosition is called. Calling this will burn the
+   * shares right now but the assets will be transferred back to the user only when `withdrawFromQueue` is called.
    * This can only be called when the vault is locked.
    * @param _shares the amount of shares the user wants to cash out
    */
@@ -295,8 +295,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice allows the user to withdraw their promised assets from the withdraw queue at any time. 
-   * @dev the assets first need to be transferred to the withdraw queue which happens when the current round ends when 
+   * @notice allows the user to withdraw their promised assets from the withdraw queue at any time.
+   * @dev the assets first need to be transferred to the withdraw queue which happens when the current round ends when
    * closePositions is called.
    * @param _round the round the user registered a queue withdraw
    */
@@ -306,14 +306,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice allows anyone to close out the previous round by calling "closePositions" on all actions. 
+   * @notice allows anyone to close out the previous round by calling "closePositions" on all actions.
    * @dev this does the following:
    * 1. calls closePositions on all the actions withdraw the money from all the actions
-   * 2. pay all the fees 
-   * 3. snapshots last round's shares and asset balances 
+   * 2. pay all the fees
+   * 3. snapshots last round's shares and asset balances
    * 4. empties the pendingDeposits and pulls in those assets to be used in the next round
    * 5. sets aside assets from the main vault into the withdrawQueue
-   * 6. ends the old round and unlocks the vault 
+   * 6. ends the old round and unlocks the vault
    */
   function closePositions() public onlyLocked unlockState {
     // calls closePositions on all the actions and transfers the assets back into the vault
@@ -368,15 +368,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     return _effectiveBalance().add(_totalDebt());
   }
 
-  /** 
+  /**
    * @notice total assets controlled by the vault, including the pendingDeposits, withdrawQueue and debts of actions
    */
-  function _totalAssets() internal view returns (uint256) { 
+  function _totalAssets() internal view returns (uint256) {
     return IERC20(asset).balanceOf(address(this)).add(_totalDebt());
   }
 
   /**
-   * @notice returns asset balance of the vault excluding assets registered to be withdrawn and the assets still in pendingDeposit. 
+   * @notice returns asset balance of the vault excluding assets registered to be withdrawn and the assets still in pendingDeposit.
    */
   function _effectiveBalance() internal view returns (uint256) {
     return IERC20(asset).balanceOf(address(this)).sub(pendingDeposit).sub(withdrawQueueAmount);
@@ -427,7 +427,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @notice distributes the effective balance to different actions
-   * @dev the manager can keep a reserve in the vault by not distributing all the funds. 
+   * @dev the manager can keep a reserve in the vault by not distributing all the funds.
    */
   function _distribute(uint256[] memory _percentages) internal nonReentrant {
     uint256 totalBalance = _effectiveBalance();
@@ -534,7 +534,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice snapshot last round's total shares and balance, excluding pending deposits.
    * @dev this function is called after withdrawing from action contracts and does the following:
-   * 1. snapshots last round's shares and asset balances 
+   * 1. snapshots last round's shares and asset balances
    * 2. empties the pendingDeposits and pulls in those assets into the next round
    * 3. sets aside assets from the main vault into the withdrawQueue
    */

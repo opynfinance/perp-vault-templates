@@ -31,8 +31,14 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
   /// @dev 100%
   uint256 public constant BASE = 10000;
-  uint256 public constant MIN_PROFITS = 100; // 1%
+
+  /// @dev minimum profits this strategy will make in any round. Set to 1%. 
+  uint256 public constant MIN_PROFITS = 100; 
+
+  /// @dev amount of assets locked in Opyn
   uint256 public lockedAsset;
+
+  /// @dev time at which the last rollover was called
   uint256 public rolloverTime;
 
   address public immutable vault;
@@ -80,7 +86,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of asset.
+   * @notice return the net worth of this strategy, in terms of asset.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
@@ -91,7 +97,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev the function that the vault will call when the round is over
+   * @notice the function that the vault will call when the round is over
    */
   function closePosition() external override onlyVault {
     require(canClosePosition(), "Cannot close position");
@@ -103,7 +109,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev the function that the vault will call when the new round is starting
+   * @notice the function that the vault will call when the new round is starting
    */
   function rolloverPosition() external override onlyVault {
     _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
@@ -113,7 +119,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   // Short Functions
 
   /**
-   * @dev owner only function to mint options with "assets" and start an aunction to start it.
+   * @notice owner only function to mint options with "assets" and start an aunction to start it.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndStartAuction(
@@ -147,7 +153,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev mint options with "asset" and participate in an auction to sell it for asset.
+   * @notice mint options with "asset" and participate in an auction to sell it for asset.
    */
   function mintAndBidInAuction(
     uint256 _auctionId,
@@ -168,7 +174,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
+   * @notice mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndTradeAirSwapOTC(
@@ -201,7 +207,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev checks if the current vault can be settled
+   * @notice checks if the current vault can be settled
    */
   function _canSettleVault() internal view returns (bool) {
     if (lockedAsset != 0 && otoken != address(0)) {
@@ -212,7 +218,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
+   * @notice funtion to add some custom logic to check the next otoken is valid to this strategy
    * this hook is triggered while action owner calls "commitNextOption"
    * so accessing otoken will give u the current otoken.
    */
@@ -228,7 +234,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev funtion to check that the otoken being sold meets a minimum valid strike price
+   * @notice funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function.
    */
   function _isValidStrike(
@@ -247,7 +253,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @dev funtion to check that the otoken being sold meets certain expiry conditions
+   * @notice funtion to check that the otoken being sold meets certain expiry conditions
    * this hook is triggered in the _customOtokenCheck function.
    */
   function _isValidExpiry(uint256 expiry) internal view returns (bool) {
