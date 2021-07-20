@@ -202,7 +202,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice returns the total assets controlled by this vault, excluding pending deposit and withdraw
    */
   function totalAsset() external view returns (uint256) {
-    return _netAssets();
+    return _netAssetsControlled();
   }
 
   /**
@@ -211,7 +211,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _amount amount of asset that the user will deposit
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
-    return _getSharesByDepositAmount(_amount, _netAssets());
+    return _getSharesByDepositAmount(_amount, _netAssetsControlled());
   }
 
   /**
@@ -293,7 +293,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Allows the user to withdraw their promised assets from the withdraw queue at any time
+   * @notice allows the user to withdraw their promised assets from the withdraw queue at any time. 
+   * @dev the assets first need to be transferred to the withdraw queue which happens when the current round ends when 
+   * closePositions is called.
    * @param _round the round the user registered a queue withdraw
    */
   function withdrawFromQueue(uint256 _round) external nonReentrant notEmergency {
@@ -302,13 +304,22 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
+   * @notice allows anyone to close out the previous round by calling "closePositions" on all actions. 
+   * @dev this does the following:
+   * 1. calls closePositions on all the actions withdraw the money from all the actions
+   * 2. pay all the fees 
+   * 3. snapshots last round's shares and asset balances 
+   * 4. empties the pendingDeposits and pulls in those assets to be used in the next round
+   * 5. sets aside assets from the main vault into the withdrawQueue
+   * 6. ends the old round and unlocks the vault 
    */
   function closePositions() public onlyLocked unlockState {
+    // calls closePositions on all the actions and transfers the assets back into the vault
     _closeAndWithdraw();
 
     _payRoundFee();
 
+    // records the net shares and assets in the current round and updates the pendingDeposits and withdrawQueue
     _snapshotShareAndAsset();
 
     round = round.add(1);
@@ -316,7 +327,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev distribute funds to each action
+   * @notice distributes funds to each action and locks the vault
    */
   function rollOver(uint256[] calldata _allocationPercentages) external virtual onlyOwner onlyUnlocked lockState {
     require(_allocationPercentages.length == actions.length, "INVALID_INPUT");
@@ -327,7 +338,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev set the state to "Emergency", which disable all withdraw and deposit
+   * @notice sets the vault's state to "Emergency", which disables all withdrawals and deposits
    */
   function emergencyPause() external onlyOwner {
     stateBeforePause = state;
@@ -336,7 +347,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev set the state from "Emergency", which disable all withdraw and deposit
+   * @notice sets the vault's state to whatever state it was before "Emergency"
    */
   function resumeFromPause() external onlyOwner {
     require(state == VaultState.Emergency, "!Emergency");
@@ -349,28 +360,28 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * @dev net assets controlled by this vault, which is effective balance + all the balance in the actions
+   * @notice net assets controlled by this vault, which is effective balance + debts of actions
    */
-  function _netAssets() internal view returns (uint256) {
+  function _netAssetsControlled() internal view returns (uint256) {
     return _effectiveBalance().add(_totalDebt());
   }
 
   /** 
-   * @dev total asset balance of the vault, includes the pending and withdraw queue
+   * @notice total assets controlled by the vault, including the pendingDeposits, withdrawQueue and debts of actions
    */
   function _totalAssets() internal view returns (uint256) { 
     return IERC20(asset).balanceOf(address(this)).add(_totalDebt());
   }
 
   /**
-   * @dev returns asset balance of the vault that's not registered to be withdrawn.
+   * @notice returns asset balance of the vault excluding assets registered to be withdrawn and the assets still in pendingDeposit. 
    */
   function _effectiveBalance() internal view returns (uint256) {
     return IERC20(asset).balanceOf(address(this)).sub(pendingDeposit).sub(withdrawQueueAmount);
   }
 
   /**
-   * @dev estimate amount of assets in all the actions
+   * @notice estimate amount of assets in all the actions
    * this function iterates through all actions and sum up the currentValue reported by each action.
    */
   function _totalDebt() internal view returns (uint256) {
@@ -386,7 +397,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function _deposit(uint256 _amount) internal {
     // the asset is already deposited into the contract at this point, need to substract it from total
-    uint256 netWithDepositedAmount = _netAssets();
+    uint256 netWithDepositedAmount = _netAssetsControlled();
     uint256 totalWithDepositedAmount = _totalAssets();
     require(totalWithDepositedAmount < cap, "Cap exceeded");
     uint256 netBeforeDeposit = netWithDepositedAmount.sub(_amount);
@@ -399,7 +410,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev iterrate through each action, close position and withdraw funds
+   * @notice iterrate through each action, close position and withdraw funds
    */
   function _closeAndWithdraw() internal {
     for (uint8 i = 0; i < actions.length; i = i + 1) {
@@ -413,7 +424,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev redistribute all funds to diff actions
+   * @notice distributes the effective balance to different actions
+   * @dev the manager can keep a reserve in the vault by not distributing all the funds. 
    */
   function _distribute(uint256[] memory _percentages) internal nonReentrant {
     uint256 totalBalance = _effectiveBalance();
@@ -438,7 +450,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev calculate withdraw amount from queued shares, return withdraw amount to be handled by queueWithdraw or queueWithdrawETH
+   * @notice calculates withdraw amount from queued shares, returns withdraw amount to be handled by queueWithdraw or queueWithdrawETH
    * @param _round the round you registered a queue withdraw
    */
   function _withdrawFromQueue(uint256 _round) internal returns (uint256) {
@@ -458,7 +470,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev burn shares, return withdraw amount handle by withdraw or withdrawETH
+   * @notice burn shares, return withdraw amount handle by withdraw or withdrawETH
    * @param _share amount of shares burn to withdraw asset.
    */
   function _regularWithdraw(uint256 _share) internal returns (uint256) {
@@ -472,7 +484,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev return how many shares you can get if you deposit {_amount} asset
+   * @notice return how many shares you can get if you deposit {_amount} asset
    * @param _amount amount of token depositing
    * @param _totalAssetAmount amount of asset already in the pool before deposit
    */
@@ -484,15 +496,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev return how many asset you can get if you burn the number of shares
+   * @notice return how many asset you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     uint256 effectiveShares = totalSupply();
-    return _share.mul(_netAssets()).div(effectiveShares);
+    return _share.mul(_netAssetsControlled()).div(effectiveShares);
   }
 
   /**
-   * @dev pay fee to fee recipient after we pull all assets back to the vault
+   * @notice pay fee to fee recipient after we pull all assets back to the vault
    */
   function _payRoundFee() internal {
     // don't need to call totalAsset() because actions are empty now.
@@ -518,8 +530,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev snapshot last round's total shares and balance, excluding pending deposits.
-   * this function is called after withdrawing from action contracts
+   * @notice snapshot last round's total shares and balance, excluding pending deposits.
+   * @dev this function is called after withdrawing from action contracts and does the following:
+   * 1. snapshots last round's shares and asset balances 
+   * 2. empties the pendingDeposits and pulls in those assets into the next round
+   * 3. sets aside assets from the main vault into the withdrawQueue
    */
   function _snapshotShareAndAsset() internal {
     uint256 vaultBalance = _effectiveBalance();
