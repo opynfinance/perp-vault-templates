@@ -242,6 +242,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function registerDeposit(uint256 _amount, address _shareRecipient) external onlyLocked {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
+    uint256 totalWithDepositedAmount = _totalAssets();
+    require(totalWithDepositedAmount < cap, "Cap exceeded");
     userRoundQueuedDepositAmount[_shareRecipient][round] = userRoundQueuedWithdrawShares[_shareRecipient][round].add(
       _amount
     );

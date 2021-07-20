@@ -144,6 +144,10 @@ describe("OpynPerpVault Tests", function () {
       await weth.connect(depositor2).deposit({ value: depositAmount });
       await weth.connect(depositor2).approve(vault.address, ethers.constants.MaxUint256);
     });
+    before("set cap", async() => { 
+      const cap = utils.parseUnits("49");
+      await vault.connect(owner).setCap(cap);
+    })
     it("unlocked state checks", async () => {
       expect(await vault.state()).to.eq(VaultState.Unlocked);
       expect(await vault.round()).to.eq(0);
@@ -178,6 +182,9 @@ describe("OpynPerpVault Tests", function () {
       // deposit 10 eth back
       await proxy.connect(depositor4).depositETH({ value: depositAmount });
     });
+    it("should revert when depositing more than the cap", async () => {
+      await expect(proxy.connect(depositor3).depositETH({ value: depositAmount })).to.be.revertedWith("Cap exceeded")
+    })
     it("should revert when trying to register a deposit", async () => {
       await expect(vault.connect(depositor3).registerDeposit(depositAmount, depositor3.address)).to.be.revertedWith(
         "!Locked"
@@ -276,6 +283,17 @@ describe("OpynPerpVault Tests", function () {
       const d4Shares = await vault.balanceOf(depositor4.address);
       await vault.connect(depositor4).registerWithdraw(d4Shares);
     });
+
+    it("should revert when scheduling a deposit more than the cap", async () => {
+      await expect(proxy.connect(depositor3).registerDepositETH({ value: depositAmount })).to.be.revertedWith("Cap exceeded");
+    })
+
+    it("should be able to increase cap", async() => { 
+      const cap = utils.parseUnits("100");
+      await vault.connect(owner).setCap(cap);
+      expect (await vault.cap()).to.be.eq(cap);
+    })
+    
     it("should be able to schedule a deposit with ETH", async () => {
       const totalAssetBefore = await vault.totalAsset();
       const sharesBefore = await vault.balanceOf(depositor5.address);
