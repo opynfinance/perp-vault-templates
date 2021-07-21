@@ -41,10 +41,24 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   /// @dev time at which the last rollover was called
   uint256 public rolloverTime;
 
+  /// @dev address of the vault 
   address public immutable vault;
+
+  /// @dev address of the ERC20 asset. Do not use non-ERC20s
   address public immutable asset;
+
+  /// @dev address of opyn's oracle contract
   IOracle public oracle;
 
+  /** 
+    * @notice constructor 
+    * @param _vault the address of the vault contract
+    * @param _asset address of the ERC20 asset
+    * @param _airswap address of airswap swap contract 
+    * @param _easyAuction address of gnosisSafe easy auction contract
+    * @param _controller address of Opyn controller contract
+    * @param _vaultType type 1 = partially collateralized, type 0 = fully collateralized 
+    */
   constructor(
     address _vault,
     address _asset,
@@ -86,18 +100,24 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @notice return the net worth of this strategy, in terms of asset.
-   * if the action has an opened gamma vault, see if there's any short position
+   * @notice returns the net worth of this strategy = current balance of the action + collateral deposited into Opyn's vault. 
+   * @dev For a more realtime tracking of value, we reccomend calculating the current value as: 
+   * currentValue = balance + collateral - (numOptions * cashVal), where: 
+   * balance = current balance in the action
+   * collateral = collateral deposited into Opyn's vault 
+   * numOptions = number of options sold
+   * cashVal = cash value of 1 option sold (for puts: Strike - Current Underlying Price, for calls: Current Underlying Price - Strike)
    */
   function currentValue() external view override returns (uint256) {
     uint256 assetBalance = IERC20(asset).balanceOf(address(this));
     return assetBalance.add(lockedAsset);
-
-    // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
 
   /**
-   * @notice the function that the vault will call when the round is over
+   * @notice the function that the vault will call when the round is over. This will settle the vault and pull back all money from Opyn. 
+   * If the option expired OTM, then all the collateral is returned to this action. If not, some portion of the collateral is deducted 
+   * by the Opyn system. 
+   * @dev this can be called after 1 day rollover was called if no options have been sold OR if the sold options expired. 
    */
   function closePosition() external override onlyVault {
     require(canClosePosition(), "Cannot close position");
@@ -109,18 +129,25 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @notice the function that the vault will call when the new round is starting
+   * @notice the function that the vault will call when the new round is starting. Once this is called, the funds will be sent from the vault to this action. 
+   * @dev this does NOT automatically mint options and sell them. This merely receives funds. Before this function is called, the owner should have called 
+   * `commitOToken` to decide on what Otoken is being sold. This function can only be called after the commitment period has passed since the call to `commitOToken`.
+   * Once this has been called, the owner should call one of the mint and sell functions (either auction or airswap OTC). If the owner doesn't mint and sell the options within 
+   * 1 day after rollover has been called, someone can call closePosition and transfer the funds back to the vault. If that happens, the owner needs to commit to a new otoken
+   * and call rollover again. 
    */
   function rolloverPosition() external override onlyVault {
     _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
     rolloverTime = block.timestamp;
   }
 
-  // Short Functions
 
   /**
    * @notice owner only function to mint options with "assets" and start an aunction to start it.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`. 
+   * @dev once the auction starts, `_otokenToSell` amount of otokens will be sent to the auction contract. 
+   * The auction cannot be stopped once it is in progress. Once the auction is over, if the minimum threshold
+   * was met, someone needs to call `claimFromParticipantOrder` on the gnosis auction contract to transfer premiums. 
    */
   function mintAndStartAuction(
     uint256 _collateralAmount,
@@ -133,7 +160,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
     uint256 _minFundingThreshold,
     bool _isAtomicClosureAllowed
   ) external onlyOwner onlyActivated {
-    // mint token
+    // mint otoken
     if (_collateralAmount > 0 && _otokenToMint > 0) {
       lockedAsset = lockedAsset.add(_collateralAmount);
       _mintOTokens(asset, _collateralAmount, otoken, _otokenToMint);
@@ -174,7 +201,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @notice mint options with "assets" and sell otokens in this contract by filling an order on AirSwap.
+   * @notice mint options with "assets" and sell otokens in this action by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndTradeAirSwapOTC(

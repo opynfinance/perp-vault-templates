@@ -23,6 +23,21 @@
     "generate": "hardhat generate",
     "account": "hardhat account"
   },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "**/*.sol": [
+      "npm run lint:contract",
+      "git add"
+    ],
+    "test/**": [
+      "npm run lint:tests:fix",
+      "git add"
+    ]
+  },
   "devDependencies": {
     "@0x/protocol-utils": "^1.7.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",

@@ -12,10 +12,11 @@ contract AuctionUtils {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
+  /// @dev gnosis EasyAuction contract. https://github.com/gnosis/ido-contracts/blob/main/contracts/EasyAuction.sol
   IEasyAuction public auction;
 
   /**
-   * initialize the auction utils by putting in the gonsis safe easy auction address
+   * @notice initialize the auction utils by putting in the gonsis safe easy auction address
    */
   function _initAuction(address _easyAuction) internal {
     if (_easyAuction == address(0)) return;
@@ -24,7 +25,10 @@ contract AuctionUtils {
   }
 
   /**
-   * @dev participate in an auction
+   * @notice participate in a gnosis auction
+   * @dev when placing a bid, the otokens will be transferred to gnosis. The bid can be cancelled in 
+   * the cancellation window by calling `cancelSellOrders` in gnosis. Only the msg.sender i.e the action
+   * can cancel orders. To enable that, write a new function which allows the owner to cancel orders. 
    */
   function _bidInAuction(
     address _auctioningAsset,
@@ -47,6 +51,11 @@ contract AuctionUtils {
     auction.placeSellOrders(_auctionId, _minBuyAmounts, _sellAmounts, _prevSellOrders, allowListCallData);
   }
 
+  /** 
+   * @notice starts the auction on gnosis
+   * @dev The auction cannot be stopped once it is in progress. Once the auction is over, if the minimum threshold
+   * was met, someone needs to call `claimFromParticipantOrder` on the gnosis auction contract to transfer premiums. 
+   */
   function _startAuction(
     address _auctioningToken,
     address _biddingToken,
