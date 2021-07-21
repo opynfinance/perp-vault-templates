@@ -180,7 +180,10 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
   }
 
   /**
-   * @notice mint options with "asset" and participate in an auction to sell it for asset.
+   * @notice mint options with "asset" and participate in an ongoing auction to sell it for asset.
+   * this can only be done in "activated" state which is achievable by calling `rolloverPosition`. 
+   * @dev `_sellAmounts` will be transferred to the gnosis auction when the bid is placed. The actual 
+   * premium may not be received till the auction ends. 
    */
   function mintAndBidInAuction(
     uint256 _auctionId,
@@ -202,7 +205,9 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
   /**
    * @notice mint options with "assets" and sell otokens in this action by filling an order on AirSwap.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   * this can only be done in "activated" state which is achievable by calling `rolloverPosition`.
+   * @dev when doing an airswap OTC, the otokens will be swapped for premium in the same transaction atomically. No 
+   * additional transactions are required on the owner's part to recieve the premium.
    */
   function mintAndTradeAirSwapOTC(
     uint256 _collateralAmount,
@@ -224,7 +229,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
   /**
    * @notice the function will return when someone can close a position. 1 day after rollover,
-   * if the option wasn't sold, anyone can close the position.
+   * if the option wasn't sold, anyone can close the position and send funds back to the vault. 
    */
   function canClosePosition() public view returns (bool) {
     if (otoken != address(0) && lockedAsset != 0) {
@@ -262,7 +267,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
   /**
    * @notice funtion to check that the otoken being sold meets a minimum valid strike price
-   * this hook is triggered in the _customOtokenCheck function.
+   * this hook is triggered in the _customOtokenCheck function when the owner commits to an otoken.
    */
   function _isValidStrike(
     address _underlying,
@@ -281,7 +286,7 @@ contract ShortOToken is IAction, OwnableUpgradeable, AuctionUtils, AirswapUtils,
 
   /**
    * @notice funtion to check that the otoken being sold meets certain expiry conditions
-   * this hook is triggered in the _customOtokenCheck function.
+   * this hook is triggered in the _customOtokenCheck function when the owner commits to an otoken. 
    */
   function _isValidExpiry(uint256 expiry) internal view returns (bool) {
     // TODO: override with your filler code.

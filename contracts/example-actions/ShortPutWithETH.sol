@@ -30,15 +30,36 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
 
   /// @dev 100%
   uint256 public constant BASE = 10000;
+
+  /// @dev amount of assets locked in Opyn
   uint256 public lockedAsset;
+
+  /// @dev time at which the last rollover was called
   uint256 public rolloverTime;
 
+  /// @dev address of the vault 
   address public immutable vault;
+
+  /// @dev address of the ERC20 asset. Do not use non-ERC20s
   address public immutable asset;
 
+  /// @dev address of usdc 
   address public immutable usdc;
+
+  /// @dev address of cUSDC
   address public immutable cusdc;
 
+  /** 
+  * @notice constructor 
+  * @param _vault the address of the vault contract
+  * @param _asset address of the ERC20 asset
+  * @param _cETH address of cETH
+  * @param _usdc address of usdc
+  * @param _cusdc address of cUSDC
+  * @param _airswap address of airswap swap contract 
+  * @param _controller address of Opyn controller contract
+  * @param _comptroller address of Compound controller contract
+  */
   constructor(
     address _vault,
     address _asset, // weth
@@ -64,7 +85,7 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
 
     address whitelist = controller.whitelist();
 
-    // allow pool to usdc usdc
+    // allow opyn's pool to transfer usdc
     IERC20(_usdc).safeApprove(pool, uint256(-1));
 
     _initSwapContract(_airswap);
@@ -84,19 +105,26 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of asset.
-   * if the action has an opened gamma vault, see if there's any short position
+   * @notice returns the net worth of this strategy = current balance of the action + collateral deposited into Opyn's vault. 
+   * @dev For a more realtime tracking of value, we reccomend calculating the current value as: 
+   * currentValue = balance + collateral - (numOptions * cashVal), where: 
+   * balance = current balance in the action
+   * collateral = collateral deposited into Opyn's vault 
+   * numOptions = number of options sold
+   * cashVal = cash value of 1 option sold (for puts: Strike - Current Underlying Price, for calls: Current Underlying Price - Strike)
    */
   function currentValue() external view override returns (uint256) {
     uint256 assetBalance = IERC20(asset).balanceOf(address(this));
     return assetBalance.add(lockedAsset);
-
-    // todo: caclulate cash value to avoid not early withdraw to avoid loss.
     // todo: consider cETH value that's used as collateral
   }
 
   /**
-   * @dev the function that the vault will call when the new round is starting
+   * @notice the function that the vault will call when the new round is starting. Once this is called, the funds will be sent from the vault to this action. 
+   * @dev this does NOT automatically mint options and sell them. This merely receives funds. Before this function is called, the owner should have called 
+   * `commitOToken` to decide on what Otoken is being sold. This function can only be called after the commitment period has passed since the call to `commitOToken`.
+   * Once this has been called, the owner should call `borrowMintAndTradeOTC`. If the owner doesn't mint and sell the options within 1 day after rollover has been 
+   * called, someone can call closePosition and transfer the funds back to the vault. If that happens, the owner needs to commit to a new otoken and call rollover again. 
    */
   function rolloverPosition() external override onlyVault {
     _rollOverNextOTokenAndActivate(); // this function can only be called when the action is `Committed`
@@ -104,22 +132,44 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
   }
 
   /**
-   * @dev the function that the vault will call when the round is over
+   * @notice the function will return when someone can close a position. 1 day after rollover,
+   * if the option wasn't sold, anyone can close the position and send funds back to the vault. 
+   */
+  function canClosePosition() public view returns (bool) {
+    if (otoken != address(0) && lockedAsset != 0) {
+      return _canSettleVault();
+    }
+    return block.timestamp > rolloverTime + 1 days;
+  }
+  
+
+  /**
+   * @notice the function that the vault will call when the round is over. This will settle the vault in Opyn, repay the usdc debt in Compound
+   * and withdraw WETH supplied to Compound. There are 2 main risks involved in this strategy:
+   * 1. If the option expired OTM, then all the collateral is returned to this action. If not, some portion of the collateral is deducted 
+   * by the Opyn system. 
+   * 2. If the ETH price fluctuates a lot, the position in Compound could get liquidated in which case all the collateral may not be 
+   * returned even if the option expires OTM. 
+   * @dev this can be called after 1 day rollover was called if no options have been sold OR if the sold options expired. 
    */
   function closePosition() external override onlyVault {
-    // get back usdc from settlement
-    _settleGammaVault();
+    require(canClosePosition(), "Cannot close position");
+    if (_canSettleVault()) {
+      // get back usdc from settlement
+      _settleGammaVault();
 
-    // repay USD, so we can get back ETH from Compound
-    // todo: prepare contract with extra usd to get back full amount
-    uint256 repayAmount = IERC20(usdc).balanceOf(address(this));
-    _repayERC20(usdc, cusdc, repayAmount);
-    // _repayERC20(usdc, cusdc, uint256(-1)); // to pay back full amount, use this line
+      // repay USD, so we can get back ETH from Compound
+      // todo: prepare contract with extra usd to get back full amount
+      uint256 repayAmount = IERC20(usdc).balanceOf(address(this));
+      _repayERC20(usdc, cusdc, repayAmount);
+      // _repayERC20(usdc, cusdc, uint256(-1)); // to pay back full amount, use this line
 
-    // get back ETH (and wrap to WETH)
-    // todo: change to use full balance once we can repay full debt
-    uint256 wethToRedeem = (IERC20(address(cEth)).balanceOf(address(this)) * 995) / 1000;
-    _redeemWETH(wethToRedeem);
+      // get back ETH (and wrap to WETH)
+      // todo: change to use full balance once we can repay full debt
+      uint256 wethToRedeem = (IERC20(address(cEth)).balanceOf(address(this)) * 995) / 1000;
+      _redeemWETH(wethToRedeem);
+      lockedAsset = 0;
+    }
 
     // set action state.
     _setActionIdle();
@@ -137,10 +187,22 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
     SwapTypes.Order memory _order
   ) external onlyOwner onlyActivated {
     _supplyWeth(_supplyWethAmount);
+    lockedAsset = lockedAsset.add(_supplyWethAmount);
     _borrowERC20(cusdc, _collateralAmount);
 
     // mint otoken using the util function
     _mintOTokens(usdc, _collateralAmount, otoken, _otokenAmount);
     _fillAirswapOrder(_order);
+  }
+
+  /**
+   * @notice checks if the current vault can be settled
+   */
+  function _canSettleVault() internal view returns (bool) {
+    if (lockedAsset != 0 && otoken != address(0)) {
+      return controller.isSettlementAllowed(otoken);
+    }
+
+    return false;
   }
 }

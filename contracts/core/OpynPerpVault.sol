@@ -144,7 +144,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * @dev function to init the vault
+   * @notice function to init the vault
    * this will set the "action" for this strategy vault and won't be able to change
    * @param _asset The asset that this vault will manage. Cannot be changed after initializing.
    * @param _owner The address that will be the owner of this vault.
@@ -154,6 +154,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param _tokenName name of the share given to depositors of this vault
    * @param _tokenSymbol symbol of the share given to depositors of this vault
    * @param _actions array of addresses of the action contracts
+   * @dev when choosing actions make sure they have similar lifecycles and expiries. if the actions can't all be closed at the
+   * same time, composing them may lead to tricky interactions like user funds being stuck for longer in actions than expected. 
    */
   function init(
     address _asset,
