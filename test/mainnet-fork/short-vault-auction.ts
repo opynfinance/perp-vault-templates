@@ -54,7 +54,7 @@ describe("Mainnet: Short Call with Auction", function () {
 
   const easyAuctionAddress = "0x0b7fFc1f4AD541A4Ed16b40D8c37f0929158D101";
 
-  const oracleAddress = "0xc497f40D1B7db6FA5017373f1a0Ec6d53126Da23";
+  const oracleAddress = "0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833";
   const opynOwner = "0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB";
   const otokenFactoryAddress = "0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E";
   const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";

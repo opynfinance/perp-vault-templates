@@ -175,10 +175,10 @@ contract ShortPutWithETH is IAction, OwnableUpgradeable, CompoundUtils, AirswapU
     _setActionIdle();
   }
 
-  // Short Functions
   /**
-   * @dev mint put with borrowed usdc and sell otokens in this contract by filling an order on AirSwap.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+   * @notice lends the WETH on compound, borrows USDC against that and mints otokens against the borrowed usdc. 
+   * sells the by filling an order on AirSwap. this can only be done in "activated" state which is achievable by 
+   * calling `rolloverPosition`
    */
   function borrowMintAndTradeOTC(
     uint256 _supplyWethAmount,

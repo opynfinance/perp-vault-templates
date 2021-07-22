@@ -60,7 +60,7 @@ describe("Mainnet: Short Put with ETH", function () {
   const day = 86400;
   const controllerAddress = "0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72";
   const swapAddress = "0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA";
-  const oracleAddress = "0xc497f40D1B7db6FA5017373f1a0Ec6d53126Da23";
+  const oracleAddress = "0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833";
   const opynOwner = "0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB";
   const otokenFactoryAddress = "0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E";
   const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
@@ -233,6 +233,7 @@ describe("Mainnet: Short Put with ETH", function () {
       await provider.send("evm_increaseTime", [day]); // increase time
       await provider.send("evm_mine", []);
 
+      // await vault.canClosePosition()
       await vault.closePositions();
       const finalWeth = await weth.balanceOf(vault.address);
       expect(finalWeth.gt(p1DepositAmount)).to.be.true;
