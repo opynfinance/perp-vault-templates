@@ -15,6 +15,9 @@ import { IController } from '../interfaces/IController.sol';
 import { IAction } from '../interfaces/IAction.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
+import { IStakeDao } from '../interfaces/IStakeDao.sol';
+import { ICurve } from '../interfaces/ICurve.sol';
+import { IWETH } from '../interfaces/IWETH.sol'; 
 
 contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase {
   using SafeERC20 for IERC20;
@@ -30,32 +33,42 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   uint256 public rolloverTime;
 
   address public immutable vault;
-  address public immutable asset;
+  address public immutable ecrv;
+  address public immutable stakedaoToken;
   IController public controller;
   IOracle public oracle; 
+  IStakeDao public stakedao;
+  ICurve public curve;
+  IWETH public weth;
+
 
   constructor(
     address _vault,
-    address _asset,
+    address _weth,
+    address _stakedaoToken,
     address _swap,
     address _opynWhitelist,
     address _controller,
+    address _curve,
     uint256 _vaultType
   ) {
     vault = _vault;
-    asset = _asset;
+    weth = IWETH(_weth);
+    stakedaoToken = _stakedaoToken;
 
-    // enable vault to take all the asset back and re-distribute.
-    IERC20(_asset).safeApprove(_vault, uint256(-1));
+    // enable vault to take all the weth back and re-distribute.
+    IERC20(_weth).safeApprove(_vault, uint256(-1));
 
     controller = IController(_controller);
+    curve = ICurve(_curve);
 
-    // enable pool contract to pull asset from this contract to mint options.
     address pool = controller.pool();
     
     oracle = IOracle(controller.oracle());
-    
-    IERC20(_asset).safeApprove(pool, uint256(-1));
+    stakedao = IStakeDao(_stakedaoToken);
+
+    // enable pool contract to pull stakedaoToken from this contract to mint options.
+    IERC20(_stakedaoToken).safeApprove(pool, uint256(-1));
 
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
@@ -71,12 +84,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of asset.
+   * @dev return the net worth of this strategy, in terms of weth.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 assetBalance = IERC20(asset).balanceOf(address(this));
-    return assetBalance.add(lockedAsset);
+    uint256 wethBalance = weth.balanceOf(address(this));
+    return wethBalance.add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -109,21 +122,23 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev owner only function to mint options with "assets" and sell otokens in this contract 
+   * @dev owner only function to mint options with "weths" and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
-    require(_order.signer.token == asset, 'Can only sell for asset');
+    require(_order.signer.token == address(weth), 'Can only sell for weth');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
-    _mintOTokens(_collateralAmount, _otokenAmount);
+    _addLiquidityAndDeposit(_collateralAmount);
 
-    IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
+    // _mintOTokens(_collateralAmount, _otokenAmount);
 
-    _fillAirswapOrder(_order);
+    // IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
+
+    // _fillAirswapOrder(_order);
   }
 
   /**
@@ -154,7 +169,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.OpenVault,
         address(this), // owner
         address(0), // second address
-        address(0), // asset, otoken
+        address(0), // weth, otoken
         1, // vaultId
         0, // amount
         0, // index
@@ -162,6 +177,22 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     );
 
     controller.operate(actions);
+  }
+
+  /**
+   * @dev add liquidity to curve, deposit into stakedao.
+   */
+  function _addLiquidityAndDeposit(uint256 amount) internal {
+    // uint256[] memory amounts = new uint256[](2);
+    // weth.withdraw(amount);
+    // amounts[0] = amount;
+    // amounts[1] = 0;
+    // uint256 minAmount = 1;
+    // require(address(this).balance == amount, 'insufficient ETH');
+    // curve.add_liquidity{value:amount}(amounts, minAmount);
+    // IERC20 curveLPToken = stakedao.token();
+    // curveLPToken.safeApprove(address(stakedao), uint256(-1));
+    // stakedao.depositAll();
   }
 
   /**
@@ -175,7 +206,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.DepositCollateral,
         address(this), // vault owner
         address(this), // deposit from this address
-        asset, // collateral asset
+        stakedaoToken, // collateral weth
         1, // vaultId
         _collateralAmount, // amount
         0, // index
@@ -209,7 +240,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.SettleVault,
         address(this), // owner
         address(this), // recipient
-        address(0), // asset
+        address(0), // weth
         1, // vaultId
         0, // amount
         0, // index
@@ -256,7 +287,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    */
   function _isValidStrike(uint256 strikePrice) internal view returns (bool) {
     // TODO: override with your filler code. 
-    uint256 spotPrice = oracle.getPrice(asset);
+    uint256 spotPrice = oracle.getPrice(address(weth));
     // checks that the strike price set is > than 105% of current price
     return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
   }
@@ -271,5 +302,11 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     return (block.timestamp).add(15 days) >= expiry;
   }
 
+    /**
+    * @notice the receive ether function is called whenever the call data is empty
+    */
+  receive() external payable {
+    require(msg.sender == address(weth), "Cannot receive ETH");
+  }
 
 }
