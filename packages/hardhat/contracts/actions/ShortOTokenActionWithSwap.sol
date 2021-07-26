@@ -33,18 +33,15 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   uint256 public rolloverTime;
 
   address public immutable vault;
-  address public immutable ecrv;
-  address public immutable stakedaoToken;
   IController public controller;
   IOracle public oracle; 
   IStakeDao public stakedao;
   ICurve public curve;
-  IWETH public weth;
+  IERC20 ecrv;
 
 
   constructor(
     address _vault,
-    address _weth,
     address _stakedaoToken,
     address _swap,
     address _opynWhitelist,
@@ -53,11 +50,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     uint256 _vaultType
   ) {
     vault = _vault;
-    weth = IWETH(_weth);
-    stakedaoToken = _stakedaoToken;
-
-    // enable vault to take all the weth back and re-distribute.
-    IERC20(_weth).safeApprove(_vault, uint256(-1));
 
     controller = IController(_controller);
     curve = ICurve(_curve);
@@ -66,6 +58,10 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     
     oracle = IOracle(controller.oracle());
     stakedao = IStakeDao(_stakedaoToken);
+    ecrv = stakedao.token();
+
+    // enable vault to take all the ecrv back and re-distribute.
+    ecrv.safeApprove(_vault, uint256(-1));
 
     // enable pool contract to pull stakedaoToken from this contract to mint options.
     IERC20(_stakedaoToken).safeApprove(pool, uint256(-1));
@@ -84,12 +80,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of weth.
+   * @dev return the net worth of this strategy, in terms of ecrv.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 wethBalance = weth.balanceOf(address(this));
-    return wethBalance.add(lockedAsset);
+    uint256 ecrvBalance = ecrv.balanceOf(address(this));
+    return ecrvBalance.add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -122,19 +118,19 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev owner only function to mint options with "weths" and sell otokens in this contract 
+   * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
   function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
-    require(_order.signer.token == address(weth), 'Can only sell for weth');
+    // require(_order.signer.token == address(ecrv), 'Can only sell for ecrv');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
-    _addLiquidityAndDeposit(_collateralAmount);
+    uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
 
-    // _mintOTokens(_collateralAmount, _otokenAmount);
+    // _mintOTokens(amountOfLPTokens, _otokenAmount);
 
     // IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
@@ -169,7 +165,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.OpenVault,
         address(this), // owner
         address(0), // second address
-        address(0), // weth, otoken
+        address(0), // ecrv, otoken
         1, // vaultId
         0, // amount
         0, // index
@@ -182,17 +178,16 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _addLiquidityAndDeposit(uint256 amount) internal {
+  function _addLiquidityAndDeposit(uint256 amount) internal returns (uint256) {
     // uint256[] memory amounts = new uint256[](2);
-    // weth.withdraw(amount);
     // amounts[0] = amount;
     // amounts[1] = 0;
     // uint256 minAmount = 1;
     // require(address(this).balance == amount, 'insufficient ETH');
     // curve.add_liquidity{value:amount}(amounts, minAmount);
-    // IERC20 curveLPToken = stakedao.token();
-    // curveLPToken.safeApprove(address(stakedao), uint256(-1));
-    // stakedao.depositAll();
+    ecrv.safeApprove(address(stakedao), uint256(-1));
+    stakedao.deposit(amount);
+    return stakedao.balanceOf(address(this));
   }
 
   /**
@@ -206,7 +201,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.DepositCollateral,
         address(this), // vault owner
         address(this), // deposit from this address
-        stakedaoToken, // collateral weth
+        address(stakedao), // collateral ecrv
         1, // vaultId
         _collateralAmount, // amount
         0, // index
@@ -240,7 +235,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.SettleVault,
         address(this), // owner
         address(this), // recipient
-        address(0), // weth
+        address(0), // ecrv
         1, // vaultId
         0, // amount
         0, // index
@@ -286,10 +281,11 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * this hook is triggered in the _customOtokenCheck function. 
    */
   function _isValidStrike(uint256 strikePrice) internal view returns (bool) {
-    // TODO: override with your filler code. 
-    uint256 spotPrice = oracle.getPrice(address(weth));
-    // checks that the strike price set is > than 105% of current price
-    return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+    // // TODO: override with your filler code. 
+    // uint256 spotPrice = oracle.getPrice(address(weth));
+    // // checks that the strike price set is > than 105% of current price
+    // return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+    return true;
   }
 
   /**
@@ -300,13 +296,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     // TODO: override with your filler code. 
     // Checks that the token committed to expires within 15 days of commitment. 
     return (block.timestamp).add(15 days) >= expiry;
-  }
-
-    /**
-    * @notice the receive ether function is called whenever the call data is empty
-    */
-  receive() external payable {
-    require(msg.sender == address(weth), "Cannot receive ETH");
   }
 
 }

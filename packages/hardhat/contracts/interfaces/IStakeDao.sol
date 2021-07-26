@@ -8,7 +8,17 @@ pragma experimental ABIEncoderV2;
 interface IStakeDao {
   function depositAll() external;
 
+  function deposit(uint256 amount) external;
+
   function withdrawAll() external;
 
   function token() external returns (IERC20);
+
+  function balanceOf(address account) external view returns (uint256);
+
+  function approve(address spender, uint256 amount) external returns (bool);
+
+  function transfer(address recipient, uint256 amount) external returns (bool);
+
+  function getPricePerFullShare() external view returns (uint256);
 }
