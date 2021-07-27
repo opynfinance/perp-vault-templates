@@ -19,6 +19,8 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
 import { IWETH } from '../interfaces/IWETH.sol'; 
 
+import "hardhat/console.sol";
+
 contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
@@ -32,12 +34,15 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   uint256 public lockedAsset;
   uint256 public rolloverTime;
 
+
+  address public WETH;
   address public immutable vault;
   IController public controller;
   IOracle public oracle; 
   IStakeDao public stakedao;
   ICurve public curve;
   IERC20 ecrv;
+  
 
 
   constructor(
@@ -47,9 +52,11 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     address _opynWhitelist,
     address _controller,
     address _curve,
-    uint256 _vaultType
+    uint256 _vaultType,
+    address _weth
   ) {
     vault = _vault;
+    WETH = _weth;
 
     controller = IController(_controller);
     curve = ICurve(_curve);
@@ -126,7 +133,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
-    require(_order.signer.token == address(ecrv), 'Can only sell for ecrv');
+    require(_order.signer.token == address(WETH), 'Can only sell for weth');
+
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
     uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
@@ -176,16 +184,26 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     controller.operate(actions);
   }
 
+  receive() external payable {}
+  fallback() external payable {}
+
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
   function _addLiquidityAndDeposit(uint256 _amount) internal returns (uint256) {
-    // uint256[] memory amounts = new uint256[](2);
-    // amounts[0] = amount;
-    // amounts[1] = 0;
-    // uint256 minAmount = 1;
-    // require(address(this).balance == amount, 'insufficient ETH');
-    // curve.add_liquidity{value:amount}(amounts, minAmount);
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = _amount;
+    amounts[1] = 0;
+    uint256 minAmount = 0;
+ 
+    console.log("weth balance", IWETH(WETH).balanceOf(address(this)));
+    console.log("amount", _amount);
+    //unwrap weth => eth to deposit on curve
+    IWETH(WETH).withdraw(_amount);
+
+    require(address(this).balance == _amount, 'insufficient ETH');
+    curve.add_liquidity{value:_amount}(amounts, minAmount);
+
     ecrv.safeApprove(address(stakedao), uint256(-1));
     stakedao.deposit(_amount);
     lockedAsset = lockedAsset.add(_amount);

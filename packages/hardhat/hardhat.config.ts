@@ -1,22 +1,22 @@
 import '@nomiclabs/hardhat-waffle';
-import "@nomiclabs/hardhat-etherscan";
+import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
-import "solidity-coverage"
+import 'solidity-coverage';
 
 import * as fs from 'fs';
-import * as dotenv from 'dotenv'
+import * as dotenv from 'dotenv';
 
-dotenv.config()
+dotenv.config();
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
       .readFileSync('.secret')
       .toString()
       .trim()
-  : "test test test test test test test test test test test junk"
+  : 'test test test test test test test test test test test junk';
 
-const infuraKey = process.env.INFURA_KEY
-const etherscanKey = process.env.ETHERSCAN_KEY
+const infuraKey = process.env.INFURA_KEY;
+const etherscanKey = process.env.ETHERSCAN_KEY;
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
@@ -25,36 +25,38 @@ export default {
   networks: {
     hardhat: {
       forking: {
-        url: `https://mainnet.infura.io/v3/${infuraKey}`,
-        enabled: process.env.FORK === 'true'
+        // url: `https://mainnet.infura.io/v3/${infuraKey}`,
+        // enabled: process.env.FORK === 'true'
+        url: `https://eth-mainnet.alchemyapi.io/v2/SR-wBhpxMirgFtp4OGeJoWKO1ObmVeFg`,
+        enabled: true
       }
     },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,
       accounts: {
-        mnemonic: mnemonic,
-      },
+        mnemonic: mnemonic
+      }
     },
     kovan: {
       url: `https://kovan.infura.io/v3/${infuraKey}`,
       accounts: {
-        mnemonic: mnemonic,
-      },
-    },
+        mnemonic: mnemonic
+      }
+    }
   },
   solidity: '0.7.6',
   settings: {
     optimizer: {
       enabled: true,
-      runs: 200,
-    },
+      runs: 200
+    }
   },
   typechain: {
     outDir: 'typechain',
-    target: 'ethers-v5',
+    target: 'ethers-v5'
   },
   contractSizer: {
-    alphaSort: true,
+    alphaSort: true
   },
   etherscan: {
     apiKey: etherscanKey
@@ -63,7 +65,6 @@ export default {
     timeout: 40000
   }
 };
-
 
 // const { utils } = require("ethers");
 // const fs = require("fs");
@@ -203,7 +204,6 @@ export default {
 //   console.log("🔗 http://localhost:3000/pk#"+privateKey)
 // });
 
-
 // task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
 //   .addOptionalParam("amount", "Amount of ETH to send to wallet after generating")
 //   .addOptionalParam("url", "URL to add pk to")
@@ -244,7 +244,6 @@ export default {
 //     }
 
 // });
-
 
 // task("generate", "Create a mnemonic for builder deploys", async (_, { ethers }) => {
 //   const bip39 = require("bip39")
@@ -298,7 +297,6 @@ export default {
 //     var EthUtil = require('ethereumjs-util');
 //     address = "0x" + EthUtil.privateToAddress(wallet._privKey).toString('hex')
 
-
 //     const rlp = require('rlp');
 //     const keccak = require('keccak');
 
@@ -311,7 +309,6 @@ export default {
 //     let contract_address_long = keccak('keccak256').update(rlp_encoded).digest('hex');
 
 //     contract_address = contract_address_long.substring(24); //Trim the first 24 characters.
-
 
 //   }
 
@@ -361,7 +358,6 @@ export default {
 //   }
 
 // });
-
 
 // async function addr(ethers, addr) {
 //   if (isAddress(addr)) {
