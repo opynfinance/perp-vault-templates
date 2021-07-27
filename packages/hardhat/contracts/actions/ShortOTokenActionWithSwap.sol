@@ -98,6 +98,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     
     if(_canSettleVault()) {
       _settleVault();
+      _withdrawLiquidity();
     }
 
     // this function can only be called when it's `Activated`
@@ -125,16 +126,16 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
-    // require(_order.signer.token == address(ecrv), 'Can only sell for ecrv');
+    require(_order.signer.token == address(ecrv), 'Can only sell for ecrv');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
     uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
 
-    // _mintOTokens(amountOfLPTokens, _otokenAmount);
+    _mintOTokens(amountOfLPTokens, _otokenAmount);
 
-    // IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
+    IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
-    // _fillAirswapOrder(_order);
+    _fillAirswapOrder(_order);
   }
 
   /**
@@ -178,7 +179,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _addLiquidityAndDeposit(uint256 amount) internal returns (uint256) {
+  function _addLiquidityAndDeposit(uint256 _amount) internal returns (uint256) {
     // uint256[] memory amounts = new uint256[](2);
     // amounts[0] = amount;
     // amounts[1] = 0;
@@ -186,9 +187,16 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     // require(address(this).balance == amount, 'insufficient ETH');
     // curve.add_liquidity{value:amount}(amounts, minAmount);
     ecrv.safeApprove(address(stakedao), uint256(-1));
-    stakedao.deposit(amount);
+    stakedao.deposit(_amount);
+    lockedAsset = lockedAsset.add(_amount);
     return stakedao.balanceOf(address(this));
   }
+
+  /** @dev withdraws liquidity from stakedao */
+  function _withdrawLiquidity() internal {
+    stakedao.withdrawAll();
+  }
+
 
   /**
    * @dev mint otoken in vault 0
@@ -218,8 +226,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         0, // index
         "" // data
     );
-
-    lockedAsset = lockedAsset.add(_collateralAmount);
 
     controller.operate(actions);
   }

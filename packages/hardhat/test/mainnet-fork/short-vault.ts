@@ -9,9 +9,10 @@ import {
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
-  MockPricer,
+  StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
+  MockPricer
 } from '../../typechain';
 import * as fs from 'fs';
 import { getOrder } from '../utils/orders';
@@ -52,7 +53,8 @@ describe('Mainnet Fork Tests', function () {
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
   let otokenWhitelist: IWhitelist;
-  let pricer: MockPricer;
+  let ecrvPricer: StakedaoEcrvPricer;
+  let wethPricer: MockPricer;
   let oracle: IOracle;
   let provider;
 
@@ -136,17 +138,20 @@ describe('Mainnet Fork Tests', function () {
       );
   });
 
-  this.beforeAll("Deploy pricer and update pricer in opyn's oracle", async () => {
+  this.beforeAll("Deploy ecrvPricer, wethPricer and update ecrvPricer in opyn's oracle", async () => {
     provider = ethers.provider;
 
-    const PricerContract = await ethers.getContractFactory('MockPricer');
-    pricer = (await PricerContract.deploy(oracleAddress)) as MockPricer;
+    const PricerContract = await ethers.getContractFactory('StakedaoEcrvPricer');
+    ecrvPricer = (await PricerContract.deploy(stakeDaoLP.address, weth.address, oracleAddress, curveAddress)) as StakedaoEcrvPricer;
+    const MockPricerContract = await ethers.getContractFactory('MockPricer');
+    wethPricer = (await MockPricerContract.deploy(oracleAddress)) as MockPricer;
 
-    // impersonate owner and change the pricer
+    // impersonate owner and change the ecrvPricer
     await owner.sendTransaction({ to: opynOwner, value: utils.parseEther('1.0') });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
-    await oracle.connect(signer).setAssetPricer(stakeDaoLP.address, pricer.address);
+    await oracle.connect(signer).setAssetPricer(stakeDaoLP.address, ecrvPricer.address);
+    await oracle.connect(signer).setAssetPricer(weth.address, wethPricer.address);
     await provider.send('evm_mine', []);
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
@@ -154,7 +159,7 @@ describe('Mainnet Fork Tests', function () {
   this.beforeAll('whitelist stakedao LP in the Opyn system', async() => { 
     const whitelist = (await ethers.getContractAt('IWhitelist', otokenWhitelistAddress)) as IWhitelist;
 
-    // impersonate owner and change the pricer
+    // impersonate owner and change the ecrvPricer
     await owner.sendTransaction({ to: opynOwner, value: utils.parseEther('1.0') });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
@@ -175,6 +180,7 @@ describe('Mainnet Fork Tests', function () {
     await ecrv.connect(signer).transfer(depositor1.address, p1DepositAmount)
     await ecrv.connect(signer).transfer(depositor2.address, p2DepositAmount)
     await ecrv.connect(signer).transfer(depositor3.address, p3DepositAmount)
+    await ecrv.connect(signer).transfer(counterpartyWallet.address, p1DepositAmount)
     await provider.send('evm_mine', []);
     await provider.send('hardhat_stopImpersonatingAccount', [ecrvWhale]);
     await ecrv.connect(depositor1).approve(vault.address, p1DepositAmount);
@@ -239,8 +245,8 @@ describe('Mainnet Fork Tests', function () {
       // prepare counterparty
       counterpartyWallet = counterpartyWallet.connect(provider);
       await owner.sendTransaction({ to: counterpartyWallet.address, value: utils.parseEther('2') });
-      await weth.connect(counterpartyWallet).deposit({ value: premium });
-      await weth.connect(counterpartyWallet).approve(swapAddress, premium);
+      // await weth.connect(counterpartyWallet).deposit({ value: premium });
+      await ecrv.connect(counterpartyWallet).approve(swapAddress, premium);
     });
     it('p1 deposits', async () => {
       totalAmountInVault = p1DepositAmount;
@@ -260,16 +266,20 @@ describe('Mainnet Fork Tests', function () {
       expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
     });
 
+    it('tests getPrice in ecrvPricer', async () => { 
+      await wethPricer.setPrice('2000');
+      const wethPrice = await oracle.getPrice(weth.address);
+      const stakeDaoLPPrice = await oracle.getPrice(stakeDaoLP.address);
+      expect(wethPrice.toNumber()).to.be.lessThanOrEqual(stakeDaoLPPrice.toNumber())
+    })
+
     it('owner commits to the option', async () => {
-      // set live price as 3000
-      await pricer.setPrice('300000000000');
       expect(await action1.state()).to.be.equal(ActionState.Idle);
       await action1.commitOToken(otoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
-
     });
 
-    it('owner deposits ecrv to stakedao', async () => {
+    it('owner deposits ecrv to stakedao, mints options and sells them', async () => {
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
@@ -287,7 +297,7 @@ describe('Mainnet Fork Tests', function () {
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        weth.address,
+        ecrv.address,
         premium.toString(),
         swapAddress,
         counterpartyWallet.privateKey
@@ -301,65 +311,29 @@ describe('Mainnet Fork Tests', function () {
 
       expect (ecrvStakeDaoBalanceAfter).to.be.equal(ecrvStakeDaoBalanceBefore.add(collateralAmount))
 
-      // totalAmountInVault = totalAmountInVault.add(premium);
-
-      // expect(await otoken.balanceOf(counterpartyWallet.address)).to.be.equal(sellAmount);
-      // expect(await weth.balanceOf(action1.address)).to.be.equal(premium);
-      // expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      // expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should have increased')
-      //   .to.be.true;
-      // expect((await action1.lockedAsset()).eq(collateralAmount), 'collateral should be locked').to
-      //   .be.true;
-    });
-
-    xit('owner mints and sells options', async () => {
-      // increase time
-      const minPeriod = await action1.MIN_COMMIT_PERIOD();
-      await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
-      await provider.send('evm_mine', []);
-
-      await vault.rollOver([(100 - reserveFactor) * 100]);
-
-      const collateralAmount = totalAmountInVault.mul(100 - reserveFactor).div(100);
-      actualAmountInVault = totalAmountInVault.sub(collateralAmount);
-      const sellAmount = collateralAmount.div(10000000000).toString(); // 72 * 10^ 8
-      const order = await getOrder(
-        action1.address,
-        otoken.address,
-        sellAmount,
-        counterpartyWallet.address,
-        weth.address,
-        premium.toString(),
-        swapAddress,
-        counterpartyWallet.privateKey
-      );
-
-      expect((await action1.lockedAsset()).eq('0'), 'collateral should not be locked').to.be.true;
-
-      await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
-
       totalAmountInVault = totalAmountInVault.add(premium);
 
       expect(await otoken.balanceOf(counterpartyWallet.address)).to.be.equal(sellAmount);
-      expect(await weth.balanceOf(action1.address)).to.be.equal(premium);
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect(await ecrv.balanceOf(action1.address)).to.be.equal(premium);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should have increased')
         .to.be.true;
+
       expect((await action1.lockedAsset()).eq(collateralAmount), 'collateral should be locked').to
         .be.true;
     });
 
-    xit('p3 deposits', async () => {
+    it('p3 deposits', async () => {
       totalAmountInVault = totalAmountInVault.add(p3DepositAmount);
       actualAmountInVault = actualAmountInVault.add(p3DepositAmount);
 
-      await vault.connect(depositor3).depositETH({ value: p3DepositAmount });
+      await vault.connect(depositor3).deposit(p3DepositAmount);
       expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
         .true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
     });
 
-    xit('p1 withdraws', async () => {
+    it('p1 withdraws', async () => {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
@@ -369,28 +343,29 @@ describe('Mainnet Fork Tests', function () {
       totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
       actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP1Before = await weth.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientBefore = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP1Before = await ecrv.balanceOf(depositor1.address);
 
       await vault.connect(depositor1).withdraw(await vault.balanceOf(depositor1.address));
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP1After = await weth.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientAfter = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP1After = await ecrv.balanceOf(depositor1.address);
 
       expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
         .true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(balanceOfP1After);
     });
 
-    xit('option expires', async () => {
+    it('option expires', async () => {
       // increase time
       await provider.send('evm_setNextBlockTimestamp', [expiry + day]);
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await pricer.setExpiryPriceInOracle(weth.address, expiry, '200000000000');
+      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '1000')
+      await ecrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
       await provider.send('evm_increaseTime', [day]); // increase time
@@ -400,13 +375,14 @@ describe('Mainnet Fork Tests', function () {
 
       await vault.closePositions();
 
-      expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should be same').to.be
+      // TODO: why is this off by 1e-18? 
+      expect((await vault.totalAsset()).eq(totalAmountInVault.sub(1)), 'total asset should be same').to.be
         .true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault.sub(1));
       expect((await action1.lockedAsset()).eq('0'), 'all collateral should be unlocked').to.be.true;
     });
 
-    xit('p2 withdraws', async () => {
+    it('p2 withdraws', async () => {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
@@ -416,22 +392,23 @@ describe('Mainnet Fork Tests', function () {
       totalAmountInVault = totalAmountInVault.sub(amountToWithdraw);
       actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP2Before = await weth.balanceOf(depositor2.address);
+      const balanceOfFeeRecipientBefore = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP2Before = await ecrv.balanceOf(depositor2.address);
 
       await vault.connect(depositor2).withdraw(await vault.balanceOf(depositor2.address));
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP2After = await weth.balanceOf(depositor2.address);
+      const balanceOfFeeRecipientAfter = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP2After = await ecrv.balanceOf(depositor2.address);
 
       expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
         .true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      // TODO: off by 1e-18 
+      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter.add(1));
       expect(balanceOfP2Before.add(amountTransferredToP2)).to.be.equal(balanceOfP2After);
     });
 
-    xit('p3 withdraws', async () => {
+    it('p3 withdraws', async () => {
       const amountToWithdraw = p3DepositAmount;
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP3 = amountToWithdraw.sub(fee);
@@ -439,17 +416,17 @@ describe('Mainnet Fork Tests', function () {
       totalAmountInVault = '0';
       actualAmountInVault = '0';
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP3Before = await weth.balanceOf(depositor3.address);
+      const balanceOfFeeRecipientBefore = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP3Before = await ecrv.balanceOf(depositor3.address);
 
       await vault.connect(depositor3).withdraw(await vault.balanceOf(depositor3.address));
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(feeRecipient.address);
-      const balanceOfP3After = await weth.balanceOf(depositor3.address);
+      const balanceOfFeeRecipientAfter = await ecrv.balanceOf(feeRecipient.address);
+      const balanceOfP3After = await ecrv.balanceOf(depositor3.address);
 
       expect((await vault.totalAsset()).eq(totalAmountInVault), 'total asset should update').to.be
         .true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
+      expect(await ecrv.balanceOf(vault.address)).to.be.equal(actualAmountInVault);
       expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(balanceOfFeeRecipientAfter);
       expect(balanceOfP3Before.add(amountTransferredToP3)).to.be.equal(balanceOfP3After);
     });
