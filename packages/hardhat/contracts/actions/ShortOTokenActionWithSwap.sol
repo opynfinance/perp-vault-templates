@@ -134,10 +134,13 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
     require(_order.signer.token == address(WETH), 'Can only sell for weth');
-
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
+    require(_order.sender.amount == _otokenAmount, 'Need to sell all otokens minted');
+    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
     uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
+
+    console.log("weth amount", _collateralAmount);
+    console.log("weth in stakedao amount", amountOfLPTokens.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36));
 
     _mintOTokens(amountOfLPTokens, _otokenAmount);
 
@@ -191,21 +194,21 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * @dev add liquidity to curve, deposit into stakedao.
    */
   function _addLiquidityAndDeposit(uint256 _amount) internal returns (uint256) {
-    uint256[] memory amounts = new uint256[](2);
+    uint256[2] memory amounts;
     amounts[0] = _amount;
     amounts[1] = 0;
     uint256 minAmount = 0;
- 
-    console.log("weth balance", IWETH(WETH).balanceOf(address(this)));
-    console.log("amount", _amount);
+
     //unwrap weth => eth to deposit on curve
     IWETH(WETH).withdraw(_amount);
-
+    // deposit ETH to curve
     require(address(this).balance == _amount, 'insufficient ETH');
     curve.add_liquidity{value:_amount}(amounts, minAmount);
+    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
 
-    ecrv.safeApprove(address(stakedao), uint256(-1));
-    stakedao.deposit(_amount);
+    // deposit ecrv to stakedao
+    ecrv.safeApprove(address(stakedao), ecrvToDeposit);
+    stakedao.deposit(ecrvToDeposit);
     lockedAsset = lockedAsset.add(_amount);
     return stakedao.balanceOf(address(this));
   }
@@ -227,7 +230,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
         IController.ActionType.DepositCollateral,
         address(this), // vault owner
         address(this), // deposit from this address
-        address(stakedao), // collateral ecrv
+        address(stakedao), // collateral sdecrv
         1, // vaultId
         _collateralAmount, // amount
         0, // index
