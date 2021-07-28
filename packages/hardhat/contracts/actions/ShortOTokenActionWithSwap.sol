@@ -34,14 +34,13 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   uint256 public lockedAsset;
   uint256 public rolloverTime;
 
-
-  address public WETH;
   address public immutable vault;
   IController public controller;
   IOracle public oracle; 
   IStakeDao public stakedao;
   ICurve public curve;
   IERC20 ecrv;
+  IWETH weth;
   
 
 
@@ -56,7 +55,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     address _weth
   ) {
     vault = _vault;
-    WETH = _weth;
+    weth = IWETH(_weth);
 
     controller = IController(_controller);
     curve = ICurve(_curve);
@@ -67,8 +66,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     stakedao = IStakeDao(_stakedaoToken);
     ecrv = stakedao.token();
 
-    // enable vault to take all the ecrv back and re-distribute.
-    ecrv.safeApprove(_vault, uint256(-1));
+    // enable vault to take all the weth back and re-distribute.
+    IERC20(_weth).safeApprove(_vault, uint256(-1));
 
     // enable pool contract to pull stakedaoToken from this contract to mint options.
     IERC20(_stakedaoToken).safeApprove(pool, uint256(-1));
@@ -87,12 +86,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of ecrv.
+   * @dev return the net worth of this strategy, in terms of weth.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 ecrvBalance = ecrv.balanceOf(address(this));
-    return ecrvBalance.add(lockedAsset);
+    uint256 wethBalance = weth.balanceOf(address(this));
+    return wethBalance.add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -133,14 +132,11 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
     require(_order.sender.wallet == address(this), '!Sender');
     require(_order.sender.token == otoken, 'Can only sell otoken');
-    require(_order.signer.token == address(WETH), 'Can only sell for weth');
+    require(_order.signer.token == address(weth), 'Can only sell for weth');
     require(_order.sender.amount == _otokenAmount, 'Need to sell all otokens minted');
-    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
     uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
-
-    console.log("weth amount", _collateralAmount);
-    console.log("weth in stakedao amount", amountOfLPTokens.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36));
 
     _mintOTokens(amountOfLPTokens, _otokenAmount);
 
@@ -200,7 +196,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     uint256 minAmount = 0;
 
     //unwrap weth => eth to deposit on curve
-    IWETH(WETH).withdraw(_amount);
+    weth.withdraw(_amount);
     // deposit ETH to curve
     require(address(this).balance == _amount, 'insufficient ETH');
     curve.add_liquidity{value:_amount}(amounts, minAmount);
@@ -216,6 +212,9 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /** @dev withdraws liquidity from stakedao */
   function _withdrawLiquidity() internal {
     stakedao.withdrawAll();
+    uint256 ecrvBalance = ecrv.balanceOf(address(this));
+    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
+    weth.deposit{ value: ethReceived }();
   }
 
 
