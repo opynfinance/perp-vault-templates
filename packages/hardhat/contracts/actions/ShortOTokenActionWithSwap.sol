@@ -66,8 +66,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     stakedao = IStakeDao(_stakedaoToken);
     ecrv = stakedao.token();
 
-    // enable vault to take all the weth back and re-distribute.
-    IERC20(_weth).safeApprove(_vault, uint256(-1));
+    // enable vault to take all the stakedaoToken back and re-distribute.
+    IERC20(_stakedaoToken).safeApprove(_vault, uint256(-1));
 
     // enable pool contract to pull stakedaoToken from this contract to mint options.
     IERC20(_stakedaoToken).safeApprove(pool, uint256(-1));
@@ -136,9 +136,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(_order.sender.amount == _otokenAmount, 'Need to sell all otokens minted');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
-    uint256 amountOfLPTokens = _addLiquidityAndDeposit(_collateralAmount);
-
-    _mintOTokens(amountOfLPTokens, _otokenAmount);
+    _mintOTokens(_collateralAmount, _otokenAmount);
 
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 

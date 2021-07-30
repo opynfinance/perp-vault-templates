@@ -10,6 +10,10 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IWETH } from '../interfaces/IWETH.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
+import { IStakeDao } from '../interfaces/IStakeDao.sol';
+import { ICurve } from '../interfaces/ICurve.sol';
+
+import "hardhat/console.sol";
 
 contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
   using SafeMath for uint256;
@@ -32,7 +36,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   address public WETH;
 
-  address public asset;
+  /// @dev stake dao stakedaoToken
+  address public stakedaoToken;
+
+  /// @dev underlying asset 
+  address public underlying; 
 
   address public feeRecipient;
 
@@ -41,6 +49,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 constant public CAP = 1000 ether;
+
+  /// @dev ecrv address 
+  IERC20 public ecrv; 
+
+  /// @dev curve 
+  ICurve public curve;
 
   /*=====================
    *       Events       *
@@ -96,7 +110,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * this will set the "action" for this strategy vault and won't be able to change
    */
   function init(
-    address _asset,
+    address _stakedaoToken,
+    address _underlyingAsset,
+    address _curve,
     address _owner,
     address _feeRecipient,
     address _weth,
@@ -111,9 +127,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     __Ownable_init();
     transferOwnership(_owner);    
 
-    asset = _asset;
+    stakedaoToken = _stakedaoToken;
     feeRecipient = _feeRecipient;
     WETH = _weth;
+    underlying = _underlyingAsset;
+    curve = ICurve(_curve);
 
     // assign actions
     for(uint256 i = 0 ; i < _actions.length; i++ ) {
@@ -128,22 +146,22 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * total assets controlled by this vault
+   * total stakedaoTokens controlled by this vault
    */
   function totalAsset() external view returns (uint256) {
     return _totalAsset();
   }
 
   /**
-   * @dev return how many shares you can get if you deposit asset into the pool
-   * @param _amount amount of asset you deposit
+   * @dev return how many shares you can get if you deposit stakedaoToken into the pool
+   * @param _amount amount of stakedaoToken you deposit
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
     return _getSharesByDepositAmount(_amount, _totalAsset());
   }
 
   /**
-   * @dev return how many asset you can get if you burn the number of shares, after charging the fee.
+   * @dev return how many stakedaoToken you can get if you burn the number of shares, after charging the fee.
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
     uint256 withdrawAmount = _getWithdrawAmountByShares(_shares);
@@ -155,7 +173,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice Deposits ETH into the contract and mint vault shares. Reverts if the underlying is not WETH.
    */
   function depositETH() external payable nonReentrant notEmergency{
-    require(asset == WETH, '!WETH');
+    require(underlying == WETH, '!WETH');
     require(msg.value > 0, '!VALUE');
 
     IWETH(WETH).deposit{ value: msg.value }();
@@ -163,19 +181,11 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev deposit ERC20 asset and get shares
-   */
-  function deposit(uint256 _amount) external notEmergency {
-    IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
-    _deposit(_amount);
-  }
-
-  /**
    * @notice Withdraws ETH from vault using vault shares
    * @param share is the number of vault shares to be burned
    */
   function withdrawETH(uint256 share) external nonReentrant notEmergency {
-    require(asset == WETH, '!WETH');
+    require(stakedaoToken == WETH, '!WETH');
     uint256 withdrawAmount = _withdraw(share);
 
     IWETH(WETH).withdraw(withdrawAmount);
@@ -183,14 +193,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(success, 'ETH transfer failed');
   }
 
-  /**
-   * @notice Withdraws asset from vault using vault shares
-   * @param share is the number of vault shares to be burned
-   */
-  function withdraw(uint256 share) external nonReentrant notEmergency {
-    uint256 withdrawAmount = _withdraw(share);
-    IERC20(asset).safeTransfer(msg.sender, withdrawAmount);
-  }
+  // /**
+  //  * @notice Withdraws stakedaoToken from vault using vault shares
+  //  * @param share is the number of vault shares to be burned
+  //  */
+  // function withdraw(uint256 share) external nonReentrant notEmergency {
+  //   uint256 withdrawAmount = _withdraw(share);
+  //   IERC20(stakedaoToken).safeTransfer(msg.sender, withdrawAmount);
+  // }
 
   /**
    * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
@@ -241,17 +251,20 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    *====================*/
 
   /**
-   * total assets controlled by this vault
+   * total stakedaoTokens controlled by this vault
    */
   function _totalAsset() internal view returns (uint256) {
-    return _balance().add(_totalDebt());
+    uint256 stakedaoTokenBalance = _balance().add(_totalDebt());
+    return stakedaoTokenBalance;
+    // IERC20 ecrv = stakedaoToken.token();
+    // return stakedaoTokenBalance.mul(stakedaoToken.getPricePerFullShare()).mul(ecrv.get_virtual_price()).div(10**36);
   }
 
   /**
-   * @dev returns remaining asset balance in the vault.
+   * @dev returns remaining stakedaoToken balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(asset).balanceOf(address(this));
+    return IERC20(stakedaoToken).balanceOf(address(this));
   }
 
   /**
@@ -266,10 +279,26 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev mint the shares to depositor, and emit the deposit event
+   * @dev deposit into curve, then into stakedao, then mint the shares to depositor, and emit the deposit event
    */
   function _deposit(uint256 _amount) internal {
-    // the asset is already deposited into the contract at this point, need to substract it from total
+    // the stakedaoToken is already deposited into the contract at this point, need to substract it from total
+    uint256[2] memory amounts;
+    amounts[0] = _amount;
+    amounts[1] = 0;
+    uint256 minAmount = 0;
+
+    // deposit ETH to curve
+    curve.add_liquidity{value:_amount}(amounts, minAmount);
+
+    // deposit ecrv to stakedao
+    IStakeDao stakedao = IStakeDao(stakedaoToken);
+    IERC20 ecrv = stakedao.token();
+    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
+    ecrv.safeApprove(stakedaoToken, ecrvToDeposit);
+    stakedao.deposit(ecrvToDeposit);
+
+    // mint shares and emit event 
     uint256 totalWithDepositedAmount = _totalAsset();
     require(totalWithDepositedAmount < CAP, 'Cap exceeded');
     uint256 totalBeforeDeposit = totalWithDepositedAmount.sub(_amount);
@@ -285,12 +314,12 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev iterrate through each action, close position and withdraw funds
    */
   function _closeAndWithdraw() internal {
-    address cacheAsset = asset;
+    address cacheAsset = stakedaoToken;
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(actions[i]).closePosition();
 
-      // 2. withdraw assets
+      // 2. withdraw stakedaoTokens
       uint256 actionBalance = IERC20(cacheAsset).balanceOf(actions[i]);
       if (actionBalance > 0)
         IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
@@ -306,7 +335,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage = withdrawReserve;
-    address cacheAsset = asset;
+    address cacheAsset = stakedaoToken;
 
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_percentages[i]);
@@ -323,7 +352,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
   /**
    * @dev burn shares, return withdraw amount handle by withdraw or withdrawETH
-   * @param _share amount of shares burn to withdraw asset.
+   * @param _share amount of shares burn to withdraw stakedaoToken.
    */
   function _withdraw(uint256 _share) internal returns (uint256) {
     uint256 currentAssetBalance = _balance();
@@ -334,7 +363,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     uint256 fee = _getWithdrawFee(withdrawAmount);
 
-    IERC20(asset).transfer(feeRecipient, fee);
+    IERC20(stakedaoToken).transfer(feeRecipient, fee);
 
     uint256 amountPostFee = withdrawAmount.sub(fee);
 
@@ -344,9 +373,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev return how many shares you can get if you deposit {_amount} asset
+   * @dev return how many shares you can get if you deposit {_amount} stakedaoToken
    * @param _amount amount of token depositing
-   * @param _totalAssetAmount amont of asset already in the pool before deposit
+   * @param _totalAssetAmount amont of stakedaoToken already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
@@ -356,7 +385,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev return how many asset you can get if you burn the number of shares
+   * @dev return how many stakedaoToken you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     uint256 totalAssetAmount = _totalAsset();
@@ -366,7 +395,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of asset withdrawing.
+   * @dev get amount of fee charged based on total amount of stakedaoToken withdrawing.
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
     // todo: add fee model
