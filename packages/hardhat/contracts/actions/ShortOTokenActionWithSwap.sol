@@ -136,11 +136,18 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     require(_order.sender.amount == _otokenAmount, 'Need to sell all otokens minted');
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'Need minimum option premium');
 
+    // mint options
     _mintOTokens(_collateralAmount, _otokenAmount);
+
+    lockedAsset = lockedAsset.add(_collateralAmount);
 
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
+    // sell options on airswap for weth
     _fillAirswapOrder(_order);
+
+    // convert the weth received as premium to sdeCRV
+    _wethToSdECRV();
   }
 
   /**
@@ -187,24 +194,24 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _addLiquidityAndDeposit(uint256 _amount) internal returns (uint256) {
+  function _wethToSdECRV() internal {
+    uint256 wethBalance = weth.balanceOf(address(this));
+
     uint256[2] memory amounts;
-    amounts[0] = _amount;
+    amounts[0] = wethBalance;
     amounts[1] = 0;
     uint256 minAmount = 0;
 
     //unwrap weth => eth to deposit on curve
-    weth.withdraw(_amount);
+    weth.withdraw(wethBalance);
     // deposit ETH to curve
-    require(address(this).balance == _amount, 'insufficient ETH');
-    curve.add_liquidity{value:_amount}(amounts, minAmount);
+    require(address(this).balance == wethBalance, 'insufficient ETH');
+    curve.add_liquidity{value:wethBalance}(amounts, minAmount);
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
 
     // deposit ecrv to stakedao
     ecrv.safeApprove(address(stakedao), ecrvToDeposit);
     stakedao.deposit(ecrvToDeposit);
-    lockedAsset = lockedAsset.add(_amount);
-    return stakedao.balanceOf(address(this));
   }
 
   /** @dev withdraws liquidity from stakedao */
