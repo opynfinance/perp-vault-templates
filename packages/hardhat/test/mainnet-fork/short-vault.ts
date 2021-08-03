@@ -555,76 +555,93 @@ describe('Mainnet Fork Tests', function() {
       expect(sdecrvControlledByActionAfter, 'no sdecrv should be controlled by action').to.be.equal('0');
     });
 
-    xit('p2 withdraws', async () => {
+    it('p2 withdraws', async () => {
+      // vault balance calculations
+      const vaultTotalBefore = await vault.totalStakedaoAsset();
+      const vaultSdECRVBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+      const sharesBefore = await vault.totalSupply();
+      const sharesToWithdraw = await vault.balanceOf(depositor2.address);
+
+      // p2 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP2 = amountToWithdraw.sub(fee);
+      const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const balanceOfP2Before = await provider.getBalance(depositor2.address);
 
-      expectedAmountInVault = expectedAmountInVault.sub(amountToWithdraw);
-      actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
+      // fee calculations 
+      const effectiveFee = fee.mul(95).div(100);
+      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP2Before = await weth.balanceOf(depositor2.address);
 
       await vault
         .connect(depositor2)
-        .withdrawETH(await vault.balanceOf(depositor2.address));
+        .withdrawETH(sharesToWithdraw);
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP2After = await weth.balanceOf(depositor2.address);
+      // vault balance variables 
+      const sharesAfter = await vault.totalSupply();
+      const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
+      const sdeCRVWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
+      const vaultSdECRVBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
+      // fee variables 
+      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address)
+      const balanceOfP2After = await provider.getBalance(depositor2.address);
+
+      expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
+
+      // check vault balance 
       expect(
-        (await vault.totalStakedaoAsset()).gte(expectedAmountInVault.sub(premium)),
-        'total asset should be same'
+        (await vault.totalStakedaoAsset()).eq(expectedVaultTotalAfter.add(1)),
+        'total asset should update'
       ).to.be.true;
-      expect(await weth.balanceOf(vault.address)).gte(
-        actualAmountInVault.sub(premium)
+      expect(vaultSdECRVBalanceAfter).to.be.equal(
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1)
       );
-      // @dev: it is a little hard to estimate exactly how much we get back. This just tests that we get back at least original deposit amount. 
-      expect(balanceOfFeeRecipientAfter.gte(balanceOfFeeRecipientBefore), 'not profitable').to.be.true;
-      expect((balanceOfP2After).gte(p2DepositAmount), 'not profitable, user lost money').to.be.true;
+
+      // check p2 balance 
+      expect(balanceOfP2After.gte((balanceOfP2Before.add(amountTransferredToP2))), 'incorrect ETH transferred to p2').to.be.true;
+
+      // check fee 
+      expect(balanceOfFeeRecipientAfter.gte(
+        balanceOfFeeRecipientBefore.add(effectiveFee)
+      ), 'incorrect fee paid out').to.be.true;
     });
 
-    xit('p3 withdraws', async () => {
+    it('p3 withdraws', async () => {
+      // balance calculations 
       const amountToWithdraw = p3DepositAmount;
       const fee = amountToWithdraw.mul(5).div(1000);
-      // Assuming some bound of loss. 
-      const curveImbalanceFactor = amountToWithdraw.mul(1).div(100)
-      const amountTransferredToP3 = amountToWithdraw.sub(fee).sub(curveImbalanceFactor);
-
-      expectedAmountInVault = '0';
-      actualAmountInVault = '0';
-
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP3Before = await weth.balanceOf(depositor3.address);
+      const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const balanceOfP3Before = await provider.getBalance(depositor3.address);
+      
+      // fee calculations
+      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
+      const effectiveFee = fee.mul(95).div(100)
 
       await vault
         .connect(depositor3)
         .withdrawETH(await vault.balanceOf(depositor3.address));
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP3After = await weth.balanceOf(depositor3.address);
+      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address);
+      const balanceOfP3After = await provider.getBalance(depositor3.address);
 
       expect(
-        (await vault.totalStakedaoAsset()).eq(expectedAmountInVault),
-        'total asset should update'
+        (await vault.totalStakedaoAsset()).eq('0'),
+        'total in vault should be empty'
       ).to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(
-        actualAmountInVault
+      expect(await stakeDaoLP.balanceOf(vault.address), 'total in vault should be empty').to.be.equal(
+        '0'
       );
-      // @dev: it is a little hard to estimate exactly how much we get back. This just tests that we get back at least original deposit amount. 
-      expect(balanceOfFeeRecipientAfter.gte(balanceOfFeeRecipientBefore), 'not profitable').to.be.true;
-      expect((balanceOfP3After).gte(amountTransferredToP3), 'not profitable, user lost money').to.be.true;
+
+      // check fee 
+      expect(balanceOfFeeRecipientAfter.gte(
+        balanceOfFeeRecipientBefore.add(effectiveFee)
+      ), 'incorrect fee paid out').to.be.true;
+
+      // check p3 balance 
+      expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect ETH transferred to p3').to.be.true;
     });
   });
 });

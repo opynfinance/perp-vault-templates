@@ -362,7 +362,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     // send fee to recipient 
     uint256 fee = _getWithdrawFee(ethReceived);
-    console.log(fee);
     (bool success, ) = feeRecipient.call{ value: fee }('');
     require(success, 'ETH transfer failed');
 
