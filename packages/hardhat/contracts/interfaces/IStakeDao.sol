@@ -12,6 +12,8 @@ interface IStakeDao {
 
   function withdrawAll() external;
 
+  function withdraw(uint256 _shares) external;
+
   function token() external returns (IERC20);
 
   function balanceOf(address account) external view returns (uint256);

@@ -311,48 +311,53 @@ describe('Mainnet Fork Tests', function() {
       }
     );
     it('p1 deposits', async () => {
-      expectedAmountInVault = p1DepositAmount;
+      // there is no accurate way of estimating this, so just approximating for now
+      const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
 
       await vault.connect(depositor1).depositETH({value: p1DepositAmount});
 
-      actualAmountInVault = await vault.totalStakedaoAsset();
+      const vaultTotal = await vault.totalStakedaoAsset();
+      const vaultSdecrvBalance = await stakeDaoLP.balanceOf(vault.address);
+      const totalSharesMinted = vaultSdecrvBalance;
 
       // check the sdeCRV token balances
-      // there is no accurate way of estimating this, so just approximating for now
       expect(
-        (actualAmountInVault).gte(expectedAmountInVault.mul(95).div(100)),
+        (vaultTotal).gte(expectedSdecrvInVault),
         'internal accounting is incorrect'
       ).to.be.true;
-      expect(await stakeDaoLP.balanceOf(vault.address)).to.be.equal(
-        actualAmountInVault, 'internal balance is incorrect'
+      expect(vaultSdecrvBalance).to.be.equal(
+        vaultTotal, 'internal balance is incorrect'
       );
 
       // check the minted share balances
-      expect((await vault.balanceOf(depositor1.address))).to.be.equal(actualAmountInVault)
+      expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
     });
 
     it('p2 deposits', async () => {
-      expectedAmountInVault = expectedAmountInVault.add(p2DepositAmount);
+      expectedAmountInVault = p1DepositAmount.add(p2DepositAmount);
+      // there is no accurate way of estimating this, so just approximating for now
+      const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
       const sharesBefore = await vault.totalSupply();
-      const vaultBalanceBefore = actualAmountInVault;
+      const vaultSdecrvBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
 
       await vault.connect(depositor2).depositETH({value: p2DepositAmount});
 
-      actualAmountInVault = await vault.totalStakedaoAsset();
+      const vaultTotal = await vault.totalStakedaoAsset();
+      const vaultSdecrvBalance = await stakeDaoLP.balanceOf(vault.address);
       // check the sdeCRV token balances
       // there is no accurate way of estimating this, so just approximating for now
       expect(
-        (await vault.totalStakedaoAsset()).gte(expectedAmountInVault.mul(95).div(100)),
+        (vaultTotal).gte(expectedSdecrvInVault),
         'internal accounting is incorrect'
       ).to.be.true;
-      expect(await stakeDaoLP.balanceOf(vault.address)).to.be.equal(
-        actualAmountInVault, 'internal balance is incorrect'
+      expect(vaultTotal).to.be.equal(
+        vaultSdecrvBalance, 'internal balance is incorrect'
       );
 
       // check the minted share balances
-      const stakedaoDeposited = actualAmountInVault.sub(vaultBalanceBefore);
-      const shares = sharesBefore.div(vaultBalanceBefore).mul(stakedaoDeposited)
-      expect((await vault.balanceOf(depositor2.address))).to.be.equal(shares)
+      const stakedaoDeposited = vaultSdecrvBalance.sub(vaultSdecrvBalanceBefore);
+      const shares = sharesBefore.div(vaultSdecrvBalanceBefore).mul(stakedaoDeposited)
+      expect((await vault.balanceOf(depositor2.address)), 'incorrcect amount of shares minted' ).to.be.equal(shares)
     });
 
     it('tests getPrice in sdecrvPricer', async () => {
@@ -376,14 +381,18 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
       await provider.send('evm_mine', []);
 
+      const vaultSdecrvBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
-      expectedAmountInVault = actualAmountInVault.mul(reserveFactor).div(100)
-      expectedAmountInAction = actualAmountInVault.sub(expectedAmountInVault)
+
+      // const vaultSdecrvBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+      const expectedSdecrvBalanceInVault = vaultSdecrvBalanceBefore.mul(reserveFactor).div(100)
+      let expectedSdecrvBalanceInAction = vaultSdecrvBalanceBefore.sub(expectedSdecrvBalanceInVault)
       const collateralAmount = await stakeDaoLP.balanceOf(action1.address)
       const premiumInSdecrv = premium.mul(95).div(100);
-      const expectedTotal = actualAmountInVault;
-      expectedAmountInAction = expectedAmountInVault.add(premiumInSdecrv);
+      const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
+      expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       const sellAmount = (collateralAmount.div(1000000000000)).toString(); 
 
       expect((await stakeDaoLP.balanceOf(marginPoolAddess)).eq('0')).to.be.true;
@@ -406,17 +415,17 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
-      actualAmountInVault = await stakeDaoLP.balanceOf(vault.address)
+      const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
       // check sdeCRV balance in action and vault
-      expect(actualAmountInVault, 'incorrect balance in vault').to.be.equal(
-        expectedAmountInVault.add(1)
+      expect(vaultSdecrvBalanceAfter.sub(1), 'incorrect balance in vault').to.be.equal(
+        expectedSdecrvBalanceInVault
       );
       expect(
-        (await vault.totalStakedaoAsset()).eq(expectedTotal),
+        (await vault.totalStakedaoAsset()).gte(expectedTotal),
         'incorrect accounting in vault'
       ).to.be.true;
-      expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedAmountInAction), 'incorrect sdecrv balance in action'))
+      expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
       expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
       expect(await weth.balanceOf(action1.address)).to.be.equal('0');
 
@@ -452,50 +461,65 @@ describe('Mainnet Fork Tests', function() {
       );
 
       // check the minted share balances
-      const shares = sharesBefore.div(vaultTotalBefore).mul(stakedaoDeposited)
+      const shares = stakedaoDeposited.mul(sharesBefore).div(vaultTotalBefore)
       expect((await vault.balanceOf(depositor3.address))).to.be.equal(shares)
     });
 
-    xit('p1 withdraws', async () => {
+    it('p1 withdraws', async () => {
+      // vault balance calculations
+      const vaultTotalBefore = await vault.totalStakedaoAsset();
+      const vaultSdECRVBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+      const sharesBefore = await vault.totalSupply();
+      const sharesToWithdraw = await vault.balanceOf(depositor1.address);
+
+      // p1 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP1 = amountToWithdraw.sub(fee);
+      const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const balanceOfP1Before = await provider.getBalance(depositor1.address);
 
-      expectedAmountInVault = expectedAmountInVault.sub(amountToWithdraw);
-      actualAmountInVault = actualAmountInVault.sub(amountToWithdraw);
+      // fee calculations 
+      const effectiveFee = fee.mul(95).div(100);
+      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
 
-      const balanceOfFeeRecipientBefore = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP1Before = await weth.balanceOf(depositor1.address);
 
       await vault
         .connect(depositor1)
-        .withdrawETH(await vault.balanceOf(depositor1.address));
+        .withdrawETH(sharesToWithdraw);
 
-      const balanceOfFeeRecipientAfter = await weth.balanceOf(
-        feeRecipient.address
-      );
-      const balanceOfP1After = await weth.balanceOf(depositor1.address);
+      // vault balance variables 
+      const sharesAfter = await vault.totalSupply();
+      const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
+      const sdeCRVWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
+      const vaultSdECRVBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
+      // fee variables 
+      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address)
+      const balanceOfP1After = await provider.getBalance(depositor1.address);
+
+      expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
+
+      // check vault balance 
       expect(
-        (await vault.totalStakedaoAsset()).eq(expectedAmountInVault),
+        (await vault.totalStakedaoAsset()).eq(expectedVaultTotalAfter.add(1)),
         'total asset should update'
       ).to.be.true;
-      expect(await weth.balanceOf(vault.address)).to.be.equal(
-        actualAmountInVault
+      expect(vaultSdECRVBalanceAfter).to.be.equal(
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1)
       );
-      expect(balanceOfFeeRecipientBefore.add(fee)).to.be.equal(
-        balanceOfFeeRecipientAfter
-      );
-      expect(balanceOfP1Before.add(amountTransferredToP1)).to.be.equal(
-        balanceOfP1After
-      );
+
+      // check p1 balance 
+      expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect ETH transferred to p1').to.be.true;
+
+      // check fee 
+      expect(balanceOfFeeRecipientAfter.gte(
+        balanceOfFeeRecipientBefore.add(effectiveFee)
+      ), 'incorrect fee paid out').to.be.true;
     });
 
-    xit('option expires', async () => {
+    it('option expires', async () => {
       // increase time
       await provider.send('evm_setNextBlockTimestamp', [expiry + day]);
       await provider.send('evm_mine', []);
@@ -508,22 +532,27 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_increaseTime', [day]); // increase time
       await provider.send('evm_mine', []);
 
-      actualAmountInVault = expectedAmountInVault;
+      const sdecrvControlledByActionBefore = await action1.currentValue();
+      const sdecrvBalanceInVaultBefore = await stakeDaoLP.balanceOf(vault.address);
 
       await vault.closePositions();
 
-      // @dev: it is a little hard to estimate exactly how much we get back. This just tests that we get back at least original deposit amount. 
-      expect(
-        (await vault.totalStakedaoAsset()).gte(expectedAmountInVault.sub(premium)),
-        'total asset should be same'
-      ).to.be.true;
-      expect(await weth.balanceOf(vault.address)).gte(
-        actualAmountInVault.sub(premium)
-      );
+      const sdecrvBalanceInVaultAfter = await stakeDaoLP.balanceOf(vault.address);
+      const sdecrvBalanceInActionAfter = await stakeDaoLP.balanceOf(action1.address);
+      const sdecrvControlledByActionAfter = await action1.currentValue();
+      const vaultTotal = await vault.totalStakedaoAsset();
+
+      // check vault balances
+      expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdecrvBalanceInVaultAfter);
+      expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdecrvBalanceInVaultBefore.add(sdecrvControlledByActionBefore));
+
+      // check action balances
       expect(
         (await action1.lockedAsset()).eq('0'),
         'all collateral should be unlocked'
       ).to.be.true;
+      expect(sdecrvBalanceInActionAfter, 'no sdecrv should be left in action').to.be.equal('0');
+      expect(sdecrvControlledByActionAfter, 'no sdecrv should be controlled by action').to.be.equal('0');
     });
 
     xit('p2 withdraws', async () => {

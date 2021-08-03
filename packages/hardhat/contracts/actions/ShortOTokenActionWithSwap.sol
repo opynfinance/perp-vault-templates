@@ -90,8 +90,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 wethBalance = weth.balanceOf(address(this));
-    return wethBalance.add(lockedAsset);
+    uint256 sdecrvBalance = stakedao.balanceOf(address(this));
+    return sdecrvBalance.add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -104,9 +104,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     
     if(_canSettleVault()) {
       _settleVault();
-      _withdrawLiquidity();
     }
-
+    
     // this function can only be called when it's `Activated`
     // go to the next step, which will enable owner to commit next oToken
     _setActionIdle();
@@ -213,15 +212,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     ecrv.safeApprove(address(stakedao), ecrvToDeposit);
     stakedao.deposit(ecrvToDeposit);
   }
-
-  /** @dev withdraws liquidity from stakedao */
-  function _withdrawLiquidity() internal {
-    stakedao.withdrawAll();
-    uint256 ecrvBalance = ecrv.balanceOf(address(this));
-    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
-    weth.deposit{ value: ethReceived }();
-  }
-
 
   /**
    * @dev mint otoken in vault 0

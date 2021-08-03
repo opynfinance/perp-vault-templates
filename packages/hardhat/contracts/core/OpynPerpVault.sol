@@ -170,10 +170,8 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @param share is the number of vault shares to be burned
    */
   function withdrawETH(uint256 share) external nonReentrant notEmergency {
-    require(sdToken == WETH, '!WETH');
     uint256 withdrawAmount = _withdraw(share);
 
-    IWETH(WETH).withdraw(withdrawAmount);
     (bool success, ) = msg.sender.call{ value: withdrawAmount }('');
     require(success, 'ETH transfer failed');
   }
@@ -353,13 +351,22 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 withdrawAmount = _getWithdrawAmountByShares(_share);
     require(withdrawAmount <= currentAssetBalance, 'NOT_ENOUGH_BALANCE');
 
+    // withdraw from stakedao and curve
+    IStakeDao stakedao = IStakeDao(sdToken);
+    IERC20 ecrv = stakedao.token();
+    stakedao.withdraw(withdrawAmount);
+    uint256 ecrvBalance = ecrv.balanceOf(address(this));
+    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
+
     _burn(msg.sender, _share);
 
-    uint256 fee = _getWithdrawFee(withdrawAmount);
+    // send fee to recipient 
+    uint256 fee = _getWithdrawFee(ethReceived);
+    console.log(fee);
+    (bool success, ) = feeRecipient.call{ value: fee }('');
+    require(success, 'ETH transfer failed');
 
-    IERC20(sdToken).transfer(feeRecipient, fee);
-
-    uint256 amountPostFee = withdrawAmount.sub(fee);
+    uint256 amountPostFee = ethReceived.sub(fee);
 
     emit Withdraw(msg.sender, amountPostFee, fee, _share);
 
@@ -389,7 +396,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of sdToken withdrawing.
+   * @dev get amount of fee charged based on total amount of weth withdrawing.
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
     // todo: add fee model
@@ -401,6 +408,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     * @notice the receive ether function is called whenever the call data is empty
     */
   receive() external payable {
-    require(msg.sender == address(WETH), "Cannot receive ETH");
+    // require(msg.sender == address(WETH), "Cannot receive ETH");
   }
 }

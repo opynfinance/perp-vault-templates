@@ -5,7 +5,7 @@ import { BigNumber, utils } from 'ethers';
 export const getOrder = async (
   sender: string,
   senderToken: string,
-  senderTokenAmount: BigNumber | number,
+  senderTokenAmount: string,
   signer: string,
   signerToken: string,
   signerTokenAmount: string | number,
