@@ -7,7 +7,6 @@ import '@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { IAction } from '../interfaces/IAction.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import { IWETH } from '../interfaces/IWETH.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
@@ -34,11 +33,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve;
 
-  address public WETH;
-
   /// @dev stake dao sdToken
   address public sdToken;
 
+  /// @dev address to which all fees are sent 
   address public feeRecipient;
 
   /// @dev actions that build up this strategy (vault)
@@ -50,7 +48,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev ecrv address 
   IERC20 public ecrv; 
 
-  /// @dev curve 
+  /// @dev curve addres 
   ICurve public curve;
 
   /*=====================
@@ -111,7 +109,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     address _curve,
     address _owner,
     address _feeRecipient,
-    address _weth,
     uint8 _decimals,
     string memory _tokenName,
     string memory _tokenSymbol,
@@ -125,7 +122,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
 
     sdToken = _sdToken;
     feeRecipient = _feeRecipient;
-    WETH = _weth;
     curve = ICurve(_curve);
 
     // assign actions
@@ -147,6 +143,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     return _totalStakedaoAsset();
   }
 
+  // /**
+  //  * total ETH controlled by this vault
+  //  */
+  // function totalETH() internal view returns (uint256) { 
+  //   uint256 sdTokenBalance = _totalStakedaoAsset();
+  //   IERC20 ecrv = sdToken.token();
+  //   return sdTokenBalance.mul(sdToken.getPricePerFullShare()).mul(ecrv.get_virtual_price()).div(10**36);
+  // }
+
   /**
    * @dev return how many sdToken you can get if you burn the number of shares, after charging the fee.
    */
@@ -157,7 +162,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   }
 
   /**
-   * @notice Deposits ETH into the contract and mint vault shares. Reverts if the underlying is not WETH.
+   * @notice Deposits ETH into the contract and mint vault shares. 
    */
   function depositETH() external payable nonReentrant notEmergency{
     require(msg.value > 0, '!VALUE');
@@ -175,15 +180,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     (bool success, ) = msg.sender.call{ value: withdrawAmount }('');
     require(success, 'ETH transfer failed');
   }
-
-  // /**
-  //  * @notice Withdraws sdToken from vault using vault shares
-  //  * @param share is the number of vault shares to be burned
-  //  */
-  // function withdraw(uint256 share) external nonReentrant notEmergency {
-  //   uint256 withdrawAmount = _withdraw(share);
-  //   IERC20(sdToken).safeTransfer(msg.sender, withdrawAmount);
-  // }
 
   /**
    * @dev anyone can call this to close out the previous round by calling "closePositions" on all actions
@@ -229,6 +225,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     emit StateUpdated(stateBeforePause);
   }
 
+   /**
+   * @dev return how many shares you can get if you deposit {_amount} sdToken
+   * @param _amount amount of token depositing
+   */
+  function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
+    return _getSharesByDepositAmount(_amount, _totalStakedaoAsset());
+  }
+
   /*=====================
    * Internal functions *
    *====================*/
@@ -238,16 +242,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    */
   function _totalStakedaoAsset() internal view returns (uint256) {
     return _balance().add(_totalDebt());
-  }
-
-  /**
-   * total ETH controlled by this vault
-   */
-  function _totalETH() internal view returns (uint256) { 
-    uint256 sdTokenBalance = _balance().add(_totalDebt());
-    return sdTokenBalance;
-    // IERC20 ecrv = sdToken.token();
-    // return sdTokenBalance.mul(sdToken.getPricePerFullShare()).mul(ecrv.get_virtual_price()).div(10**36);
   }
 
   /**
@@ -407,6 +401,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     * @notice the receive ether function is called whenever the call data is empty
     */
   receive() external payable {
-    // require(msg.sender == address(WETH), "Cannot receive ETH");
+    require(msg.sender == address(curve), "Cannot receive ETH");
   }
 }

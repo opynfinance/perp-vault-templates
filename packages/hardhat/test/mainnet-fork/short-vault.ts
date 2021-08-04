@@ -149,7 +149,6 @@ describe('Mainnet Fork Tests', function() {
       curveAddress,
       owner.address,
       feeRecipient.address,
-      weth.address,
       18,
       'OpynPerpShortVault share',
       'sOPS',
@@ -247,7 +246,6 @@ describe('Mainnet Fork Tests', function() {
       expect((await vault.state()) === VaultState.Unlocked).to.be.true;
       expect((await vault.totalStakedaoAsset()).isZero(), 'total asset should be zero')
         .to.be.true;
-      expect((await vault.WETH()) === weth.address).to.be.true;
     });
 
     it('should set fee reserve', async () => {
@@ -615,7 +613,7 @@ describe('Mainnet Fork Tests', function() {
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
       const balanceOfP3Before = await provider.getBalance(depositor3.address);
-      
+
       // fee calculations
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
       const effectiveFee = fee.mul(95).div(100)
