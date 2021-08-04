@@ -24,6 +24,10 @@ contract MockStakedao is ERC20PermitUpgradeable {
       mint(msg.sender, amount);
   }
 
+  function getPricePerFullShare() external returns (uint256) {
+      return 1 ether;
+  }
+
   function token () public returns (address) {
       return ecrv;
   }

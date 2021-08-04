@@ -143,14 +143,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     return _totalStakedaoAsset();
   }
 
-  // /**
-  //  * total ETH controlled by this vault
-  //  */
-  // function totalETH() internal view returns (uint256) { 
-  //   uint256 sdTokenBalance = _totalStakedaoAsset();
-  //   IERC20 ecrv = sdToken.token();
-  //   return sdTokenBalance.mul(sdToken.getPricePerFullShare()).mul(ecrv.get_virtual_price()).div(10**36);
-  // }
+  /**
+   * total eth value of the sdTokens controlled by this vault
+   */
+  function totalETHControlled() external view returns (uint256) { 
+    uint256 sdTokenBalance = _totalStakedaoAsset();
+    IStakeDao stakedao = IStakeDao(sdToken);
+    return 0;
+    return sdTokenBalance.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36);
+  }
 
   /**
    * @dev return how many sdToken you can get if you burn the number of shares, after charging the fee.

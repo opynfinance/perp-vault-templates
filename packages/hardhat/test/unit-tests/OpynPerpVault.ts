@@ -122,6 +122,7 @@ describe('OpynPerpVault Tests', function () {
       // init state
       expect((await vault.state()) === VaultState.Unlocked).to.be.true;
       expect((await vault.totalStakedaoAsset()).isZero(), 'total asset should be zero').to.be.true;
+      expect((await vault.totalETHControlled()).isZero(), 'total ETH controlled should be 0').to.be.true;
     });
 
     it('should set fee reserve', async () => {

@@ -19,6 +19,10 @@ contract MockCurve {
         return amounts[0];
     }
 
+    function get_virtual_price() external returns (uint256) { 
+        return 1 ether; 
+    }
+
     /**
     * @notice the receive ether function 
     */
