@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/drafts/ERC20PermitUpgradeable.sol";
+import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 /**
  * Mock Stakedao
@@ -21,6 +22,7 @@ contract MockStakedao is ERC20PermitUpgradeable {
   }  
 
   function deposit(uint256 amount) public { 
+      IERC20(ecrv).transferFrom(msg.sender, address(this), amount);
       mint(msg.sender, amount);
   }
 
