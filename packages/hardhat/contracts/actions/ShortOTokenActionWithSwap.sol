@@ -105,7 +105,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     if(_canSettleVault()) {
       _settleVault();
     }
-    
+
     // this function can only be called when it's `Activated`
     // go to the next step, which will enable owner to commit next oToken
     _setActionIdle();
@@ -140,6 +140,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
 
     lockedAsset = lockedAsset.add(_collateralAmount);
 
+    IERC20(otoken).safeApprove(address(airswap), 0);
     IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
 
     // sell options on airswap for weth
@@ -209,6 +210,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
 
     // deposit ecrv to stakedao
+    ecrv.safeApprove(address(stakedao), 0);
     ecrv.safeApprove(address(stakedao), ecrvToDeposit);
     stakedao.deposit(ecrvToDeposit);
   }

@@ -45,9 +45,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 constant public CAP = 1000 ether;
 
-  /// @dev ecrv address 
-  IERC20 public ecrv; 
-
   /// @dev curve addres 
   ICurve public curve;
 
@@ -149,7 +146,6 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function totalETHControlled() external view returns (uint256) { 
     uint256 sdTokenBalance = _totalStakedaoAsset();
     IStakeDao stakedao = IStakeDao(sdToken);
-    return 0;
     return sdTokenBalance.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36);
   }
 
@@ -283,6 +279,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     IStakeDao stakedao = IStakeDao(sdToken);
     IERC20 ecrv = stakedao.token();
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
+    ecrv.safeApprove(sdToken, 0);
     ecrv.safeApprove(sdToken, ecrvToDeposit);
     stakedao.deposit(ecrvToDeposit);
 
