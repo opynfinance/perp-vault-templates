@@ -69,8 +69,8 @@ describe('OpynPerpVault Tests', function () {
 
     // deploy 2 mock actions
     const MockActionContract = await ethers.getContractFactory('MockAction');
-    action1 = await MockActionContract.deploy(vault.address, weth.address) as MockAction;
-    action2 = await MockActionContract.deploy(vault.address, weth.address) as MockAction;
+    action1 = await MockActionContract.deploy(vault.address, sdecrv.address) as MockAction;
+    action2 = await MockActionContract.deploy(vault.address, sdecrv.address) as MockAction;
   });
 
   describe('init', async () => {
@@ -244,50 +244,53 @@ describe('OpynPerpVault Tests', function () {
       expect(shares1Before.sub(shares1After)).to.be.equal(depositAmount);
       expect(vaultBalanceBefore.sub(vaultBalanceAfter)).to.be.equal(depositAmount);
       expect(vaultTotalBefore.sub(vaultTotalAfter)).to.be.equal(depositAmount);
+      expect((await vault.totalETHControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
 
     });
-    // it('should revert when calling closePosition', async () => {
-    //   await expect(vault.connect(owner).closePositions()).to.be.revertedWith('!Locked');
-    // });
-    // it('should revert if rollover is called with total percentage > 100', async () => {
-    //   // max percentage sum should be 90% (9000) because 10% is set for reserve
-    //   await expect(vault.connect(owner).rollOver([5000, 5000])).to.be.revertedWith(
-    //     'PERCENTAGE_SUM_EXCEED_MAX'
-    //   );
-    // });
-    // it('should revert if rollover is called with invalid percentage array', async () => {
-    //   await expect(vault.connect(owner).rollOver([5000])).to.be.revertedWith('INVALID_INPUT');
-    // });
-    // it('should rollover to the next round', async () => {
-    //   const vaultBalanceBefore = await weth.balanceOf(vault.address);
-    //   const action1BalanceBefore = await weth.balanceOf(action1.address);
-    //   const action2BalanceBefore = await weth.balanceOf(action2.address);
-    //   const totalValueBefore = await vault.totalAsset();
+    it('should revert when calling closePosition', async () => {
+      await expect(vault.connect(owner).closePositions()).to.be.revertedWith('!Locked');
+    });
+    it('should revert if rollover is called with total percentage > 100', async () => {
+      // max percentage sum should be 90% (9000) because 10% is set for reserve
+      await expect(vault.connect(owner).rollOver([5000, 5000])).to.be.revertedWith(
+        'PERCENTAGE_SUM_EXCEED_MAX'
+      );
+    });
+    it('should revert if rollover is called with invalid percentage array', async () => {
+      await expect(vault.connect(owner).rollOver([5000])).to.be.revertedWith('INVALID_INPUT');
+    });
+    it('should rollover to the next round', async () => {
+      const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
+      const action1BalanceBefore = await sdecrv.balanceOf(action1.address);
+      const action2BalanceBefore = await sdecrv.balanceOf(action2.address);
+      const totalValueBefore = await vault.totalStakedaoAsset();
 
-    //   // Distribution:
-    //   // 40% - action1
-    //   // 50% - action2
-    //   await vault.connect(owner).rollOver([4000, 5000]);
+      // Distribution:
+      // 40% - action1
+      // 50% - action2
+      await vault.connect(owner).rollOver([4000, 5000]);
 
-    //   const vaultBalanceAfter = await weth.balanceOf(vault.address);
-    //   const action1BalanceAfter = await weth.balanceOf(action1.address);
-    //   const action2BalanceAfter = await weth.balanceOf(action2.address);
-    //   const totalValueAfter = await vault.totalAsset();
+      const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
+      const action1BalanceAfter = await sdecrv.balanceOf(action1.address);
+      const action2BalanceAfter = await sdecrv.balanceOf(action2.address);
+      const totalValueAfter =  await vault.totalStakedaoAsset();
 
-    //   expect(action1BalanceAfter.sub(action1BalanceBefore).eq(vaultBalanceBefore.mul(4).div(10))).to
-    //     .be.true;
-    //   expect(action2BalanceAfter.sub(action2BalanceBefore).eq(vaultBalanceBefore.mul(5).div(10))).to
-    //     .be.true;
+      expect(action1BalanceAfter.sub(action1BalanceBefore).eq(vaultBalanceBefore.mul(4).div(10))).to
+        .be.true;
+      expect(action2BalanceAfter.sub(action2BalanceBefore).eq(vaultBalanceBefore.mul(5).div(10))).to
+        .be.true;
 
-    //   expect(vaultBalanceAfter.eq(vaultBalanceBefore.div(10))).to.be.true;
+      expect(vaultBalanceAfter.eq(vaultBalanceBefore.div(10))).to.be.true;
 
-    //   expect(totalValueAfter.eq(totalValueBefore), 'total value should stay uneffected').to.be.true;
+      expect(totalValueAfter.eq(totalValueBefore), 'total value should stay uneffected').to.be.true;
+      expect((await vault.totalETHControlled()).eq(totalValueAfter), 'total eth controlled should update').to.be.true;
 
-    //   expect((await vault.state()) === VaultState.Locked).to.be.true;
-    // });
-    // it('shoudl revert when trying to call rollover again', async () => {
-    //   await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith('!Unlocked');
-    // });
+      expect((await vault.state()) === VaultState.Locked).to.be.true;
+    });
+    it('should revert when trying to call rollover again', async () => {
+      await expect(vault.connect(owner).rollOver([7000, 2000])).to.be.revertedWith('!Unlocked');
+    });
+
     // it('should revert when trying to withdraw full amount', async () => {
     //   const depositor1Shares = await vault.balanceOf(depositor1.address);
     //   await expect(vault.connect(depositor1).withdraw(depositor1Shares.div(2))).to.be.revertedWith(
