@@ -23,6 +23,13 @@ contract MockCurve {
         return 1 ether; 
     }
 
+    function remove_liquidity_one_coin(uint256 amount, int128 index, uint256 min) external returns (uint256) { 
+        ecrv.burn(msg.sender, amount);
+        (bool success, ) = (msg.sender).call{ value: amount }('');
+        require(success, 'ETH transfer failed');
+        return amount;
+    }
+
     /**
     * @notice the receive ether function 
     */

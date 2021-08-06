@@ -391,7 +391,7 @@ describe('Mainnet Fork Tests', function() {
       const premiumInSdecrv = premium.mul(95).div(100);
       const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
-      const sellAmount = (collateralAmount.div(1000000000000)).toString(); 
+      const sellAmount = (collateralAmount.div(10000000000)).toString(); 
 
       expect((await stakeDaoLP.balanceOf(marginPoolAddess)).eq('0')).to.be.true;
 

@@ -33,4 +33,10 @@ contract MockStakedao is ERC20PermitUpgradeable {
   function token () public returns (address) {
       return ecrv;
   }
+
+  function withdraw(uint256 amount) external {
+      IERC20 ecrvToken = IERC20(ecrv);
+      ecrvToken.transfer(msg.sender, amount);
+      _burn(msg.sender, amount);
+  }
 }

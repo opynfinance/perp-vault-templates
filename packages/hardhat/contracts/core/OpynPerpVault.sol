@@ -343,14 +343,14 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256 withdrawAmount = _getWithdrawAmountByShares(_share);
     require(withdrawAmount <= currentAssetBalance, 'NOT_ENOUGH_BALANCE');
 
+    _burn(msg.sender, _share);
+
     // withdraw from stakedao and curve
     IStakeDao stakedao = IStakeDao(sdToken);
     IERC20 ecrv = stakedao.token();
     stakedao.withdraw(withdrawAmount);
     uint256 ecrvBalance = ecrv.balanceOf(address(this));
     uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
-
-    _burn(msg.sender, _share);
 
     // send fee to recipient 
     uint256 fee = _getWithdrawFee(ethReceived);
