@@ -65,7 +65,14 @@ describe('OpynPerpVault Tests', function () {
 
   this.beforeAll('Deploy vault and mock actions', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
-    vault = (await VaultContract.deploy()) as OpynPerpVault;
+    vault = (await VaultContract.deploy(
+      sdecrv.address,
+      curve.address,
+      owner.address,
+      feeRecipient.address,
+      'OpynPerpShortVault share',
+      'sOPS'
+    )) as OpynPerpVault;
 
     // deploy 2 mock actions
     const MockActionContract = await ethers.getContractFactory('MockAction');
@@ -78,14 +85,7 @@ describe('OpynPerpVault Tests', function () {
       await expect(
         vault
         .connect(owner)
-        .init(
-          sdecrv.address,
-          curve.address,
-          owner.address,
-          feeRecipient.address,
-          18,
-          'OpynPerpShortVault share',
-          'sOPS',
+        .setActions(
           [action1.address, action2.address, action2.address]
         )
       ).to.be.revertedWith('duplicated action');
@@ -93,14 +93,7 @@ describe('OpynPerpVault Tests', function () {
       await expect(
         vault
         .connect(owner)
-        .init(
-          sdecrv.address,
-          curve.address,
-          owner.address,
-          feeRecipient.address,
-          18,
-          'OpynPerpShortVault share',
-          'sOPS',
+        .setActions(
           [action1.address, action2.address, action1.address]
         )
       ).to.be.revertedWith('duplicated action');
@@ -109,14 +102,7 @@ describe('OpynPerpVault Tests', function () {
     it('should init the contract successfully', async () => {
       await vault
         .connect(owner)
-        .init(
-          sdecrv.address,
-          curve.address,
-          owner.address,
-          feeRecipient.address,
-          18,
-          'OpynPerpShortVault share',
-          'sOPS',
+        .setActions(
           [action1.address, action2.address]
         );
       // init state
@@ -141,20 +127,20 @@ describe('OpynPerpVault Tests', function () {
       ).to.be.revertedWith('Cannot receive ETH');
     });
 
-    it('should fail to init once the contract is already initialized', async () => {
-      await expect(vault
-        .connect(owner)
-        .init(
-          sdecrv.address,
-          curve.address,
-          owner.address,
-          feeRecipient.address,
-          18,
-          'OpynPerpShortVault share',
-          'sOPS',
-          [action1.address, action2.address]
-        )).to.be.revertedWith('Initializable: contract is already initialized');
-    });
+    // it('should fail to init once the contract is already initialized', async () => {
+    //   await expect(vault
+    //     .connect(owner)
+    //     .init(
+    //       sdecrv.address,
+    //       curve.address,
+    //       owner.address,
+    //       feeRecipient.address,
+    //       18,
+    //       'OpynPerpShortVault share',
+    //       'sOPS',
+    //       [action1.address, action2.address]
+    //     )).to.be.revertedWith('Initializable: contract is already initialized');
+    // });
   });
 
   describe('genesis: before first cycle start', async () => {
