@@ -161,7 +161,7 @@ describe('OpynPerpVault Tests', function () {
     const depositAmount = utils.parseUnits('10');
 
     it('should revert if calling depositETH with no value', async () => {
-      await expect(vault.connect(depositor1).depositETH()).to.be.revertedWith('!VALUE');
+      await expect(vault.connect(depositor1).depositETH('0')).to.be.revertedWith('!VALUE');
     });
     it('p1 deposits ETH', async () => {
 
@@ -171,7 +171,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH({ value: depositAmount });
+      await vault.connect(depositor1).depositETH('0', { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
@@ -191,7 +191,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH({ value: depositAmount });
+      await vault.connect(depositor1).depositETH('0', { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
@@ -212,7 +212,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 2 deposit 10 eth
-      await vault.connect(depositor2).depositETH({ value: depositAmount });
+      await vault.connect(depositor2).depositETH('0', { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);

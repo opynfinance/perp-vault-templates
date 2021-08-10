@@ -175,8 +175,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice Deposits ETH into the contract and mint vault shares. 
    * @dev deposit into curve, then into stakedao, then mint the shares to depositor, and emit the deposit event
+   * @param minEcrv minimum amount of ecrv to get out from adding liquidity. 
    */
-  function depositETH() external payable nonReentrant notEmergency{
+  function depositETH(uint256 minEcrv) external payable nonReentrant notEmergency{
     uint256 amount = msg.value;
     require( amount > 0, '!VALUE');
 
@@ -184,10 +185,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256[2] memory amounts;
     amounts[0] = amount;
     amounts[1] = 0;
-    uint256 minAmount = 0;
 
     // deposit ETH to curve
-    curve.add_liquidity{value:amount}(amounts, minAmount);
+    curve.add_liquidity{value:amount}(amounts, minEcrv);
 
     // keep track of balance before
     uint256 totalSDTokenBalanceBeforeDeposit = totalStakedaoAsset();

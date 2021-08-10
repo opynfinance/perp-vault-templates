@@ -312,7 +312,7 @@ describe('Mainnet Fork Tests', function() {
       // there is no accurate way of estimating this, so just approximating for now
       const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
 
-      await vault.connect(depositor1).depositETH({value: p1DepositAmount});
+      await vault.connect(depositor1).depositETH('0', {value: p1DepositAmount});
 
       const vaultTotal = await vault.totalStakedaoAsset();
       const vaultSdecrvBalance = await stakeDaoLP.balanceOf(vault.address);
@@ -338,7 +338,7 @@ describe('Mainnet Fork Tests', function() {
       const sharesBefore = await vault.totalSupply();
       const vaultSdecrvBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
 
-      await vault.connect(depositor2).depositETH({value: p2DepositAmount});
+      await vault.connect(depositor2).depositETH('0', {value: p2DepositAmount});
 
       const vaultTotal = await vault.totalStakedaoAsset();
       const vaultSdecrvBalance = await stakeDaoLP.balanceOf(vault.address);
@@ -443,7 +443,7 @@ describe('Mainnet Fork Tests', function() {
       const sharesBefore = await vault.totalSupply();
       const actualAmountInVaultBefore = await stakeDaoLP.balanceOf(vault.address);
 
-      await vault.connect(depositor3).depositETH({value: p3DepositAmount});
+      await vault.connect(depositor3).depositETH('0', {value: p3DepositAmount});
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const stakedaoDeposited = vaultTotalAfter.sub(vaultTotalBefore);
