@@ -127,7 +127,14 @@ describe('Mainnet Fork Tests', function() {
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
-    vault = (await VaultContract.deploy()) as OpynPerpVault;
+    vault = (await VaultContract.deploy(
+      stakeDaoTokenAddress,
+      curveAddress,
+      owner.address,
+      feeRecipient.address,
+      'OpynPerpShortVault share',
+      'sOPS',
+    )) as OpynPerpVault;
 
     // deploy the short action contract
     const ShortActionContract = await ethers.getContractFactory(
@@ -144,14 +151,7 @@ describe('Mainnet Fork Tests', function() {
       weth.address
     )) as ShortOTokenActionWithSwap;
 
-    await vault.connect(owner).init(
-      stakeDaoTokenAddress,
-      curveAddress,
-      owner.address,
-      feeRecipient.address,
-      18,
-      'OpynPerpShortVault share',
-      'sOPS',
+    await vault.connect(owner).setActions(
       [action1.address]
     );
   });
@@ -485,7 +485,7 @@ describe('Mainnet Fork Tests', function() {
 
       await vault
         .connect(depositor1)
-        .withdrawETH(sharesToWithdraw);
+        .withdrawETH(sharesToWithdraw, amountTransferredToP1);
 
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
@@ -575,7 +575,7 @@ describe('Mainnet Fork Tests', function() {
 
       await vault
         .connect(depositor2)
-        .withdrawETH(sharesToWithdraw);
+        .withdrawETH(sharesToWithdraw, amountTransferredToP2);
 
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
@@ -620,7 +620,7 @@ describe('Mainnet Fork Tests', function() {
 
       await vault
         .connect(depositor3)
-        .withdrawETH(await vault.balanceOf(depositor3.address));
+        .withdrawETH(await vault.balanceOf(depositor3.address), amountTransferredToP3);
 
       const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address);
       const balanceOfP3After = await provider.getBalance(depositor3.address);

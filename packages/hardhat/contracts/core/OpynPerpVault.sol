@@ -105,7 +105,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // assign actions
     for(uint256 i = 0 ; i < _actions.length; i++ ) {
       // check all items before actions[i], does not equal to action[i]
-      require(_actions[i] != address(0));
+      require(_actions[i] != address(0), "invalid address");
       for(uint256 j = 0; j < i; j++) {
         require(_actions[i] != _actions[j], "duplicated action");
       }
@@ -138,6 +138,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   function totalETHControlled() external view returns (uint256) { 
     uint256 sdTokenBalance = totalStakedaoAsset();
     IStakeDao stakedao = IStakeDao(sdToken);
+    // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
     return sdTokenBalance.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36);
   }
 
@@ -194,7 +195,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev burns shares, withdraws ecrv from stakdao, withdraws ETH from curve
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 _share) external nonReentrant notEmergency actionsInitialized {
+  function withdrawETH(uint256 _share, uint256 minEth) external nonReentrant notEmergency actionsInitialized {
     uint256 currentSdecrvBalance = _balance();
     uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
     require(sdecrvToWithdraw <= currentSdecrvBalance, 'NOT_ENOUGH_BALANCE');
@@ -206,7 +207,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     IERC20 ecrv = stakedao.token();
     stakedao.withdraw(sdecrvToWithdraw);
     uint256 ecrvBalance = ecrv.balanceOf(address(this));
-    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
+    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);
@@ -241,7 +242,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       if (actionBalance > 0)
         IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
     }
-    
+
     emit StateUpdated(VaultState.Unlocked);
   }
 

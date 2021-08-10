@@ -81,7 +81,7 @@ describe('OpynPerpVault Tests', function () {
   });
 
   describe('init', async () => {
-    it('should revert when trying to init with duplicated actions', async() => {
+    it('should revert when trying to call setActions with duplicated actions', async() => {
       await expect(
         vault
         .connect(owner)
@@ -99,6 +99,24 @@ describe('OpynPerpVault Tests', function () {
       ).to.be.revertedWith('duplicated action');
       
     })
+
+    it('should revert when trying to set action address 0', async() => {
+      await expect(
+        vault
+        .connect(owner)
+        .setActions(
+          ['0x0000000000000000000000000000000000000000']
+        )
+      ).to.be.revertedWith('invalid address');     
+    })
+
+    it('should not be able to deposit, withdraw, rollover or closePosition before actions are set', async() => {
+      await expect(vault.connect(depositor1).depositETH('1', { value: '1' })).to.be.revertedWith('!Actions');
+      await expect(vault.connect(depositor1).withdrawETH('1', '1')).to.be.revertedWith('!Actions');
+      await expect(vault.connect(owner).rollOver([4000, 5000])).to.be.revertedWith('!Actions');
+      await expect(vault.connect(owner).closePositions()).to.be.revertedWith('!Actions');
+    })
+    
     it('should init the contract successfully', async () => {
       await vault
         .connect(owner)
@@ -127,27 +145,20 @@ describe('OpynPerpVault Tests', function () {
       ).to.be.revertedWith('Cannot receive ETH');
     });
 
-    // it('should fail to init once the contract is already initialized', async () => {
-    //   await expect(vault
-    //     .connect(owner)
-    //     .init(
-    //       sdecrv.address,
-    //       curve.address,
-    //       owner.address,
-    //       feeRecipient.address,
-    //       18,
-    //       'OpynPerpShortVault share',
-    //       'sOPS',
-    //       [action1.address, action2.address]
-    //     )).to.be.revertedWith('Initializable: contract is already initialized');
-    // });
+    it('should fail to set actions once the contract is already initialized', async () => {
+      await expect(vault
+        .connect(owner)
+        .setActions(
+          [action1.address, action2.address, action1.address]
+        )).to.be.revertedWith('actions already initialized');
+    });
   });
 
   describe('genesis: before first cycle start', async () => {
     const depositAmount = utils.parseUnits('10');
 
     it('should revert if calling depositETH with no value', async () => {
-      await expect(vault.connect(depositor1).depositETH('0')).to.be.revertedWith('!VALUE');
+      await expect(vault.connect(depositor1).depositETH(depositAmount)).to.be.revertedWith('!VALUE');
     });
     it('p1 deposits ETH', async () => {
 
@@ -157,7 +168,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH('0', { value: depositAmount });
+      await vault.connect(depositor1).depositETH(depositAmount, { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
@@ -177,7 +188,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH('0', { value: depositAmount });
+      await vault.connect(depositor1).depositETH(depositAmount, { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
@@ -198,7 +209,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 2 deposit 10 eth
-      await vault.connect(depositor2).depositETH('0', { value: depositAmount });
+      await vault.connect(depositor2).depositETH(depositAmount, { value: depositAmount });
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
@@ -213,7 +224,7 @@ describe('OpynPerpVault Tests', function () {
     })
     it('p3 should not be able to withdraw if they havent deposited', async () => {
       // depositor 3 withdraws 10 eth
-      await expect(vault.connect(depositor3).withdrawETH(depositAmount)).to.be.revertedWith('ERC20: burn amount exceeds balance');
+      await expect(vault.connect(depositor3).withdrawETH(depositAmount, depositAmount)).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
     it('p1 should be able to withdraw ETH', async () => {
       const shares1Before = await vault.balanceOf(depositor1.address);
@@ -221,7 +232,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 withdraws 10 eth
-      await vault.connect(depositor1).withdrawETH(depositAmount);
+      await vault.connect(depositor1).withdrawETH(depositAmount, depositAmount);
 
       const shares1After = await vault.balanceOf(depositor1.address)
       const vaultTotalAfter = await vault.totalStakedaoAsset();
