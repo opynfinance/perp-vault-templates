@@ -75,27 +75,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
   
   /**
-   * @dev can only be executed and unlock state. which bring the state back to "locked"
-   */
-  modifier locker {
-    require(state == VaultState.Unlocked, "!Unlocked");
-    _;
-    state = VaultState.Locked;
-    emit StateUpdated(VaultState.Locked);
-  }
-
-  /**
-   * @dev can only be executed in locked state. which bring the state back to "unlocked"
-   */
-  modifier unlocker {
-    require(state == VaultState.Locked, "!Locked");
-    _;
-
-    state = VaultState.Unlocked;
-    emit StateUpdated(VaultState.Unlocked);
-  }
-
-  /**
    * @dev can only be executed if vault is not in emergency state.
    */
   modifier notEmergency {
@@ -248,7 +227,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @notice anyone can call this to close out the previous round by calling "closePositions" on all actions. 
    * @dev iterrate through each action, close position and withdraw funds
    */
-  function closePositions() public unlocker actionsInitialized {
+  function closePositions() public actionsInitialized {
+    require(state == VaultState.Locked, "!Locked");
+    state = VaultState.Unlocked;
+
     address cacheAsset = sdToken;
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
@@ -259,13 +241,17 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       if (actionBalance > 0)
         IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
     }
+    
+    emit StateUpdated(VaultState.Unlocked);
   }
 
   /**
-   * @dev distribute funds to each action
+   * @notice can only be called when the vault is unlocked. It sets the state to locked and distributes funds to each action.
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner locker nonReentrant actionsInitialized {
+  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner nonReentrant actionsInitialized {
     require(_allocationPercentages.length == actions.length, 'INVALID_INPUT');
+    require(state == VaultState.Unlocked, "!Unlocked");
+    state = VaultState.Locked;
 
     uint256 cacheTotalAsset = totalStakedaoAsset();
     uint256 cacheBase = BASE;
@@ -287,6 +273,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(sumPercentage == cacheBase, 'PERCENTAGE_DOESNT_ADD_UP');
 
     emit Rollover(_allocationPercentages);
+    emit StateUpdated(VaultState.Locked);
   }
 
   /**
