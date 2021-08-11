@@ -2,9 +2,9 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 import { IAction } from '../interfaces/IAction.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
@@ -14,7 +14,7 @@ import { ICurve } from '../interfaces/ICurve.sol';
 
 import "hardhat/console.sol";
 
-contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -65,28 +65,15 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /*=====================
    *     Modifiers      *
    *====================*/
+
+  /** 
+   * @dev can only be called if actions are initialized 
+   */
+  modifier actionsInitialized {
+    require(actions.length > 0, "!Actions");
+    _;
+  }
   
-  /**
-   * @dev can only be executed and unlock state. which bring the state back to "locked"
-   */
-  modifier locker {
-    require(state == VaultState.Unlocked, "!Unlocked");
-    _;
-    state = VaultState.Locked;
-    emit StateUpdated(VaultState.Locked);
-  }
-
-  /**
-   * @dev can only be executed in locked state. which bring the state back to "unlocked"
-   */
-  modifier unlocker {
-    require(state == VaultState.Locked, "!Locked");
-    _;
-
-    state = VaultState.Unlocked;
-    emit StateUpdated(VaultState.Unlocked);
-  }
-
   /**
    * @dev can only be executed if vault is not in emergency state.
    */
@@ -99,40 +86,31 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * external function *
    *====================*/
 
-  /**
-   * @dev init the vault.
-   * this will set the "action" for this strategy vault and won't be able to change
-   */
-  function init(
+  constructor (
     address _sdToken,
     address _curve,
     address _owner,
     address _feeRecipient,
-    uint8 _decimals,
     string memory _tokenName,
-    string memory _tokenSymbol,
-    address[] memory _actions
-  ) public initializer {
-    __ReentrancyGuard_init();
-    __ERC20_init(_tokenName, _tokenSymbol);
-    _setupDecimals(_decimals);
-    __Ownable_init();
-    transferOwnership(_owner);    
-
+    string memory _tokenSymbol
+    ) ERC20(_tokenName, _tokenSymbol) public {     
     sdToken = _sdToken;
     feeRecipient = _feeRecipient;
     curve = ICurve(_curve);
+    state = VaultState.Unlocked;
+  }
 
+  function setActions(address[] memory _actions) external onlyOwner {
+    require(actions.length == 0, "actions already initialized");
     // assign actions
     for(uint256 i = 0 ; i < _actions.length; i++ ) {
       // check all items before actions[i], does not equal to action[i]
+      require(_actions[i] != address(0), "invalid address");
       for(uint256 j = 0; j < i; j++) {
         require(_actions[i] != _actions[j], "duplicated action");
       }
       actions.push(_actions[i]);
     }
-
-    state = VaultState.Unlocked;
   }
 
   /** 
@@ -160,6 +138,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   function totalETHControlled() external view returns (uint256) { 
     uint256 sdTokenBalance = totalStakedaoAsset();
     IStakeDao stakedao = IStakeDao(sdToken);
+    // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
     return sdTokenBalance.mul(stakedao.getPricePerFullShare()).mul(curve.get_virtual_price()).div(10**36);
   }
 
@@ -175,8 +154,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
   /**
    * @notice Deposits ETH into the contract and mint vault shares. 
    * @dev deposit into curve, then into stakedao, then mint the shares to depositor, and emit the deposit event
+   * @param minEcrv minimum amount of ecrv to get out from adding liquidity. 
    */
-  function depositETH() external payable nonReentrant notEmergency{
+  function depositETH(uint256 minEcrv) external payable nonReentrant notEmergency actionsInitialized {
     uint256 amount = msg.value;
     require( amount > 0, '!VALUE');
 
@@ -184,10 +164,9 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     uint256[2] memory amounts;
     amounts[0] = amount;
     amounts[1] = 0;
-    uint256 minAmount = 0;
 
     // deposit ETH to curve
-    curve.add_liquidity{value:amount}(amounts, minAmount);
+    curve.add_liquidity{value:amount}(amounts, minEcrv);
 
     // keep track of balance before
     uint256 totalSDTokenBalanceBeforeDeposit = totalStakedaoAsset();
@@ -216,7 +195,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @dev burns shares, withdraws ecrv from stakdao, withdraws ETH from curve
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 _share) external nonReentrant notEmergency {
+  function withdrawETH(uint256 _share, uint256 minEth) external nonReentrant notEmergency actionsInitialized {
     uint256 currentSdecrvBalance = _balance();
     uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
     require(sdecrvToWithdraw <= currentSdecrvBalance, 'NOT_ENOUGH_BALANCE');
@@ -228,7 +207,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     IERC20 ecrv = stakedao.token();
     stakedao.withdraw(sdecrvToWithdraw);
     uint256 ecrvBalance = ecrv.balanceOf(address(this));
-    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
+    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);
@@ -249,7 +228,10 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
    * @notice anyone can call this to close out the previous round by calling "closePositions" on all actions. 
    * @dev iterrate through each action, close position and withdraw funds
    */
-  function closePositions() public unlocker {
+  function closePositions() public actionsInitialized {
+    require(state == VaultState.Locked, "!Locked");
+    state = VaultState.Unlocked;
+
     address cacheAsset = sdToken;
     for (uint8 i = 0; i < actions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
@@ -260,13 +242,17 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
       if (actionBalance > 0)
         IERC20(cacheAsset).safeTransferFrom(actions[i], address(this), actionBalance);
     }
+
+    emit StateUpdated(VaultState.Unlocked);
   }
 
   /**
-   * @dev distribute funds to each action
+   * @notice can only be called when the vault is unlocked. It sets the state to locked and distributes funds to each action.
    */
-  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner locker nonReentrant {
+  function rollOver(uint256[] calldata _allocationPercentages) external onlyOwner nonReentrant actionsInitialized {
     require(_allocationPercentages.length == actions.length, 'INVALID_INPUT');
+    require(state == VaultState.Unlocked, "!Unlocked");
+    state = VaultState.Locked;
 
     uint256 cacheTotalAsset = totalStakedaoAsset();
     uint256 cacheBase = BASE;
@@ -288,6 +274,7 @@ contract OpynPerpVault is ERC20Upgradeable, ReentrancyGuardUpgradeable, OwnableU
     require(sumPercentage == cacheBase, 'PERCENTAGE_DOESNT_ADD_UP');
 
     emit Rollover(_allocationPercentages);
+    emit StateUpdated(VaultState.Locked);
   }
 
   /**
