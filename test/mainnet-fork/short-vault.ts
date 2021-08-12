@@ -54,11 +54,9 @@ describe('Mainnet Fork Tests', function() {
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
-  let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let otokenWhitelist: IWhitelist;
   let sdecrvPricer: StakedaoEcrvPricer;
   let wethPricer: MockPricer;
   let oracle: IOracle;
@@ -98,7 +96,6 @@ describe('Mainnet Fork Tests', function() {
       _depositor1,
       _depositor2,
       _depositor3,
-      _random
     ] = accounts;
 
     owner = _owner;
@@ -107,7 +104,6 @@ describe('Mainnet Fork Tests', function() {
     depositor1 = _depositor1;
     depositor2 = _depositor2;
     depositor3 = _depositor3;
-    random = _random;
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
@@ -259,9 +255,7 @@ describe('Mainnet Fork Tests', function() {
     const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     const premium = utils.parseEther('2');
-    let expectedAmountInVault;
     let actualAmountInVault;
-    let expectedAmountInAction;
     let otoken: IOToken;
     let expiry;
     const reserveFactor = 10;
@@ -331,7 +325,6 @@ describe('Mainnet Fork Tests', function() {
     });
 
     it('p2 deposits', async () => {
-      expectedAmountInVault = p1DepositAmount.add(p2DepositAmount);
       // there is no accurate way of estimating this, so just approximating for now
       const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
       const sharesBefore = await vault.totalSupply();
