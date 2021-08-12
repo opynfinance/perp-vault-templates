@@ -36,7 +36,7 @@ contract StakedaoEcrvPricer {
         address _underlying,
         address _oracle, 
         address _curve
-    ) public {
+    ) {
         require(_lpToken != address(0), "StakeDaoPricer: lpToken address can not be 0");
         require(_underlying != address(0), "StakeDaoPricer: underlying address can not be 0");
         require(_oracle != address(0), "StakeDaoPricer: oracle address can not be 0");
@@ -84,7 +84,7 @@ contract StakedaoEcrvPricer {
         return pricePerShare.mul(_underlyingPrice).mul(curvePrice).div(10**uint256(2 * underlyingDecimals));
     }
 
-    function getHistoricalPrice(uint80 _roundId) external view returns (uint256, uint256) {
+    function getHistoricalPrice(uint80) external pure returns (uint256, uint256) {
         revert("StakeDaoPricer: Deprecated");
     }
 }
