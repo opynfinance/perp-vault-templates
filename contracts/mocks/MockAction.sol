@@ -34,7 +34,7 @@ contract MockAction is IAction() {
    * The function for the vault to call at the end of each vault's round.
    * after calling this function, the vault will try to pull assets back from the action and enable withdraw.
    */
-  function closePosition() external override  {
+  function closePosition() external view override  {
     require(msg.sender == vault, "MockAction: sender is not vault");
     // uint256 balance = IERC20(asset).balanceOf(address(this));
   }

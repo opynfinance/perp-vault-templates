@@ -68,7 +68,6 @@ describe('OpynPerpVault Tests', function () {
     vault = (await VaultContract.deploy(
       sdecrv.address,
       curve.address,
-      owner.address,
       feeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS'

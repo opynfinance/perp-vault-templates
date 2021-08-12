@@ -19,15 +19,15 @@ contract MockWhitelist is IWhitelist{
     return isWhitelisted;
   }
 
-  function whitelistCollateral(address _collateral) external override {
+  function whitelistCollateral(address) external override {
     isWhitelisted = true;
   }
 
   function whitelistProduct(
-    address _underlying,
-    address _strike,
-    address _collateral,
-    bool _isPut
+    address,
+    address,
+    address,
+    bool
   ) external override {
     isWhitelistedProduct = true;
   }

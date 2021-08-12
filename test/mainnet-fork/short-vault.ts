@@ -130,7 +130,6 @@ describe('Mainnet Fork Tests', function() {
     vault = (await VaultContract.deploy(
       stakeDaoTokenAddress,
       curveAddress,
-      owner.address,
       feeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS',

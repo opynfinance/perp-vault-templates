@@ -57,7 +57,7 @@ contract MockController {
 
   function isSettlementAllowed(
     address /*otoken*/
-  ) external view returns (bool) {
+  ) external pure returns (bool) {
     return true;
   }
 
