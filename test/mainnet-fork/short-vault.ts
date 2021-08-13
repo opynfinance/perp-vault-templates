@@ -1,4 +1,4 @@
-import {ethers} from 'hardhat';
+import {ethers, network} from 'hardhat';
 import {utils} from 'ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
@@ -90,6 +90,7 @@ describe('Mainnet Fork Tests', function() {
 
   this.beforeAll('Set accounts', async () => {
     accounts = await ethers.getSigners();
+
     const [
       _owner,
       _feeRecipient,
@@ -97,6 +98,11 @@ describe('Mainnet Fork Tests', function() {
       _depositor2,
       _depositor3,
     ] = accounts;
+      
+    await network.provider.send("hardhat_setBalance", [
+      opynOwner,
+      "0x1000000000000000000000000000000",
+    ]);
 
     owner = _owner;
     feeRecipient = _feeRecipient;
@@ -295,7 +301,7 @@ describe('Mainnet Fork Tests', function() {
         counterpartyWallet = counterpartyWallet.connect(provider);
         await owner.sendTransaction({
           to: counterpartyWallet.address,
-          value: utils.parseEther('3')
+          value: utils.parseEther('3000')
         });
         await weth.connect(counterpartyWallet).deposit({ value: premium });
         await weth.connect(counterpartyWallet).approve(swapAddress, premium);
