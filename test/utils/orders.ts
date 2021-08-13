@@ -1,6 +1,5 @@
-import { ethers, waffle } from 'hardhat';
-const { createOrder, signTypedDataOrder } = require('@airswap/utils');
-import { BigNumber, utils } from 'ethers';
+import { ethers } from 'hardhat';
+import { createOrder, signTypedDataOrder } from "@airswap/utils"
 
 export const getOrder = async (
   sender: string,
@@ -10,8 +9,8 @@ export const getOrder = async (
   signerToken: string,
   signerTokenAmount: string | number,
   swapContract: string,
-  privateKey: any,
-) => {
+  privateKey: string,
+): Promise<any> => {
   const order = createOrder({
     signer: {
       wallet: signer,

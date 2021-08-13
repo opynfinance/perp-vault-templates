@@ -85,5 +85,5 @@ contract RollOverBase is OwnableUpgradeable {
   /**
    * cutom otoken check hook to be overriden by each 
    */
-  function _customOTokenCheck(address _nextOToken) internal view virtual {}
+  function _customOTokenCheck(address) internal view virtual {}
 }

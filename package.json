@@ -18,9 +18,9 @@
     "deploy": "hardhat run scripts/deploy.js",
     "lint": "eslint . --ext .ts",
     "prepare": "husky install",
-    "test:coverage": "hardhat coverage",
+    "test:coverage": "FORK=true hardhat coverage",
     "test:fork": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/*.ts",
-    "test": "FORK=false hardhat test --network hardhat ./test/unit-tests/*.ts"
+    "test": "hardhat test --network hardhat ./test/unit-tests/*.ts"
   },
   "lint-staged": {
     "*.{js,ts}": [

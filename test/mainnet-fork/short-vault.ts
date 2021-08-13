@@ -1,4 +1,4 @@
-import {ethers} from 'hardhat';
+import {ethers, network} from 'hardhat';
 import {utils} from 'ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
@@ -54,11 +54,9 @@ describe('Mainnet Fork Tests', function() {
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
-  let random: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let otokenWhitelist: IWhitelist;
   let sdecrvPricer: StakedaoEcrvPricer;
   let wethPricer: MockPricer;
   let oracle: IOracle;
@@ -92,14 +90,19 @@ describe('Mainnet Fork Tests', function() {
 
   this.beforeAll('Set accounts', async () => {
     accounts = await ethers.getSigners();
+
     const [
       _owner,
       _feeRecipient,
       _depositor1,
       _depositor2,
       _depositor3,
-      _random
     ] = accounts;
+      
+    await network.provider.send("hardhat_setBalance", [
+      opynOwner,
+      "0x1000000000000000000000000000000",
+    ]);
 
     owner = _owner;
     feeRecipient = _feeRecipient;
@@ -107,7 +110,6 @@ describe('Mainnet Fork Tests', function() {
     depositor1 = _depositor1;
     depositor2 = _depositor2;
     depositor3 = _depositor3;
-    random = _random;
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
@@ -259,9 +261,7 @@ describe('Mainnet Fork Tests', function() {
     const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     const premium = utils.parseEther('2');
-    let expectedAmountInVault;
     let actualAmountInVault;
-    let expectedAmountInAction;
     let otoken: IOToken;
     let expiry;
     const reserveFactor = 10;
@@ -301,7 +301,7 @@ describe('Mainnet Fork Tests', function() {
         counterpartyWallet = counterpartyWallet.connect(provider);
         await owner.sendTransaction({
           to: counterpartyWallet.address,
-          value: utils.parseEther('3')
+          value: utils.parseEther('3000')
         });
         await weth.connect(counterpartyWallet).deposit({ value: premium });
         await weth.connect(counterpartyWallet).approve(swapAddress, premium);
@@ -331,7 +331,6 @@ describe('Mainnet Fork Tests', function() {
     });
 
     it('p2 deposits', async () => {
-      expectedAmountInVault = p1DepositAmount.add(p2DepositAmount);
       // there is no accurate way of estimating this, so just approximating for now
       const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
       const sharesBefore = await vault.totalSupply();
