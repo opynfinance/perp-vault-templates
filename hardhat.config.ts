@@ -1,12 +1,11 @@
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
-import 'solidity-coverage';
 
+import "dotenv/config"
 import * as fs from 'fs';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import { HardhatUserConfig } from 'hardhat/config';
+import 'solidity-coverage';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -25,11 +24,10 @@ export default {
   networks: {
     hardhat: {
       forking: {
-        // url: `https://mainnet.infura.io/v3/${infuraKey}`,
-        // enabled: process.env.FORK === 'true'
+        enabled: process.env.FORK === 'true',
         url: `https://eth-mainnet.alchemyapi.io/v2/SR-wBhpxMirgFtp4OGeJoWKO1ObmVeFg`,
-        enabled: true
-      }
+      },
+      initialBaseFeePerGas: 0 // workaround for eip-1559 (solidity-coverage)
     },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,
@@ -64,7 +62,7 @@ export default {
   mocha: {
     timeout: 40000
   }
-};
+} as HardhatUserConfig;
 
 // const { utils } = require("ethers");
 // const fs = require("fs");

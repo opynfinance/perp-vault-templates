@@ -16,6 +16,19 @@ jobs:
           paths:
             - .
 
+  coverage:
+    executor:
+      name: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm run compile
+      - run: npm run test:coverage
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+
   lint:
     executor:
       name: node/default
@@ -41,6 +54,7 @@ jobs:
       - checkout
       - node/install-packages
       - run: npm run compile
+      - run: npm run test
       - persist_to_workspace:
           root: .
           paths:
@@ -57,3 +71,6 @@ workflows:
       - test:
           requires:
             - compile
+      - coverage:
+          requires:
+            - test
