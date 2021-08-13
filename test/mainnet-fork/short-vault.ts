@@ -179,7 +179,7 @@ describe('Mainnet Fork Tests', function() {
       // impersonate owner and change the sdecrvPricer
       await owner.sendTransaction({
         to: opynOwner,
-        value: utils.parseEther('1.0')
+        value: utils.parseEther('2.0')
       });
       await provider.send('hardhat_impersonateAccount', [opynOwner]);
       const signer = await ethers.provider.getSigner(opynOwner);
