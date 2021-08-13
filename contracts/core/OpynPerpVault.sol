@@ -100,7 +100,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
-    ) ERC20(_tokenName, _tokenSymbol) public {     
+    ) ERC20(_tokenName, _tokenSymbol) {     
     sdecrvAddress = _sdecrvAddress;
     feeRecipient = _feeRecipient;
     curvePool = ICurve(_curvePool);
