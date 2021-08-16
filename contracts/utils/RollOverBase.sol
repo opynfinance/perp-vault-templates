@@ -41,9 +41,9 @@ contract RollOverBase is Ownable {
  * Activated: after vault calls "rollover", the owner can start minting / buying / selling according to each action.
  */
   enum ActionState {
-    Idle,
+    Activated,
     Committed,
-    Activated
+    Idle
   }
 
   ActionState public state;

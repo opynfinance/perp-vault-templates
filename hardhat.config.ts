@@ -33,13 +33,13 @@ export default {
     ropsten: {
       url: `https://ropsten.infura.io/v3/${infuraKey}`,
       accounts: {
-        mnemonic: mnemonic
+        mnemonic
       }
     },
     kovan: {
       url: `https://kovan.infura.io/v3/${infuraKey}`,
       accounts: {
-        mnemonic: mnemonic
+        mnemonic
       }
     }
   },
