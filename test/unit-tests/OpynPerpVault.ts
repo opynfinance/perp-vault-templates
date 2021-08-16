@@ -139,7 +139,7 @@ describe('OpynPerpVault Tests', function () {
       // Note that anyone can still force send ETH
       await expect(
         depositor1.sendTransaction({ to: vault.address, value: utils.parseUnits('1') })
-      ).to.be.revertedWith('O18');
+      ).to.be.revertedWith('O19');
     });
 
     it('should fail to set actions once the contract is already initialized', async () => {

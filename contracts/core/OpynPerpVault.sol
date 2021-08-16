@@ -31,8 +31,9 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  * O14: unable to rollover vault, the calculated percentage sum (sumPercentage) is greater than the base (BASE)
  * O15: unable to rollover vault, the calculated percentage sum (sumPercentage) is not equal to the base (BASE)
  * O16: withdraw reserve percentage must be less than 50% (5000)
- * O17: cannot call resumeFromPause, vault is not in emergency state
- * O18: cannot receive ETH from any address other than the curve pool address (curvePool)
+ * O17: cannot call emergencyPause, vault is already in emergency state
+ * O18: cannot call resumeFromPause, vault is not in emergency state
+ * O19: cannot receive ETH from any address other than the curve pool address (curvePool)
  */
 
 /** 
@@ -68,6 +69,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public cap = 1000 ether;
+
+  /// @dev withdrawal fee percentage. 50 being 0.5%
+  uint256 public withdrawalFeePercentage = 50;
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve;
@@ -300,7 +304,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 sumPercentage = withdrawReserve;
     address cacheAddress = sdecrvAddress;
 
-    for (uint8 i = 0; i < actions.length; i = i + 1) {
+    for (uint8 i = 0; i < _allocationPercentages.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_allocationPercentages[i]);
       require(sumPercentage <= cacheBase, 'O14');
 
@@ -319,6 +323,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /**
    * @dev set the percentage that should be reserved in vault for withdraw
    */
+  function setWithdrawalFeePercentage(uint256 _newWithdrawalFeePercentage) external onlyOwner {
+    withdrawalFeePercentage = _newWithdrawalFeePercentage;
+  }
+
+  /**
+   * @dev set the percentage that should be reserved in vault for withdraw
+   */
   function setWithdrawReserve(uint256 _reserve) external onlyOwner {
     require(_reserve < 5000, "O16");
     withdrawReserve = _reserve;
@@ -328,6 +339,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev set the state to "Emergency", which disable all withdraw and deposit
    */
   function emergencyPause() external onlyOwner {
+    require(state != VaultState.Emergency, "O17");
+
     stateBeforePause = state;
     state = VaultState.Emergency;
 
@@ -338,7 +351,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev set the state from "Emergency", which disable all withdraw and deposit
    */
   function resumeFromPause() external onlyOwner {
-    require(state == VaultState.Emergency, "O17");
+    require(state == VaultState.Emergency, "O18");
+
     state = stateBeforePause;
 
     emit StateUpdated(stateBeforePause);
@@ -371,8 +385,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
 
-    uint256 shares = shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);
-    return shares;
+    // share amount
+    return shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);
   }
 
   /**
@@ -381,23 +395,22 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     uint256 totalAssetAmount = totalStakedaoAsset();
     uint256 shareSupply = totalSupply();
-    uint256 withdrawAmount = _share.mul(totalAssetAmount).div(shareSupply);
-    return withdrawAmount;
+
+    // withdrawal amount
+    return _share.mul(totalAssetAmount).div(shareSupply);
   }
 
   /**
    * @dev get amount of fee charged based on total amount of weth withdrawing.
    */
-  function _getWithdrawFee(uint256 _withdrawAmount) internal pure returns (uint256) {
-    // todo: add fee model
-    // currently fixed at 0.5% 
-    return _withdrawAmount.mul(50).div(BASE);
+  function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
+    return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
 
   /**
     * @notice the receive ether function is called whenever the call data is empty
     */
   receive() external payable {
-    require(msg.sender == address(curvePool), "O18");
+    require(msg.sender == address(curvePool), "O19");
   }
 }
