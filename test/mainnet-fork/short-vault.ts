@@ -414,7 +414,7 @@ describe('Mainnet Fork Tests', function() {
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
       // check sdeCRV balance in action and vault
-      expect(vaultSdecrvBalanceAfter.sub(1), 'incorrect balance in vault').to.be.equal(
+      expect(vaultSdecrvBalanceAfter, 'incorrect balance in vault').to.be.equal(
         expectedSdecrvBalanceInVault
       );
       expect(
