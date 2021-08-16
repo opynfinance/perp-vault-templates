@@ -25,15 +25,15 @@ const mnemonic = fs.existsSync('.secret')
   : 'test test test test test test test test test test test junk';
 
 enum VaultState {
+  Emergency,
   Locked,
   Unlocked,
-  Emergency
 }
 
 enum ActionState {
-  Idle,
+  Activated,
   Committed,
-  Activated
+  Idle,
 }
 
 describe('Mainnet Fork Tests', function() {
