@@ -2,7 +2,6 @@
 pragma solidity >=0.7.2;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
@@ -37,7 +36,7 @@ import { RollOverBase } from '../utils/RollOverBase.sol';
  * @author Opyn Team
  */
 
-contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, RollOverBase {
+contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -89,15 +88,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
 
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
-    __Ownable_init();
 
     _openVault(_vaultType);
   }
 
-  modifier onlyVault() {
+  function onlyVault() private view {
     require(msg.sender == vault, "S1");
-
-    _;
   }
 
   /**
@@ -114,7 +110,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /**
    * @dev the function that the vault will call when the round is over
    */
-  function closePosition() external onlyVault override {
+  function closePosition() external override {
+    onlyVault();
     require(canClosePosition(), 'S2');
     
     if(_canSettleVault()) {
@@ -131,7 +128,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
   /**
    * @dev the function that the vault will call when the new round is starting
    */
-  function rolloverPosition() external onlyVault override {
+  function rolloverPosition() external override {
+    onlyVault();
     
     // this function can only be called when it's `Committed`
     _rollOverNextOTokenAndActivate();
@@ -143,7 +141,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
-  function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner onlyActivated {
+  function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner {
+    onlyActivated();
     require(_order.sender.wallet == address(this), 'S3');
     require(_order.sender.token == otoken, 'S4');
     require(_order.signer.token == address(weth), 'S5');
@@ -173,6 +172,7 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     if (otoken != address(0) && lockedAsset != 0) { 
       return _canSettleVault();
     }
+
     return block.timestamp > rolloverTime + 1 days; 
   }
 
@@ -180,8 +180,8 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * @dev open vault with vaultId 1. this should only be performed once when contract is initiated
    */
   function _openVault(uint256 _vaultType) internal {
-
     bytes memory data;
+
     if (_vaultType != 0) {
       data = abi.encode(_vaultType);
     }
@@ -215,13 +215,12 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
     uint256[2] memory amounts;
     amounts[0] = wethBalance;
     amounts[1] = 0;
-    uint256 minAmount = 0;
 
     //unwrap weth => eth to deposit on curve
     weth.withdraw(wethBalance);
     // deposit ETH to curve
     require(address(this).balance == wethBalance, 'S8');
-    curve.add_liquidity{value:wethBalance}(amounts, minAmount);
+    curve.add_liquidity{value:wethBalance}(amounts, 0); // minimum amount to deposit is 0 ETH
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
 
     // deposit ecrv to stakedao
@@ -266,7 +265,6 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * @dev settle vault 0 and withdraw all locked collateral
    */
   function _settleVault() internal {
-
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
     // this action will always use vault id 1
     actions[0] = IController.ActionArgs(
@@ -300,11 +298,10 @@ contract ShortOTokenActionWithSwap is IAction, OwnableUpgradeable, AirswapBase, 
    * this hook is triggered while action owner calls "commitNextOption"
    * so accessing otoken will give u the current otoken. 
    */
-  function _customOTokenCheck(address _nextOToken) internal view override {
+  function _customOTokenCheck(address _nextOToken) internal view {
     // Can override or replace this.
-     IOToken otokenToCheck = IOToken(_nextOToken);
-     require(_isValidStrike(otokenToCheck.strikePrice()), 'S9');
-     require (_isValidExpiry(otokenToCheck.expiryTimestamp()), 'S10');
+     require(_isValidStrike(IOToken(_nextOToken).strikePrice()), 'S9');
+     require (_isValidExpiry(IOToken(_nextOToken).expiryTimestamp()), 'S10');
     /**
      * e.g.
      * check otoken strike price is lower than current spot price for put.
