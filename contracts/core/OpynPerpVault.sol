@@ -12,8 +12,6 @@ import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
 
-import "hardhat/console.sol";
-
 /** 
  * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
  * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
