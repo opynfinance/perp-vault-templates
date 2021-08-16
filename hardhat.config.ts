@@ -4,6 +4,7 @@ import '@typechain/hardhat';
 
 import "dotenv/config"
 import * as fs from 'fs';
+import "hardhat-contract-sizer"
 import { HardhatUserConfig } from 'hardhat/config';
 import 'solidity-coverage';
 
@@ -54,7 +55,9 @@ export default {
     target: 'ethers-v5'
   },
   contractSizer: {
-    alphaSort: true
+    alphaSort: true,
+    runOnCompile: true,
+    disambiguatePaths: false,
   },
   etherscan: {
     apiKey: etherscanKey

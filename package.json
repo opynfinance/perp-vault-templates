@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^4.29.1",
+    "hardhat-contract-sizer": "^2.0.3",
     "husky": "^7.0.1",
     "lint-staged": "^11.1.2"
   }

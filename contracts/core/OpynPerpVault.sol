@@ -12,7 +12,13 @@ import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
 
-import "hardhat/console.sol";
+/** 
+ * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
+ * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
+ * a generalized contract. Stakedao's ETH strategy currently accepts curvePool LP tokens called ecrv from the 
+ * sETH-ETH curvePool pool. This strategy allows users to convert their ETH into yield earning sdecrv tokens
+ * and use the sdecrv tokens as collateral to sell ETH call options on Opyn. 
+ */
 
 /** 
  * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
@@ -100,7 +106,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
-    ) ERC20(_tokenName, _tokenSymbol) public {     
+    ) ERC20(_tokenName, _tokenSymbol) {     
     sdecrvAddress = _sdecrvAddress;
     feeRecipient = _feeRecipient;
     curvePool = ICurve(_curvePool);
