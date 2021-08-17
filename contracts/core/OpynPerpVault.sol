@@ -202,7 +202,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // the sdecrv is already deposited into the contract at this point, need to substract it from total
     uint256[2] memory amounts;
     amounts[0] = amount;
-    amounts[1] = 0;
+    amounts[1] = 0; // not depositing any seth
 
     // deposit ETH to curvePool
     curvePool.add_liquidity{value:amount}(amounts, minEcrv);
@@ -211,11 +211,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
 
     // deposit ecrv to stakedao
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
+    address cacheSdecrvAddress = sdecrvAddress;
+    IStakeDao sdecrv = IStakeDao(cacheSdecrvAddress);
     IERC20 ecrv = sdecrv.token();
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
-    ecrv.safeApprove(sdecrvAddress, 0);
-    ecrv.safeApprove(sdecrvAddress, ecrvToDeposit);
+
+    ecrv.safeIncreaseAllowance(cacheSdecrvAddress, ecrvToDeposit);
     sdecrv.deposit(ecrvToDeposit);
 
     // mint shares and emit event 

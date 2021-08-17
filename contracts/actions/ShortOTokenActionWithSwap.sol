@@ -154,8 +154,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     lockedAsset = lockedAsset.add(_collateralAmount);
 
-    IERC20(otoken).safeApprove(address(airswap), 0);
-    IERC20(otoken).safeApprove(address(airswap), _order.sender.amount);
+    IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
 
     // sell options on airswap for weth
     _fillAirswapOrder(_order);

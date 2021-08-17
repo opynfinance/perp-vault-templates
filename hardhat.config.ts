@@ -5,6 +5,7 @@ import '@typechain/hardhat';
 import "dotenv/config"
 import * as fs from 'fs';
 import "hardhat-contract-sizer"
+import "hardhat-gas-reporter"
 import { HardhatUserConfig } from 'hardhat/config';
 import 'solidity-coverage';
 
@@ -58,6 +59,11 @@ export default {
     alphaSort: true,
     runOnCompile: true,
     disambiguatePaths: false,
+  },
+  gasReporter: {
+    currency: 'USD',
+    gasPrice: 43,
+    enabled: true,
   },
   etherscan: {
     apiKey: etherscanKey
