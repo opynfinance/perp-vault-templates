@@ -169,8 +169,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function totalStakedaoAsset() public view returns (uint256) {
     uint256 debt = 0;
+    uint256 length = actions.length;
 
-    for (uint256 i = 0; i < actions.length; i++) {
+    for (uint256 i = 0; i < length; i++) {
       debt = debt.add(IAction(actions[i]).currentValue());
     }
 
