@@ -46,14 +46,6 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  * and use the sdecrv tokens as collateral to sell ETH call options on Opyn. 
  */
 
-/** 
- * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
- * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
- * a generalized contract. Stakedao's ETH strategy currently accepts curvePool LP tokens called ecrv from the 
- * sETH-ETH curvePool pool. This strategy allows users to convert their ETH into yield earning sdecrv tokens
- * and use the sdecrv tokens as collateral to sell ETH call options on Opyn. 
- */
-
 contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
