@@ -1,5 +1,5 @@
 import {ethers, network} from 'hardhat';
-import {utils} from 'ethers';
+import {BigNumber, utils} from 'ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {
@@ -12,7 +12,8 @@ import {
   StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
-  MockPricer
+  MockPricer, 
+  IController,
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
@@ -35,6 +36,20 @@ enum ActionState {
   Committed,
   Idle,
 }
+
+enum ActionType {
+    OpenVault,
+    MintShortOption,
+    BurnShortOption,
+    DepositLongOption,
+    WithdrawLongOption,
+    DepositCollateral,
+    WithdrawCollateral,
+    SettleVault,
+    Redeem,
+    Call,
+    InvalidAction,
+  }
 
 describe('Mainnet Fork Tests', function() {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(
@@ -60,6 +75,7 @@ describe('Mainnet Fork Tests', function() {
   let sdecrvPricer: StakedaoEcrvPricer;
   let wethPricer: MockPricer;
   let oracle: IOracle;
+  let controller: IController;
   let provider;
 
   /**
@@ -67,6 +83,7 @@ describe('Mainnet Fork Tests', function() {
    * CONSTANTS
    *
    */
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
   const day = 86400;
   const controllerAddress = '0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72';
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
@@ -125,6 +142,10 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
+    controller = (await ethers.getContractAt(
+        'IController',
+        controllerAddress
+      )) as IController;
   });
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
@@ -256,12 +277,13 @@ describe('Mainnet Fork Tests', function() {
     });
   });
 
-  describe('profitable scenario', async () => {
+  describe('not-profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
     const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     const premium = utils.parseEther('2');
     let actualAmountInVault;
+    let optionsSold: BigNumber;
     let otoken: IOToken;
     let expiry;
     const reserveFactor = 10;
@@ -390,6 +412,7 @@ describe('Mainnet Fork Tests', function() {
       const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       const sellAmount = (collateralAmount.div(10000000000)).toString(); 
+      optionsSold =  collateralAmount.div(10000000000);
 
       expect((await stakeDaoLP.balanceOf(marginPoolAddess)).eq('0')).to.be.true;
 
@@ -521,7 +544,7 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '100000000000');
+      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '1000000000000');
       await sdecrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
@@ -529,6 +552,11 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_mine', []);
 
       const sdecrvControlledByActionBefore = await action1.currentValue();
+      const sdecrvPrice = await oracle.getExpiryPrice(stakeDaoLP.address, expiry);
+      const sdecrvToETHPrice = sdecrvPrice[0]
+      // getExpiryPrice is scaled to 1e8, options sold is scaled to 1e8, trying to scale to 1e18
+      const collateralAmountDeducted = optionsSold.mul('1000000000000000000').mul('10000').div(sdecrvToETHPrice).div(2)
+      const collateralAmountReturned = sdecrvControlledByActionBefore.sub(collateralAmountDeducted).sub(1);
       const sdecrvBalanceInVaultBefore = await stakeDaoLP.balanceOf(vault.address);
 
       await vault.closePositions();
@@ -537,10 +565,10 @@ describe('Mainnet Fork Tests', function() {
       const sdecrvBalanceInActionAfter = await stakeDaoLP.balanceOf(action1.address);
       const sdecrvControlledByActionAfter = await action1.currentValue();
       const vaultTotal = await vault.totalStakedaoAsset();
-
+      
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdecrvBalanceInVaultAfter);
-      expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdecrvBalanceInVaultBefore.add(sdecrvControlledByActionBefore));
+      expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdecrvBalanceInVaultBefore.add(collateralAmountReturned));
 
       // check action balances
       expect(
@@ -561,7 +589,7 @@ describe('Mainnet Fork Tests', function() {
       // p2 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
-      const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
+      const amountToWithdraw = p2DepositAmount.mul(35).div(90).add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
       const balanceOfP2Before = await provider.getBalance(depositor2.address);
@@ -607,9 +635,9 @@ describe('Mainnet Fork Tests', function() {
 
     it('p3 withdraws', async () => {
       // balance calculations 
-      const amountToWithdraw = p3DepositAmount;
+      const amountToWithdraw = p3DepositAmount.mul(35).div(90);
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const amountTransferredToP3 = amountToWithdraw.div(2).sub(fee).mul(95).div(100);
       const balanceOfP3Before = await provider.getBalance(depositor3.address);
 
       // fee calculations
@@ -639,5 +667,37 @@ describe('Mainnet Fork Tests', function() {
       // check p3 balance 
       expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect ETH transferred to p3').to.be.true;
     });
+
+    it('counterparty redeems and gets sdecrv', async () => { 
+
+        const sdecrvPrice = await oracle.getExpiryPrice(stakeDaoLP.address, expiry);
+        const sdecrvToETHPrice = sdecrvPrice[0]
+        const payout = optionsSold.mul('1000000000000000000').mul('10000').div(sdecrvToETHPrice).div(2)
+        console.log(await otoken.balanceOf(counterpartyWallet.address));
+        console.log(sdecrvToETHPrice.toString());
+
+        const sdecrvBalanceBefore = await stakeDaoLP.balanceOf(counterpartyWallet.address);
+        
+        const actionArgs = [
+            {
+              actionType: ActionType.Redeem,
+              owner: ZERO_ADDR,
+              secondAddress: counterpartyWallet.address,
+              asset: otoken.address,
+              vaultId: '0',
+              amount: optionsSold,
+              index: '0',
+              data: ZERO_ADDR,
+            },
+          ]
+
+          await controller.connect(counterpartyWallet).operate(actionArgs);
+
+          const sdecrvBalanceAfter = await stakeDaoLP.balanceOf(counterpartyWallet.address);
+
+          console.log(sdecrvBalanceBefore.toString(), sdecrvBalanceAfter.toString())
+
+          expect(sdecrvBalanceBefore.add(payout), 'incorrect balance').to.be.eq(sdecrvBalanceAfter)
+    })
   });
 });
