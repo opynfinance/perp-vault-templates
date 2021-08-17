@@ -47,7 +47,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   /// @dev the minimum strike price of the option chosen needs to be at least 105% of spot. 
   /// This is set expecting the contract to be a strategy selling calls. For puts should change this. 
   uint256 constant public MIN_STRIKE = 10500;
-  uint256 constant public MIN_PROFITS = 100; // 1% 
+  uint256 public MIN_PROFITS; // 100 being 1%
   uint256 public lockedAsset;
   uint256 public rolloverTime;
 
@@ -66,8 +66,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address _controller,
     address _curve,
     uint256 _vaultType,
-    address _weth
+    address _weth,
+    uint256 _min_profits
   ) {
+    MIN_PROFITS = _min_profits;
     vault = _vault;
     weth = IWETH(_weth);
 
