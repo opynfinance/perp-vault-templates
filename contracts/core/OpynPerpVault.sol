@@ -37,7 +37,7 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  */
 
 /** 
- * @title ShortOTokenActionWithSwap
+ * @title OpynPerpVault
  * @author Opyn Team
  * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
  * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
