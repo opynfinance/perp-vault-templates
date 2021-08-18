@@ -58,6 +58,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IStakeDao public stakedao;
   IWETH weth;
 
+  event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
+
   constructor(
     address _vault,
     address _stakedaoToken,
@@ -162,6 +164,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     // convert the weth received as premium to sdeCRV
     _wethToSdECRV();
+
+    emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
   }
 
   /**
