@@ -2,29 +2,43 @@
 
 pragma solidity ^0.7.2;
 
+import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
+import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+
+import { ICurve } from '../interfaces/ICurve.sol';
 import { IOracle } from "../interfaces/IOracle.sol";
 import { IStakeDao } from "../interfaces/IStakeDao.sol";
-import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
-import { ICurve } from '../interfaces/ICurve.sol';
 
 /**
+ * Error Codes
+ * P1: cannot deploy pricer, lpToken address cannot be 0
+ * P2: cannot deploy pricer, underlying address cannot be 0
+ * P3: cannot deploy pricer, oracle address cannot be 0
+ * P4: cannot deploy pricer, curve address cannot be 0
+ * P5: cannot retrieve price, underlying price is 0
+ * P6: cannot set expiry price in oracle, underlying price is 0 and has not been set
+ * P7: cannot retrieve historical prices, getHistoricalPrice has been deprecated
+ */
+
+/**
+ * @title StakedaoEcrvPricer
+ * @author Opyn Team
  * @notice A Pricer contract for a Stakedao lpToken
  */
 contract StakedaoEcrvPricer {
     using SafeMath for uint256;
+
+    /// @notice curve pool
+    ICurve public curve;
+
+    /// @notice underlying asset for this lpToken
+    IERC20 public underlying;
 
     /// @notice opyn oracle address
     IOracle public oracle;
 
     /// @notice lpToken that this pricer will a get price for
     IStakeDao public lpToken;
-
-    /// @notice underlying asset for this lpToken
-    IERC20 public underlying;
-
-    /// @notice curve pool
-    ICurve public curve;
 
     /**
      * @param _lpToken lpToken asset
@@ -37,10 +51,10 @@ contract StakedaoEcrvPricer {
         address _oracle, 
         address _curve
     ) {
-        require(_lpToken != address(0), "StakeDaoPricer: lpToken address can not be 0");
-        require(_underlying != address(0), "StakeDaoPricer: underlying address can not be 0");
-        require(_oracle != address(0), "StakeDaoPricer: oracle address can not be 0");
-        require(_curve != address(0), "StakeDaoPricer: curve address can not be 0");
+        require(_lpToken != address(0), "P1");
+        require(_underlying != address(0), "P2");
+        require(_oracle != address(0), "P3");
+        require(_curve != address(0), "P4");
 
         lpToken = IStakeDao(_lpToken);
         underlying = IERC20(_underlying);
@@ -55,7 +69,7 @@ contract StakedaoEcrvPricer {
      */
     function getPrice() external view returns (uint256) {
         uint256 underlyingPrice = oracle.getPrice(address(underlying));
-        require(underlyingPrice > 0, "StakeDaoPricer: underlying price is 0");
+        require(underlyingPrice > 0, "P5");
         return _underlyingPriceToYtokenPrice(underlyingPrice);
     }
 
@@ -66,7 +80,7 @@ contract StakedaoEcrvPricer {
      */
     function setExpiryPriceInOracle(uint256 _expiryTimestamp) external {
         (uint256 underlyingPriceExpiry, ) = oracle.getExpiryPrice(address(underlying), _expiryTimestamp);
-        require(underlyingPriceExpiry > 0, "StakeDaoPricer: underlying price not set yet");
+        require(underlyingPriceExpiry > 0, "P6");
         uint256 lpTokenPrice = _underlyingPriceToYtokenPrice(underlyingPriceExpiry);
         oracle.setExpiryPrice(address(lpToken), _expiryTimestamp, lpTokenPrice);
     }
@@ -85,6 +99,6 @@ contract StakedaoEcrvPricer {
     }
 
     function getHistoricalPrice(uint80) external pure returns (uint256, uint256) {
-        revert("StakeDaoPricer: Deprecated");
+        revert("P7");
     }
 }
