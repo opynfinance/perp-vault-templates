@@ -694,6 +694,7 @@ describe('Mainnet Fork Tests', function() {
           await controller.connect(counterpartyWallet).operate(actionArgs);
 
           const sdecrvBalanceAfter = await stakeDaoLP.balanceOf(counterpartyWallet.address);
+
           // TODO: off by a small amount, need to figure out how best to round. 
           expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
           expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;

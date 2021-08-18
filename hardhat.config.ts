@@ -44,12 +44,14 @@ export default {
       }
     }
   },
-  solidity: '0.7.6',
+  solidity: {
   settings: {
     optimizer: {
       enabled: true,
       runs: 200
-    }
+    },
+  },
+    version: '0.7.6',
   },
   typechain: {
     outDir: 'typechain',
@@ -57,7 +59,7 @@ export default {
   },
   contractSizer: {
     alphaSort: true,
-    runOnCompile: true,
+    runOnCompile: process.env.COVERAGE ? false: true,
     disambiguatePaths: false,
   },
   gasReporter: {
