@@ -38,7 +38,7 @@ async function deployContracts() {
         curveStableSwapSETHPoolAddress,
         0, // type 0 vault
         wETHAddress,
-        20, // 0.2%
+        8, // 0.08%
     ) as ShortOTokenActionWithSwap;
 
     console.log(`\nShortOTokenActionWithSwap deployed at ${shortOTokenActionWithSwap.address}.`)

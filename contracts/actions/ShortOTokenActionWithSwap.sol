@@ -315,11 +315,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function. 
    */
-  function _isValidStrike(uint256) internal pure returns (bool) {
-    // // TODO: override with your filler code. 
-    // uint256 spotPrice = oracle.getPrice(address(weth));
-    // // checks that the strike price set is > than 105% of current price
-    // return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+  function _isValidStrike(uint256 strikePrice) internal view returns (bool) { 
+    uint256 spotPrice = oracle.getPrice(address(weth));
+    // checks that the strike price set is > than 105% of current price
+    return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
     return true;
   }
 
