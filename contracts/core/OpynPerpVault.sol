@@ -74,7 +74,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   uint256 public withdrawalFeePercentage = 50;
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
-  uint256 public withdrawReserve;
+  uint256 public withdrawReserve = 0;
 
   /// @dev curvePool ETH/sETH stableswap 
   ICurve public curvePool;
@@ -174,10 +174,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * total eth value of the sdecrv controlled by this vault
    */
   function totalETHControlled() external view returns (uint256) { 
-    uint256 sdecrvBalance = totalStakedaoAsset();
     IStakeDao sdecrv = IStakeDao(sdecrvAddress);
     // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
-    return sdecrvBalance.mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+    return totalStakedaoAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
   }
 
   /**
@@ -185,8 +184,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
     uint256 withdrawAmount = _getWithdrawAmountByShares(_shares);
-    uint256 fee = _getWithdrawFee(withdrawAmount);
-    return withdrawAmount.sub(fee);
+    return withdrawAmount.sub(_getWithdrawFee(withdrawAmount));
   }
 
   /**
@@ -247,9 +245,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
     // withdraw from stakedao and curvePool
     IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-    IERC20 ecrv = sdecrv.token();
     sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ecrvBalance = ecrv.balanceOf(address(this));
+    uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
     uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
 
     // calculate fees
@@ -320,6 +317,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
     emit Rollover(_allocationPercentages);
     emit StateUpdated(VaultState.Locked);
+  }
+
+  /**
+   * @dev set the vault withdrawal fee recipient
+   */
+  function setWithdrawalFeeRecipient(address _newWithdrawalFeeRecipient) external onlyOwner {
+    feeRecipient = _newWithdrawalFeeRecipient;
   }
 
   /**
@@ -395,11 +399,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev return how many sdecrv you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
-    uint256 totalAssetAmount = totalStakedaoAsset();
-    uint256 shareSupply = totalSupply();
-
     // withdrawal amount
-    return _share.mul(totalAssetAmount).div(shareSupply);
+    return _share.mul(totalStakedaoAsset()).div(totalSupply());
   }
 
   /**

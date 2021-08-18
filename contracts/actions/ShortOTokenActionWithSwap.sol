@@ -103,8 +103,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    uint256 sdecrvBalance = stakedao.balanceOf(address(this));
-    return sdecrvBalance.add(lockedAsset);
+    return stakedao.balanceOf(address(this)).add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
