@@ -58,6 +58,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IStakeDao public stakedao;
   IWETH weth;
 
+  event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
+
   constructor(
     address _vault,
     address _stakedaoToken,
@@ -162,6 +164,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     // convert the weth received as premium to sdeCRV
     _wethToSdECRV();
+
+    emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
   }
 
   /**
@@ -315,11 +319,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function. 
    */
-  function _isValidStrike(uint256) internal pure returns (bool) {
-    // // TODO: override with your filler code. 
-    // uint256 spotPrice = oracle.getPrice(address(weth));
-    // // checks that the strike price set is > than 105% of current price
-    // return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+  function _isValidStrike(uint256 strikePrice) internal view returns (bool) { 
+    uint256 spotPrice = oracle.getPrice(address(weth));
+    // checks that the strike price set is > than 105% of current price
+    return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
     return true;
   }
 
