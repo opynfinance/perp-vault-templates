@@ -74,7 +74,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   uint256 public withdrawalFeePercentage = 50;
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
-  uint256 public withdrawReserve;
+  uint256 public withdrawReserve = 0;
 
   /// @dev curvePool ETH/sETH stableswap 
   ICurve public curvePool;
@@ -319,6 +319,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
     emit Rollover(_allocationPercentages);
     emit StateUpdated(VaultState.Locked);
+  }
+
+  /**
+   * @dev set the vault withdrawal fee recipient
+   */
+  function setWithdrawalFeeRecipient(address _newWithdrawalFeeRecipient) external onlyOwner {
+    feeRecipient = _newWithdrawalFeeRecipient;
   }
 
   /**
