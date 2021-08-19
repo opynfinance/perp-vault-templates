@@ -78,8 +78,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     controller = IController(_controller);
     curve = ICurve(_curve);
 
-    address pool = controller.pool();
-    
     oracle = IOracle(controller.oracle());
     stakedao = IStakeDao(_stakedaoToken);
     ecrv = stakedao.token();
@@ -88,7 +86,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     IERC20(_stakedaoToken).safeApprove(_vault, uint256(-1));
 
     // enable pool contract to pull stakedaoToken from this contract to mint options.
-    IERC20(_stakedaoToken).safeApprove(pool, uint256(-1));
+    IERC20(_stakedaoToken).safeApprove(controller.pool(), uint256(-1));
 
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
@@ -323,7 +321,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256 spotPrice = oracle.getPrice(address(weth));
     // checks that the strike price set is > than 105% of current price
     return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
-    return true;
   }
 
   /**
