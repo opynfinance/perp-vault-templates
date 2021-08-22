@@ -195,16 +195,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   function depositETH(uint256 minEcrv) external payable nonReentrant {
     notEmergency();
     actionsInitialized();
-    uint256 amount = msg.value;
-    require(amount > 0, 'O6');
+    require(msg.value > 0, 'O6');
 
     // the sdecrv is already deposited into the contract at this point, need to substract it from total
     uint256[2] memory amounts;
-    amounts[0] = amount;
+    amounts[0] = msg.value;
     amounts[1] = 0; // not depositing any seth
 
     // deposit ETH to curvePool
-    curvePool.add_liquidity{value:amount}(amounts, minEcrv);
+    curvePool.add_liquidity{value:msg.value}(amounts, minEcrv);
 
     // keep track of balance before
     uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
@@ -224,7 +223,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
     uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
 
-    emit Deposit(msg.sender, amount, share);
+    emit Deposit(msg.sender, msg.value, share);
 
     _mint(msg.sender, share);
   }
@@ -274,14 +273,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     state = VaultState.Unlocked;
 
     address cacheAddress = sdecrvAddress;
-    for (uint8 i = 0; i < actions.length; i = i + 1) {
+    address[] memory cacheActions = actions;
+    for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
-      IAction(actions[i]).closePosition();
+      IAction(cacheActions[i]).closePosition();
 
       // 2. withdraw sdecrv
-      uint256 actionBalance = IERC20(cacheAddress).balanceOf(actions[i]);
+      uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
       if (actionBalance > 0)
-        IERC20(cacheAddress).safeTransferFrom(actions[i], address(this), actionBalance);
+        IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
     }
 
     emit StateUpdated(VaultState.Unlocked);
@@ -296,21 +296,22 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Unlocked, "O13");
     state = VaultState.Locked;
 
-    uint256 cacheTotalAsset = totalStakedaoAsset();
-    uint256 cacheBase = BASE;
+    address cacheAddress = sdecrvAddress;
+    address[] memory cacheActions = actions;
 
+    uint256 cacheBase = BASE;
+    uint256 cacheTotalAsset = totalStakedaoAsset();
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage = withdrawReserve;
-    address cacheAddress = sdecrvAddress;
 
-    for (uint8 i = 0; i < _allocationPercentages.length; i = i + 1) {
+    for (uint256 i = 0; i < _allocationPercentages.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_allocationPercentages[i]);
       require(sumPercentage <= cacheBase, 'O14');
 
       uint256 newAmount = cacheTotalAsset.mul(_allocationPercentages[i]).div(cacheBase);
 
-      if (newAmount > 0) IERC20(cacheAddress).safeTransfer(actions[i], newAmount);
-      IAction(actions[i]).rolloverPosition();
+      if (newAmount > 0) IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
+      IAction(cacheActions[i]).rolloverPosition();
     }
 
     require(sumPercentage == cacheBase, 'O15');

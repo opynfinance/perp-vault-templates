@@ -12,6 +12,7 @@ export const getOrder = async (
   privateKey: string,
 ): Promise<any> => {
   const order = createOrder({
+    expiry: Date.now().toString(),
     signer: {
       wallet: signer,
       token: signerToken,

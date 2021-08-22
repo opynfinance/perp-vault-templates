@@ -354,7 +354,7 @@ describe('Mainnet Fork Tests', function() {
       // check the minted share balances
       const stakedaoDeposited = vaultSdecrvBalance.sub(vaultSdecrvBalanceBefore);
       const shares = sharesBefore.div(vaultSdecrvBalanceBefore).mul(stakedaoDeposited)
-      expect((await vault.balanceOf(depositor2.address)), 'incorrcect amount of shares minted' ).to.be.equal(shares)
+      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
     });
 
     it('tests getPrice in sdecrvPricer', async () => {
@@ -391,8 +391,9 @@ describe('Mainnet Fork Tests', function() {
       const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       const sellAmount = (collateralAmount.div(10000000000)).toString(); 
+      const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
 
-      expect((await stakeDaoLP.balanceOf(marginPoolAddess)).eq('0')).to.be.true;
+      expect(marginPoolSdecrvBalanceAfter).to.be.within(0, 100);
 
       const order = await getOrder(
         action1.address,
@@ -432,7 +433,7 @@ describe('Mainnet Fork Tests', function() {
         sellAmount
       );
       // check sdecrv balance in opyn 
-      expect((await stakeDaoLP.balanceOf(marginPoolAddess)), 'incorrect balance in Opyn').to.be.equal(collateralAmount)
+      expect((await stakeDaoLP.balanceOf(marginPoolAddess)), 'incorrect balance in Opyn').to.be.within(collateralAmount.sub(100) as any, collateralAmount.add(100) as any)
     });
 
     it('p3 deposits', async () => {
@@ -498,13 +499,15 @@ describe('Mainnet Fork Tests', function() {
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
+      const vaultTotalStakedaoAssets = await vault.totalStakedaoAsset();
       // check vault balance 
       expect(
-        (await vault.totalStakedaoAsset()).eq(expectedVaultTotalAfter.add(1)),
+        vaultTotalStakedaoAssets).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
         'total asset should update'
-      ).to.be.true;
-      expect(vaultSdECRVBalanceAfter).to.be.equal(
-        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1)
+      );
+      expect(vaultSdECRVBalanceAfter).to.be.within(
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).sub(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1) as any,
       );
 
       // check p1 balance 
@@ -588,13 +591,16 @@ describe('Mainnet Fork Tests', function() {
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
+      const vaultTotalStakedaoAssets = await vault.totalStakedaoAsset();
+
       // check vault balance 
       expect(
-        (await vault.totalStakedaoAsset()).eq(expectedVaultTotalAfter.add(1)),
+        vaultTotalStakedaoAssets).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
         'total asset should update'
-      ).to.be.true;
-      expect(vaultSdECRVBalanceAfter).to.be.equal(
-        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1)
+      );
+      expect(vaultSdECRVBalanceAfter).to.be.within(
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).sub(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1) as any,
       );
 
       // check p2 balance 
