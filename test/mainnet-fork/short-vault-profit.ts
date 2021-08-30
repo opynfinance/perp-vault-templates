@@ -60,7 +60,7 @@ describe('Mainnet Fork Tests', function() {
   let sdecrvPricer: StakedaoEcrvPricer;
   let wethPricer: MockPricer;
   let oracle: IOracle;
-  let provider;
+  let provider: typeof ethers.provider;
 
   /**
    *
@@ -98,7 +98,7 @@ describe('Mainnet Fork Tests', function() {
       _depositor2,
       _depositor3,
     ] = accounts;
-      
+
     await network.provider.send("hardhat_setBalance", [
       opynOwner,
       "0x1000000000000000000000000000000",
@@ -264,7 +264,7 @@ describe('Mainnet Fork Tests', function() {
     const premium = utils.parseEther('2');
     let actualAmountInVault;
     let otoken: IOToken;
-    let expiry;
+    let expiry: number;
     const reserveFactor = 10;
     this.beforeAll(
       'deploy otoken that will be sold and set up counterparty',
@@ -393,7 +393,7 @@ describe('Mainnet Fork Tests', function() {
       const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
 
-      expect(marginPoolSdecrvBalanceAfter).to.be.within(0, 100);
+      const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddess);
 
       const order = await getOrder(
         action1.address,
@@ -432,8 +432,11 @@ describe('Mainnet Fork Tests', function() {
       expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
         sellAmount
       );
+
+      const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
+
       // check sdecrv balance in opyn 
-      expect((await stakeDaoLP.balanceOf(marginPoolAddess)), 'incorrect balance in Opyn').to.be.within(collateralAmount.sub(100) as any, collateralAmount.add(100) as any)
+      expect(marginPoolBalanceOfStakeDaoLPAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfStakeDaoLPBefore.add(collateralAmount));
     });
 
     it('p3 deposits', async () => {

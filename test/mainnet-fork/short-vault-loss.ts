@@ -76,7 +76,7 @@ describe('Mainnet Fork Tests', function() {
   let wethPricer: MockPricer;
   let oracle: IOracle;
   let controller: IController;
-  let provider;
+  let provider: typeof ethers.provider
 
   /**
    *
@@ -115,7 +115,7 @@ describe('Mainnet Fork Tests', function() {
       _depositor2,
       _depositor3,
     ] = accounts;
-      
+
     await network.provider.send("hardhat_setBalance", [
       opynOwner,
       "0x1000000000000000000000000000000",
@@ -286,7 +286,7 @@ describe('Mainnet Fork Tests', function() {
     let actualAmountInVault;
     let optionsSold: BigNumber;
     let otoken: IOToken;
-    let expiry;
+    let expiry: number;
     const reserveFactor = 10;
     this.beforeAll(
       'deploy otoken that will be sold and set up counterparty',
@@ -415,7 +415,7 @@ describe('Mainnet Fork Tests', function() {
       const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       optionsSold =  collateralAmount.div(10000000000);
 
-      expect((await stakeDaoLP.balanceOf(marginPoolAddess)).eq('0')).to.be.true;
+      const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddess);
 
       const order = await getOrder(
         action1.address,
@@ -454,8 +454,11 @@ describe('Mainnet Fork Tests', function() {
       expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
         sellAmount
       );
+
+      const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
+
       // check sdecrv balance in opyn 
-      expect((await stakeDaoLP.balanceOf(marginPoolAddess)), 'incorrect balance in Opyn').to.be.equal(collateralAmount)
+      expect(marginPoolBalanceOfStakeDaoLPAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfStakeDaoLPBefore.add(collateralAmount));
     });
 
     it('p3 deposits', async () => {
@@ -566,7 +569,7 @@ describe('Mainnet Fork Tests', function() {
       const sdecrvBalanceInActionAfter = await stakeDaoLP.balanceOf(action1.address);
       const sdecrvControlledByActionAfter = await action1.currentValue();
       const vaultTotal = await vault.totalStakedaoAsset();
-      
+
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdecrvBalanceInVaultAfter);
       expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdecrvBalanceInVaultBefore.add(collateralAmountReturned));
