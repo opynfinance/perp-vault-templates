@@ -54,7 +54,7 @@ describe('OpynPerpVault Tests', function () {
     await ecrv.init('ecrv', 'ecrv', 18);
 
     const Curve = await ethers.getContractFactory('MockCurve');
-    curve = (await Curve.deploy(ecrv.address)) as MockCurve;
+    curve = (await Curve.deploy(ecrv.address, weth.address)) as MockCurve;
 
     const StakeDao = await ethers.getContractFactory('MockStakedao');
     sdecrv = (await StakeDao.deploy()) as MockStakedao;
@@ -64,6 +64,7 @@ describe('OpynPerpVault Tests', function () {
   this.beforeAll('Deploy vault and mock actions', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
     vault = (await VaultContract.deploy(
+      weth.address,
       sdecrv.address,
       curve.address,
       feeRecipient.address,
@@ -108,8 +109,8 @@ describe('OpynPerpVault Tests', function () {
     })
 
     it('should not be able to deposit, withdraw, rollover or closePosition before actions are set', async() => {
-      await expect(vault.connect(depositor1).depositETH('1', { value: '1' })).to.be.revertedWith('O1');
-      await expect(vault.connect(depositor1).withdrawETH('1', '1')).to.be.revertedWith('O1');
+      await expect(vault.connect(depositor1).depositUnderlying('1', '1')).to.be.revertedWith('O1');
+      await expect(vault.connect(depositor1).withdrawUnderlying('1', '1')).to.be.revertedWith('O1');
       await expect(vault.connect(owner).rollOver([4000, 5000])).to.be.revertedWith('O1');
       await expect(vault.connect(owner).closePositions()).to.be.revertedWith('O1');
     })
@@ -123,7 +124,7 @@ describe('OpynPerpVault Tests', function () {
       // init state
       expect((await vault.state()) === VaultState.Unlocked).to.be.true;
       expect((await vault.totalStakedaoAsset()).isZero(), 'total asset should be zero').to.be.true;
-      expect((await vault.totalETHControlled()).isZero(), 'total ETH controlled should be 0').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).isZero(), 'total ETH controlled should be 0').to.be.true;
     });
 
     it('should set fee reserve', async () => {
@@ -154,8 +155,8 @@ describe('OpynPerpVault Tests', function () {
   describe('genesis: before first cycle start', async () => {
     const depositAmount = utils.parseUnits('10');
 
-    it('should revert if calling depositETH with no value', async () => {
-      await expect(vault.connect(depositor1).depositETH(depositAmount)).to.be.revertedWith('O6');
+    it('should revert if calling depositUnderlying with no value', async () => {
+      await expect(vault.connect(depositor1).depositUnderlying('0', depositAmount)).to.be.revertedWith('O6');
     });
     it('p1 deposits ETH', async () => {
 
@@ -165,13 +166,15 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH(depositAmount, { value: depositAmount });
+      await weth.connect(depositor1).deposit({value: depositAmount});
+      await weth.connect(depositor1).approve(vault.address, depositAmount);
+      await vault.connect(depositor1).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
 
       expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect((await vault.totalETHControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
@@ -186,13 +189,15 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await vault.connect(depositor1).depositETH(depositAmount, { value: depositAmount });
+      await weth.connect(depositor1).deposit({value: depositAmount});
+      await weth.connect(depositor1).approve(vault.address, depositAmount);
+      await vault.connect(depositor1).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
 
       expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect((await vault.totalETHControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
@@ -207,13 +212,15 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 2 deposit 10 eth
-      await vault.connect(depositor2).depositETH(depositAmount, { value: depositAmount });
+      await weth.connect(depositor2).deposit({value: depositAmount});
+      await weth.connect(depositor2).approve(vault.address, depositAmount);
+      await vault.connect(depositor2).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
       const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
 
       expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect((await vault.totalETHControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
 
       const shares2After = await vault.balanceOf(depositor2.address)
@@ -223,7 +230,7 @@ describe('OpynPerpVault Tests', function () {
 
     it('p3 should not be able to withdraw if they havent deposited', async () => {
       // depositor 3 withdraws 10 eth
-      await expect(vault.connect(depositor3).withdrawETH(depositAmount, depositAmount)).to.be.revertedWith('ERC20: burn amount exceeds balance');
+      await expect(vault.connect(depositor3).withdrawUnderlying(depositAmount, depositAmount)).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
     it('p1 should be able to withdraw ETH', async () => {
@@ -232,7 +239,7 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 withdraws 10 eth
-      await vault.connect(depositor1).withdrawETH(depositAmount, depositAmount);
+      await vault.connect(depositor1).withdrawUnderlying(depositAmount, depositAmount);
 
       const shares1After = await vault.balanceOf(depositor1.address)
       const vaultTotalAfter = await vault.totalStakedaoAsset();
@@ -241,7 +248,7 @@ describe('OpynPerpVault Tests', function () {
       expect(shares1Before.sub(shares1After)).to.be.equal(depositAmount);
       expect(vaultBalanceBefore.sub(vaultBalanceAfter)).to.be.equal(depositAmount);
       expect(vaultTotalBefore.sub(vaultTotalAfter)).to.be.equal(depositAmount);
-      expect((await vault.totalETHControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).eq(vaultTotalAfter), 'total eth controlled should update').to.be.true;
     });
 
     it('should revert when calling closePosition', async () => {
@@ -283,7 +290,7 @@ describe('OpynPerpVault Tests', function () {
       expect(vaultBalanceAfter.eq(vaultBalanceBefore.div(10))).to.be.true;
 
       expect(totalValueAfter.eq(totalValueBefore), 'total value should stay uneffected').to.be.true;
-      expect((await vault.totalETHControlled()).eq(totalValueAfter), 'total eth controlled should update').to.be.true;
+      expect((await vault.totalUnderlyingControlled()).eq(totalValueAfter), 'total eth controlled should update').to.be.true;
 
       expect((await vault.state()) === VaultState.Locked).to.be.true;
     });
@@ -311,7 +318,7 @@ describe('OpynPerpVault Tests', function () {
     //   const feeRecipientBalanceBefore = await weth.balanceOf(feeRecipient.address);
 
     //   // withdraw eth, (set gas price to 0 so gas won't mess with eth balances)
-    //   await vault.connect(depositor1).withdrawETH(withdrawShareAmount, { gasPrice: 0 });
+    //   await vault.connect(depositor1).withdrawUnderlying(withdrawShareAmount, { gasPrice: 0 });
 
     //   const vaultBalanceAfter = await weth.balanceOf(vault.address);
     //   const totalSupplyAfter = await vault.totalSupply();
@@ -364,7 +371,7 @@ describe('OpynPerpVault Tests', function () {
     //   expect((await vault.state()) === VaultState.Emergency).to.be.true;
 
     //   await expect(
-    //     vault.connect(depositor1).depositETH({ value: utils.parseUnits('1') })
+    //     vault.connect(depositor1).depositUnderlying({ value: utils.parseUnits('1') })
     //   ).to.be.revertedWith('Emergency');
 
     //   await vault.connect(owner).resumeFromPause();

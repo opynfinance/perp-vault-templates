@@ -300,7 +300,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * this hook is triggered while action owner calls "commitNextOption"
    * so accessing otoken will give u the current otoken. 
    */
-  function _customOTokenCheck(address _nextOToken) internal view {
+  function _customOTokenCheck(address _nextOToken) internal override view {
     // Can override or replace this.
      require(_isValidStrike(IOToken(_nextOToken).strikePrice()), 'S9');
      require (_isValidExpiry(IOToken(_nextOToken).expiryTimestamp()), 'S10');

@@ -95,5 +95,14 @@ contract RollOverBase is Ownable {
 
   function _checkOToken(address _nextOToken) private view {
     require(opynWhitelist.isWhitelistedOtoken(_nextOToken), 'R5');
+    _customOTokenCheck(_nextOToken);
+  }
+
+  /**
+   * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
+   * this hook is triggered while action owner calls "commitNextOption"
+   * so accessing otoken will give u the current otoken. 
+   */
+  function _customOTokenCheck(address _nextOToken) internal virtual view {
   }
 }

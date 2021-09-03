@@ -20,11 +20,11 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  * O3: cannot call setActions, actions have already been initialized
  * O4: action being set is using an invalid address
  * O5: action being set is a duplicated action
- * O6: deposited ETH (msg.value) must be greater than 0
- * O7: cannot accept ETH deposit, total sdecrv controlled by the vault would exceed vault cap
- * O8: unable to withdraw ETH, sdecrv to withdraw would exceed or be equal to the current vault sdecrv balance
- * O9: unable to withdraw ETH, ETH fee transfer to fee recipient (feeRecipient) failed
- * O10: unable to withdraw ETH, ETH withdrawal to user (msg.sender) failed
+ * O6: deposited underlying (msg.value) must be greater than 0
+ * O7: cannot accept underlying deposit, total sdLPToken controlled by the vault would exceed vault cap
+ * O8: unable to withdraw underlying, sdLPToken to withdraw would exceed or be equal to the current vault sdLPToken balance
+ * O9: unable to withdraw underlying, underlying fee transfer to fee recipient (feeRecipient) failed
+ * O10: unable to withdraw underlying, underlying withdrawal to user (msg.sender) failed
  * O11: cannot close vault positions, vault is not in locked state (VaultState.Locked)
  * O12: unable to rollover vault, length of allocation percentages (_allocationPercentages) passed is not equal to the initialized actions length
  * O13: unable to rollover vault, vault is not in unlocked state (VaultState.Unlocked)
@@ -33,17 +33,17 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  * O16: withdraw reserve percentage must be less than 50% (5000)
  * O17: cannot call emergencyPause, vault is already in emergency state
  * O18: cannot call resumeFromPause, vault is not in emergency state
- * O19: cannot receive ETH from any address other than the curve pool address (curvePool)
+ * O19: cannot receive underlying from any address other than the curve pool address (curvePool)
  */
 
 /** 
  * @title OpynPerpVault
  * @author Opyn Team
- * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
- * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
- * a generalized contract. Stakedao's ETH strategy currently accepts curvePool LP tokens called ecrv from the 
- * sETH-ETH curvePool pool. This strategy allows users to convert their ETH into yield earning sdecrv tokens
- * and use the sdecrv tokens as collateral to sell ETH call options on Opyn. 
+ * @dev implementation of the Opyn Perp Vault contract that works with stakedao's underlying strategy. 
+ * Note that this implementation is meant to only specifically work for the stakedao underlying strategy and is not 
+ * a generalized contract. Stakedao's underlying strategy currently accepts curvePool LP tokens called crvLPToken from the 
+ * underlying curve pool. This strategy allows users to convert their underlying into yield earning sdLPToken tokens
+ * and use the sdLPToken tokens as collateral to sell underlying call options on Opyn. 
  */
 
 contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
@@ -62,8 +62,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev address to which all fees are sent
   address public feeRecipient;
 
-  /// @dev stake dao sdecrvAddress
-  address public sdecrvAddress;
+  /// @dev address of the underlying address which is earning yields
+  address public underlying;
+
+  /// @dev stake dao LP token address
+  address public sdLPTokenAddress;
 
   uint256 public constant BASE = 10000; // 100%
 
@@ -76,7 +79,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
 
-  /// @dev curvePool ETH/sETH stableswap 
+  /// @dev curvePool for the corresponding stakedao strategy stableswap 
   ICurve public curvePool;
 
   VaultState public state;
@@ -119,13 +122,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    *====================*/
 
   constructor (
-    address _sdecrvAddress,
+    address _underlying,
+    address _sdLPTokenAddress,
     address _curvePool,
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
     ) ERC20(_tokenName, _tokenSymbol) {
-    sdecrvAddress = _sdecrvAddress;
+    underlying = _underlying;
+    sdLPTokenAddress = _sdLPTokenAddress;
     feeRecipient = _feeRecipient;
     curvePool = ICurve(_curvePool);
     state = VaultState.Unlocked;
@@ -157,7 +162,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    }
 
   /**
-   * @notice total sdecrv controlled by this vault
+   * @notice total sdLPToken controlled by this vault
    */
   function totalStakedaoAsset() public view returns (uint256) {
     uint256 debt = 0;
@@ -171,16 +176,16 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * total eth value of the sdecrv controlled by this vault
+   * total underlying value of the sdLPToken controlled by this vault
    */
-  function totalETHControlled() external view returns (uint256) { 
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-    // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
-    return totalStakedaoAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+  function totalUnderlyingControlled() external view returns (uint256) { 
+    IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
+    // hard coded to 36 because crv LP token and sdLPToken are both 18 decimals. 
+    return totalStakedaoAsset().mul(sdLPToken.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
   }
 
   /**
-   * @dev return how many sdecrv you can get if you burn the number of shares, after charging the fee.
+   * @dev return how many sdLPToken you can get if you burn the number of shares, after charging the fee.
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
     uint256 withdrawAmount = _getWithdrawAmountByShares(_shares);
@@ -188,40 +193,44 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @notice Deposits ETH into the contract and mint vault shares. 
+   * @notice Deposits underlying into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
-   * @param minEcrv minimum amount of ecrv to get out from adding liquidity. 
+   * @param amount amount of underlying to deposit 
+   * @param minCrvLPToken minimum amount of crvLPToken to get out from adding liquidity. 
    */
-  function depositETH(uint256 minEcrv) external payable nonReentrant {
+  function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external payable nonReentrant {
     notEmergency();
     actionsInitialized();
-    require(msg.value > 0, 'O6');
+    require(amount > 0, 'O6');
 
-    // the sdecrv is already deposited into the contract at this point, need to substract it from total
+    // the sdLPToken is already deposited into the contract at this point, need to substract it from total
     uint256[2] memory amounts;
-    amounts[0] = msg.value;
+    amounts[0] = amount;
     amounts[1] = 0; // not depositing any seth
 
-    // deposit ETH to curvePool
-    curvePool.add_liquidity{value:msg.value}(amounts, minEcrv);
+    // deposit underlying to curvePool
+    IERC20 underlyingToken = IERC20(underlying);
+    underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
+    underlyingToken.approve(address(curvePool), amount);
+    curvePool.add_liquidity(amounts, minCrvLPToken);
 
     // keep track of balance before
-    uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
+    uint256 totalSdLPTokenBalanceBeforeDeposit = totalStakedaoAsset();
 
-    // deposit ecrv to stakedao
-    address cacheSdecrvAddress = sdecrvAddress;
-    IStakeDao sdecrv = IStakeDao(cacheSdecrvAddress);
-    IERC20 ecrv = sdecrv.token();
-    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
+    // deposit crvLPToken to stakedao
+    address cacheSdLPTokenAddress = sdLPTokenAddress;
+    IStakeDao sdLPToken = IStakeDao(cacheSdLPTokenAddress);
+    IERC20 crvLPToken = sdLPToken.token();
+    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
 
-    ecrv.safeIncreaseAllowance(cacheSdecrvAddress, ecrvToDeposit);
-    sdecrv.deposit(ecrvToDeposit);
+    crvLPToken.safeIncreaseAllowance(cacheSdLPTokenAddress, crvLPTokenToDeposit);
+    sdLPToken.deposit(crvLPTokenToDeposit);
 
     // mint shares and emit event 
     uint256 totalWithDepositedAmount = totalStakedaoAsset();
     require(totalWithDepositedAmount < cap, 'O7');
-    uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
-    uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
+    uint256 sdLPTokenDeposited = totalWithDepositedAmount.sub(totalSdLPTokenBalanceBeforeDeposit);
+    uint256 share = _getSharesByDepositAmount(sdLPTokenDeposited, totalSdLPTokenBalanceBeforeDeposit);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -229,36 +238,35 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @notice Withdraws ETH from vault using vault shares
-   * @dev burns shares, withdraws ecrv from stakdao, withdraws ETH from curvePool
+   * @notice Withdraws underlying from vault using vault shares
+   * @dev burns shares, withdraws crvLPToken from stakdao, withdraws underlying from curvePool
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 _share, uint256 minEth) external nonReentrant {
+  function withdrawUnderlying(uint256 _share, uint256 minEth) external nonReentrant {
     notEmergency();
     actionsInitialized();
-    uint256 currentSdecrvBalance = _balance();
-    uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
-    require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
+    uint256 currentSdLPTokenBalance = _balance();
+    uint256 sdLPTokenToWithdraw = _getWithdrawAmountByShares(_share);
+    require(sdLPTokenToWithdraw <= currentSdLPTokenBalance, 'O8');
 
     _burn(msg.sender, _share);
 
     // withdraw from stakedao and curvePool
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-    sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
-    uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
+    IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
+    sdLPToken.withdraw(sdLPTokenToWithdraw);
+    uint256 crvLPTokenBalance = sdLPToken.token().balanceOf(address(this));
+    uint256 ethReceived = curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 0, minEth);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);
     uint256 ethOwedToUser = ethReceived.sub(fee);
 
     // send fee to recipient 
-    (bool success1, ) = feeRecipient.call{ value: fee }('');
-    require(success1, 'O9');
+    IERC20 underlyingToken = IERC20(underlying);
+    underlyingToken.safeTransfer(feeRecipient, fee);
 
-    // send ETH to user
-    (bool success2, ) = msg.sender.call{ value: ethOwedToUser }('');
-    require(success2, 'O10');
+    // send underlying to user
+    underlyingToken.safeTransfer(msg.sender, ethOwedToUser);
 
     emit Withdraw(msg.sender, ethOwedToUser, fee, _share);
   }
@@ -272,13 +280,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Locked, "O11");
     state = VaultState.Unlocked;
 
-    address cacheAddress = sdecrvAddress;
+    address cacheAddress = sdLPTokenAddress;
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
 
-      // 2. withdraw sdecrv
+      // 2. withdraw sdLPToken
       uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
       if (actionBalance > 0)
         IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
@@ -296,7 +304,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Unlocked, "O13");
     state = VaultState.Locked;
 
-    address cacheAddress = sdecrvAddress;
+    address cacheAddress = sdLPTokenAddress;
     address[] memory cacheActions = actions;
 
     uint256 cacheBase = BASE;
@@ -366,7 +374,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
    /**
-   * @dev return how many shares you can get if you deposit {_amount} sdecrv
+   * @dev return how many shares you can get if you deposit {_amount} sdLPToken
    * @param _amount amount of token depositing
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
@@ -378,16 +386,16 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    *====================*/
 
   /**
-   * @dev returns remaining sdecrv balance in the vault.
+   * @dev returns remaining sdLPToken balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(sdecrvAddress).balanceOf(address(this));
+    return IERC20(sdLPTokenAddress).balanceOf(address(this));
   }
 
   /**
-   * @dev return how many shares you can get if you deposit {_amount} sdecrv
+   * @dev return how many shares you can get if you deposit {_amount} sdLPToken
    * @param _amount amount of token depositing
-   * @param _totalAssetAmount amont of sdecrv already in the pool before deposit
+   * @param _totalAssetAmount amont of sdLPToken already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
@@ -397,7 +405,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev return how many sdecrv you can get if you burn the number of shares
+   * @dev return how many sdLPToken you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     // withdrawal amount
