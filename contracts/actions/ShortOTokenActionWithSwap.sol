@@ -12,7 +12,7 @@ import { ICurve } from '../interfaces/ICurve.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
-import { IWETH } from '../interfaces/IWETH.sol'; 
+import { IWunderlying } from '../interfaces/IWunderlying.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
@@ -23,10 +23,10 @@ import { RollOverBase } from '../utils/RollOverBase.sol';
  * S2: cannot currently close the vault position
  * S3: seller for the order (_order.sender.wallet) must be this contract
  * S4: token to sell (_order.sender.token) must be the currently activated oToken
- * S5: token to sell for (_order.signer.token) must be WETH
+ * S5: token to sell for (_order.signer.token) must be Wunderlying
  * S6: tokens being sold (_order.sender.amount) and tokens being minted (_otokenAmount) must be the same
- * S7: amount of WETH being sold for (_order.signer.amount) does not meet the minimum option premium
- * S8: unable to unwrap WETH to ETH and add liquidity to curve: insufficient ETH
+ * S7: amount of Wunderlying being sold for (_order.signer.amount) does not meet the minimum option premium
+ * S8: unable to unwrap Wunderlying to underlying and add liquidity to curve: insufficient underlying
  * S9: strike price for the next oToken is too low
  * S10: expiry timestamp for the next oToken is invalid
  */
@@ -53,10 +53,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
   IController public controller;
   ICurve public curve;
-  IERC20 ecrv;
+  IERC20 crvLP;
   IOracle public oracle;
   IStakeDao public stakedao;
-  IWETH weth;
+  IWunderlying underlying;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -68,19 +68,19 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address _controller,
     address _curve,
     uint256 _vaultType,
-    address _weth,
+    address _underlying,
     uint256 _min_profits
   ) {
     MIN_PROFITS = _min_profits;
     vault = _vault;
-    weth = IWETH(_weth);
+    underlying = IWunderlying(_underlying);
 
     controller = IController(_controller);
     curve = ICurve(_curve);
 
     oracle = IOracle(controller.oracle());
     stakedao = IStakeDao(_stakedaoToken);
-    ecrv = stakedao.token();
+    crvLP = stakedao.token();
 
     // enable vault to take all the stakedaoToken back and re-distribute.
     IERC20(_stakedaoToken).safeApprove(_vault, uint256(-1));
@@ -99,7 +99,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of weth.
+   * @dev return the net worth of this strategy, in terms of underlying.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
@@ -138,7 +138,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
+   * @dev owner only function to mint options with "crvLP" and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
@@ -146,9 +146,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     onlyActivated();
     require(_order.sender.wallet == address(this), 'S3');
     require(_order.sender.token == otoken, 'S4');
-    require(_order.signer.token == address(weth), 'S5');
+    require(_order.signer.token == address(underlying), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
+    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
 
     // mint options
     _mintOTokens(_collateralAmount, _otokenAmount);
@@ -157,11 +157,11 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
 
-    // sell options on airswap for weth
+    // sell options on airswap for underlying
     _fillAirswapOrder(_order);
 
-    // convert the weth received as premium to sdeCRV
-    _wethToSdECRV();
+    // convert the underlying received as premium to sdeCRV
+    _underlyingToSdLP();
 
     emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
   }
@@ -195,7 +195,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         IController.ActionType.OpenVault,
         address(this), // owner
         address(0), // second address
-        address(0), // ecrv, otoken
+        address(0), // crvLP, otoken
         1, // vaultId
         0, // amount
         0, // index
@@ -211,25 +211,23 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _wethToSdECRV() internal {
-    uint256 wethBalance = weth.balanceOf(address(this));
+  function _underlyingToSdLP() internal {
+    uint256 underlyingBalance = underlying.balanceOf(address(this));
 
     uint256[3] memory amounts;
     amounts[0] = 0;
-    amounts[1] = wethBalance;
+    amounts[1] = underlyingBalance;
     amounts[2] = 0;
 
-    //unwrap weth => eth to deposit on curve
-    weth.withdraw(wethBalance);
-    // deposit ETH to curve
-    require(address(this).balance == wethBalance, 'S8');
-    curve.add_liquidity(amounts, 0); // minimum amount to deposit is 0 ETH
-    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
+    // deposit underlying to curve
+    underlying.approve(address(curve), underlyingBalance);
+    curve.add_liquidity(amounts, 0); // minimum amount to deposit is 0 underlying
+    uint256 crvLPToDeposit = crvLP.balanceOf(address(this));
 
-    // deposit ecrv to stakedao
-    ecrv.safeApprove(address(stakedao), 0);
-    ecrv.safeApprove(address(stakedao), ecrvToDeposit);
-    stakedao.deposit(ecrvToDeposit);
+    // deposit crvLP to stakedao
+    crvLP.safeApprove(address(stakedao), 0);
+    crvLP.safeApprove(address(stakedao), crvLPToDeposit);
+    stakedao.deposit(crvLPToDeposit);
   }
 
   /**
@@ -243,7 +241,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         IController.ActionType.DepositCollateral,
         address(this), // vault owner
         address(this), // deposit from this address
-        address(stakedao), // collateral sdecrv
+        address(stakedao), // collateral sdcrvLP
         1, // vaultId
         _collateralAmount, // amount
         0, // index
@@ -274,7 +272,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         IController.ActionType.SettleVault,
         address(this), // owner
         address(this), // recipient
-        address(0), // ecrv
+        address(0), // crvLP
         1, // vaultId
         0, // amount
         0, // index
@@ -319,7 +317,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * this hook is triggered in the _customOtokenCheck function. 
    */
   function _isValidStrike(uint256 strikePrice) internal view returns (bool) { 
-    uint256 spotPrice = oracle.getPrice(address(weth));
+    uint256 spotPrice = oracle.getPrice(address(underlying));
     // checks that the strike price set is > than 105% of current price
     return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
   }

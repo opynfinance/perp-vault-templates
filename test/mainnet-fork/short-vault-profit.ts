@@ -237,6 +237,7 @@ describe('Mainnet Fork Tests', function() {
     // send everyone wbtc
     await provider.send('hardhat_impersonateAccount', [wbtcWhale]);
     const signer = await ethers.provider.getSigner(wbtcWhale);
+    await wbtc.connect(signer).transfer(counterpartyWallet.address, premium);
     await wbtc.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await wbtc.connect(signer).transfer(depositor2.address, p2DepositAmount);
     await wbtc.connect(signer).transfer(depositor3.address, p3DepositAmount);
