@@ -204,9 +204,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(amount > 0, 'O6');
 
     // the sdLPToken is already deposited into the contract at this point, need to substract it from total
-    uint256[2] memory amounts;
-    amounts[0] = amount;
-    amounts[1] = 0; // not depositing any seth
+    uint256[3] memory amounts;
+    amounts[0] = 0; // not depositing any rebBTC
+    amounts[1] = amount; 
+    amounts[2] = 0; 
 
     // deposit underlying to curvePool
     IERC20 underlyingToken = IERC20(underlying);
