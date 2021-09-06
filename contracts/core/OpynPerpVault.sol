@@ -253,23 +253,26 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _burn(msg.sender, _share);
 
     // withdraw from stakedao and curvePool
+    IERC20 underlyingToken = IERC20(underlying);
+    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
     IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
     sdLPToken.withdraw(sdLPTokenToWithdraw);
     uint256 crvLPTokenBalance = sdLPToken.token().balanceOf(address(this));
-    uint256 ethReceived = curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 0, minEth);
+    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, minEth);
+    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
+    uint256 underlyingReceived = underlyingBalanceAfter.sub(underlyingBalanceBefore);
 
     // calculate fees
-    uint256 fee = _getWithdrawFee(ethReceived);
-    uint256 ethOwedToUser = ethReceived.sub(fee);
+    uint256 fee = _getWithdrawFee(underlyingReceived);
+    uint256 underlyingOwedToUser = underlyingReceived.sub(fee);
 
     // send fee to recipient 
-    IERC20 underlyingToken = IERC20(underlying);
     underlyingToken.safeTransfer(feeRecipient, fee);
 
     // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, ethOwedToUser);
+    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
 
-    emit Withdraw(msg.sender, ethOwedToUser, fee, _share);
+    emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
   }
 
   /**
@@ -414,14 +417,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of weth withdrawing.
+   * @dev get amount of fee charged based on total amount of wunderlying withdrawing.
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
 
   /**
-    * @notice the receive ether function is called whenever the call data is empty
+    * @notice the receive underlyinger function is called whenever the call data is empty
     */
   receive() external payable {
     require(msg.sender == address(curvePool), "O19");

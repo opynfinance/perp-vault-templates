@@ -44,7 +44,6 @@ describe('Mainnet Fork Tests', function() {
   let action1: ShortOTokenActionWithSwap;
   // asset used by this action: in this case, wbtc
   let wbtc: IERC20;
-  let weth: IWETH;
   let usdc: IERC20;
   let crvRenWSBTC: IERC20;
   let sdcrvRenWSBTC: IERC20;
@@ -77,7 +76,6 @@ describe('Mainnet Fork Tests', function() {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-  const wethAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
   const stakeDaoTokenAddress = '0x24129B935AfF071c4f0554882C0D9573F4975fEd';
   const curveAddress = '0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714';
   const sbtcCrvAddress = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3';
@@ -121,7 +119,6 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
-    weth = (await ethers.getContractAt('IWETH', wethAddress)) as IWETH;
     wbtc = (await ethers.getContractAt('IERC20', wbtcAddress)) as IERC20;
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
     crvRenWSBTC = (await ethers.getContractAt('IERC20', sbtcCrvAddress)) as IERC20;
@@ -486,11 +483,11 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
-      const balanceOfP1Before = await provider.getBalance(depositor1.address);
+      const balanceOfP1Before = await wbtc.balanceOf(depositor1.address);
 
       // fee calculations 
       const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(depositor1.address);
 
 
       await vault
@@ -504,8 +501,8 @@ describe('Mainnet Fork Tests', function() {
       const vaultSdECRVBalanceAfter = await sdcrvRenWSBTC.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address)
-      const balanceOfP1After = await provider.getBalance(depositor1.address);
+      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(depositor1.address);
+      const balanceOfP1After = await wbtc.balanceOf(depositor1.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
@@ -521,7 +518,7 @@ describe('Mainnet Fork Tests', function() {
       );
 
       // check p1 balance 
-      expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect ETH transferred to p1').to.be.true;
+      expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect wBTC transferred to p1').to.be.true;
 
       // check fee 
       expect(balanceOfFeeRecipientAfter.gte(
@@ -578,11 +575,11 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
-      const balanceOfP2Before = await provider.getBalance(depositor2.address);
+      const balanceOfP2Before = await wbtc.balanceOf(depositor2.address);
 
       // fee calculations 
       const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -596,8 +593,8 @@ describe('Mainnet Fork Tests', function() {
       const vaultSdECRVBalanceAfter = await sdcrvRenWSBTC.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address)
-      const balanceOfP2After = await provider.getBalance(depositor2.address);
+      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address)
+      const balanceOfP2After = await wbtc.balanceOf(depositor2.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
@@ -627,18 +624,18 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p3DepositAmount;
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
-      const balanceOfP3Before = await provider.getBalance(depositor3.address);
+      const balanceOfP3Before = await wbtc.balanceOf(depositor3.address);
 
       // fee calculations
-      const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
       const effectiveFee = fee.mul(95).div(100)
 
       await vault
         .connect(depositor3)
         .withdrawUnderlying(await vault.balanceOf(depositor3.address), amountTransferredToP3);
 
-      const balanceOfFeeRecipientAfter = await provider.getBalance(feeRecipient.address);
-      const balanceOfP3After = await provider.getBalance(depositor3.address);
+      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
+      const balanceOfP3After = await wbtc.balanceOf(depositor3.address);
 
       expect(
         (await vault.totalStakedaoAsset()).eq('0'),

@@ -12,7 +12,7 @@ import { ICurve } from '../interfaces/ICurve.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
-import { IWunderlying } from '../interfaces/IWunderlying.sol'; 
+import { IWETH } from '../interfaces/IWETH.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
@@ -56,7 +56,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IERC20 crvLP;
   IOracle public oracle;
   IStakeDao public stakedao;
-  IWunderlying underlying;
+  IERC20 underlying;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -73,7 +73,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   ) {
     MIN_PROFITS = _min_profits;
     vault = _vault;
-    underlying = IWunderlying(_underlying);
+    underlying = IERC20(_underlying);
 
     controller = IController(_controller);
     curve = ICurve(_curve);
