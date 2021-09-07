@@ -278,7 +278,7 @@ describe('Mainnet Fork Tests', function() {
     this.beforeAll(
       'deploy otoken that will be sold',
       async () => {
-        const otokenStrikePrice = 500000000000;
+        const otokenStrikePrice = 5000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -361,7 +361,7 @@ describe('Mainnet Fork Tests', function() {
     });
 
     it('tests getPrice in sbtcPricer', async () => {
-      await wbtcPricer.setPrice('2000');
+      await wbtcPricer.setPrice('4000000000000');
       const wbtcPrice = await oracle.getPrice(wbtc.address);
       const sdcrvRenWSBTCPrice = await oracle.getPrice(sdcrvRenWSBTC.address);
       expect(wbtcPrice.toNumber()).to.be.lessThanOrEqual(
@@ -532,7 +532,7 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wbtcPricer.setExpiryPriceInOracle(wbtc.address, expiry, '100000000000');
+      await wbtcPricer.setExpiryPriceInOracle(wbtc.address, expiry, '3000000000000');
       await sbtcPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
