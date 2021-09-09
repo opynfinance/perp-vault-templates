@@ -214,28 +214,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
     underlyingToken.approve(address(curvePool), amount);
     curvePool.add_liquidity(amounts, minCrvLPToken);
-
-    // keep track of balance before
-    uint256 totalSdLPTokenBalanceBeforeDeposit = totalStakedaoAsset();
-
-    // deposit crvLPToken to stakedao
-    address cacheSdLPTokenAddress = sdLPTokenAddress;
-    IStakeDao sdLPToken = IStakeDao(cacheSdLPTokenAddress);
-    IERC20 crvLPToken = sdLPToken.token();
-    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
-
-    crvLPToken.safeIncreaseAllowance(cacheSdLPTokenAddress, crvLPTokenToDeposit);
-    sdLPToken.deposit(crvLPTokenToDeposit);
-
-    // mint shares and emit event 
-    uint256 totalWithDepositedAmount = totalStakedaoAsset();
-    require(totalWithDepositedAmount < cap, 'O7');
-    uint256 sdLPTokenDeposited = totalWithDepositedAmount.sub(totalSdLPTokenBalanceBeforeDeposit);
-    uint256 share = _getSharesByDepositAmount(sdLPTokenDeposited, totalSdLPTokenBalanceBeforeDeposit);
-
-    emit Deposit(msg.sender, msg.value, share);
-
-    _mint(msg.sender, share);
+    _depositToStakedaoAndMint();
   }
 
   /**
@@ -388,6 +367,30 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /*=====================
    * Internal functions *
    *====================*/
+
+  function _depositToStakedaoAndMint() internal {
+    // keep track of balance before
+    uint256 totalSdLPTokenBalanceBeforeDeposit = totalStakedaoAsset();
+
+    // deposit crvLPToken to stakedao
+    address cacheSdLPTokenAddress = sdLPTokenAddress;
+    IStakeDao sdLPToken = IStakeDao(cacheSdLPTokenAddress);
+    IERC20 crvLPToken = sdLPToken.token();
+    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
+
+    crvLPToken.safeIncreaseAllowance(cacheSdLPTokenAddress, crvLPTokenToDeposit);
+    sdLPToken.deposit(crvLPTokenToDeposit);
+
+    // mint shares and emit event 
+    uint256 totalWithDepositedAmount = totalStakedaoAsset();
+    require(totalWithDepositedAmount < cap, 'O7');
+    uint256 sdLPTokenDeposited = totalWithDepositedAmount.sub(totalSdLPTokenBalanceBeforeDeposit);
+    uint256 share = _getSharesByDepositAmount(sdLPTokenDeposited, totalSdLPTokenBalanceBeforeDeposit);
+
+    emit Deposit(msg.sender, msg.value, share);
+
+    _mint(msg.sender, share);
+  }
 
   /**
    * @dev returns remaining sdLPToken balance in the vault.
