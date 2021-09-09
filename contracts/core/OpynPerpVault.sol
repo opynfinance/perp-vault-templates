@@ -198,7 +198,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @param amount amount of underlying to deposit 
    * @param minCrvLPToken minimum amount of crvLPToken to get out from adding liquidity. 
    */
-  function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external payable nonReentrant {
+  function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external nonReentrant {
     notEmergency();
     actionsInitialized();
     require(amount > 0, 'O6');
@@ -214,6 +214,23 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
     underlyingToken.approve(address(curvePool), amount);
     curvePool.add_liquidity(amounts, minCrvLPToken);
+    _depositToStakedaoAndMint();
+  }
+
+  /**
+   * @notice Deposits curve LP into the contract and mint vault shares. 
+   * @dev deposit into stakedao, then mint the shares to depositor, and emit the deposit event
+   * @param amount amount of curveLP to deposit 
+   */
+  function depositCrvLP(uint256 amount) external nonReentrant {
+    notEmergency();
+    actionsInitialized();
+    require(amount > 0, 'O6');
+
+    // deposit underlying to curvePool
+    IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
+    IERC20 crvLPToken = sdLPToken.token();
+    crvLPToken.safeTransferFrom(msg.sender, address(this), amount);
     _depositToStakedaoAndMint();
   }
 
@@ -426,10 +443,4 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
 
-  /**
-    * @notice the receive underlyinger function is called whenever the call data is empty
-    */
-  receive() external payable {
-    require(msg.sender == address(curvePool), "O19");
-  }
 }

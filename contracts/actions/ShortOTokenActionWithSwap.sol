@@ -205,9 +205,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     controller.operate(actions);
   }
 
-  receive() external payable {}
-  fallback() external payable {}
-
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
