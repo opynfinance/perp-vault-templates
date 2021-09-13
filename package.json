@@ -21,6 +21,7 @@
     "test:coverage": "COVERAGE=true FORK=true hardhat coverage",
     "test:profit": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/short-vault-profit.ts",
     "test:loss": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/short-vault-loss.ts",
+    "test:integrations": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/unit-tests.ts",
     "test": "hardhat test --network hardhat ./test/unit-tests/*.ts"
   },
   "lint-staged": {

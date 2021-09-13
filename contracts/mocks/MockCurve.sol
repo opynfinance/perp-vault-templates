@@ -16,7 +16,7 @@ contract MockCurve {
         underlying = MockERC20(_underlying);
     }
 
-    function add_liquidity(uint256[2] memory amounts, uint256) external payable returns (uint256) {
+    function add_liquidity(uint256[3] memory amounts, uint256) external returns (uint256) {
         underlying.transferFrom(msg.sender, address(this), amounts[0]);
         ecrv.mint(msg.sender, amounts[0]);
         return amounts[0];
@@ -30,11 +30,5 @@ contract MockCurve {
         underlying.transfer(msg.sender, amount);
         ecrv.burn(msg.sender, amount);
         return amount;
-    }
-
-    /**
-    * @notice the receive ether function 
-    */
-    receive() external payable {
     }
 }

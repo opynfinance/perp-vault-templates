@@ -136,13 +136,6 @@ describe('OpynPerpVault Tests', function () {
       expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
     });
 
-    it('should revert an addrress other than curve tries to send ETH to the vault', async () => {
-      // Note that anyone can still force send ETH
-      await expect(
-        depositor1.sendTransaction({ to: vault.address, value: utils.parseUnits('1') })
-      ).to.be.revertedWith('O19');
-    });
-
     it('should fail to set actions once the contract is already initialized', async () => {
       await expect(vault
         .connect(owner)

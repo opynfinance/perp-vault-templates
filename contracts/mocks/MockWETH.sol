@@ -27,4 +27,7 @@ contract MockWETH is ERC20PermitUpgradeable {
   function deposit() public payable {
     _mint(msg.sender, msg.value);
   }  
+
+  function receive() public {
+  }
 }
