@@ -239,7 +239,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev burns shares, withdraws crvLPToken from stakdao, withdraws underlying from curvePool
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawUnderlying(uint256 _share, uint256 minEth) external nonReentrant {
+  function withdrawUnderlying(uint256 _share, uint256 _minEth) external nonReentrant {
     notEmergency();
     actionsInitialized();
     uint256 currentSdLPTokenBalance = _balance();
@@ -249,26 +249,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _burn(msg.sender, _share);
 
     // withdraw from stakedao and curvePool
-    IERC20 underlyingToken = IERC20(underlying);
-    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
     IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
     sdLPToken.withdraw(sdLPTokenToWithdraw);
-    uint256 crvLPTokenBalance = sdLPToken.token().balanceOf(address(this));
-    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, minEth);
-    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
-    uint256 underlyingReceived = underlyingBalanceAfter.sub(underlyingBalanceBefore);
-
-    // calculate fees
-    uint256 fee = _getWithdrawFee(underlyingReceived);
-    uint256 underlyingOwedToUser = underlyingReceived.sub(fee);
-
-    // send fee to recipient 
-    underlyingToken.safeTransfer(feeRecipient, fee);
-
-    // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
-
-    emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
+    _withdrawFromCurve(_minEth, _share);
   }
 
   /**
@@ -407,6 +390,28 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     emit Deposit(msg.sender, msg.value, share);
 
     _mint(msg.sender, share);
+  }
+
+  function _withdrawFromCurve(uint256 _minEth, uint256 _share) internal {
+    IERC20 underlyingToken = IERC20(underlying);
+    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
+    IStakeDao sdLPToken = IStakeDao(sdLPTokenAddress);
+    uint256 crvLPTokenBalance = sdLPToken.token().balanceOf(address(this));
+    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minEth);
+    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
+    uint256 underlyingReceived = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+
+    // calculate fees
+    uint256 fee = _getWithdrawFee(underlyingReceived);
+    uint256 underlyingOwedToUser = underlyingReceived.sub(fee);
+
+    // send fee to recipient 
+    underlyingToken.safeTransfer(feeRecipient, fee);
+
+    // send underlying to user
+    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
+
+    emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
   }
 
   /**
