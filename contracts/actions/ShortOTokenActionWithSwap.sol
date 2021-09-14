@@ -23,12 +23,11 @@ import { RollOverBase } from '../utils/RollOverBase.sol';
  * S2: cannot currently close the vault position
  * S3: seller for the order (_order.sender.wallet) must be this contract
  * S4: token to sell (_order.sender.token) must be the currently activated oToken
- * S5: token to sell for (_order.signer.token) must be Wunderlying
+ * S5: token to sell for (_order.signer.token) must be the underlying
  * S6: tokens being sold (_order.sender.amount) and tokens being minted (_otokenAmount) must be the same
- * S7: amount of Wunderlying being sold for (_order.signer.amount) does not meet the minimum option premium
- * S8: unable to unwrap Wunderlying to underlying and add liquidity to curve: insufficient underlying
- * S9: strike price for the next oToken is too low
- * S10: expiry timestamp for the next oToken is invalid
+ * S7: amount of underlying being sold for (_order.signer.amount) does not meet the minimum option premium
+ * S8: strike price for the next oToken is too low
+ * S9: expiry timestamp for the next oToken is invalid
  */
 
 /**
@@ -52,21 +51,21 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   uint256 public rolloverTime;
 
   IController public controller;
-  ICurve public curve;
-  IERC20 crvLP;
+  ICurve public curvePool;
+  IERC20 crvLPToken;
   IOracle public oracle;
-  IStakeDao public stakedao;
+  IStakeDao public stakedaoStrategy;
   IERC20 underlying;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
   constructor(
     address _vault,
-    address _stakedaoToken,
+    address _sdTokenAddress,
     address _swap,
     address _opynWhitelist,
     address _controller,
-    address _curve,
+    address _curvePoolAddress,
     uint256 _vaultType,
     address _underlying,
     uint256 _min_profits
@@ -76,17 +75,17 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     underlying = IERC20(_underlying);
 
     controller = IController(_controller);
-    curve = ICurve(_curve);
+    curvePool = ICurve(_curvePoolAddress);
 
     oracle = IOracle(controller.oracle());
-    stakedao = IStakeDao(_stakedaoToken);
-    crvLP = stakedao.token();
+    stakedaoStrategy = IStakeDao(_sdTokenAddress);
+    crvLPToken = stakedaoStrategy.token();
 
-    // enable vault to take all the stakedaoToken back and re-distribute.
-    IERC20(_stakedaoToken).safeApprove(_vault, uint256(-1));
+    // enable vault to take all the sdToken back and re-distribute.
+    IERC20(_sdTokenAddress).safeApprove(_vault, uint256(-1));
 
-    // enable pool contract to pull stakedaoToken from this contract to mint options.
-    IERC20(_stakedaoToken).safeApprove(controller.pool(), uint256(-1));
+    // enable pool contract to pull sdToken from this contract to mint options.
+    IERC20(_sdTokenAddress).safeApprove(controller.pool(), uint256(-1));
 
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
@@ -103,7 +102,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    return stakedao.balanceOf(address(this)).add(lockedAsset);
+    return stakedaoStrategy.balanceOf(address(this)).add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -138,7 +137,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev owner only function to mint options with "crvLP" and sell otokens in this contract 
+   * @dev owner only function to mint options with "crvLPToken" and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
@@ -160,8 +159,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // sell options on airswap for underlying
     _fillAirswapOrder(_order);
 
-    // convert the underlying received as premium to sdeCRV
-    _underlyingToSdLP();
+    // convert the underlying received as premium to sdToken
+    _underlyingToSdToken();
 
     emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
   }
@@ -194,8 +193,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     actions[0] = IController.ActionArgs(
         IController.ActionType.OpenVault,
         address(this), // owner
-        address(0), // second address
-        address(0), // crvLP, otoken
+        address(0), // doesn't matter 
+        address(0), // doesn't matter
         1, // vaultId
         0, // amount
         0, // index
@@ -208,7 +207,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _underlyingToSdLP() internal {
+  function _underlyingToSdToken() internal {
     uint256 underlyingBalance = underlying.balanceOf(address(this));
 
     uint256[3] memory amounts;
@@ -217,14 +216,14 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     amounts[2] = 0;
 
     // deposit underlying to curve
-    underlying.approve(address(curve), underlyingBalance);
-    curve.add_liquidity(amounts, 0); // minimum amount to deposit is 0 underlying
-    uint256 crvLPToDeposit = crvLP.balanceOf(address(this));
+    underlying.approve(address(curvePool), underlyingBalance);
+    curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
+    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
 
-    // deposit crvLP to stakedao
-    crvLP.safeApprove(address(stakedao), 0);
-    crvLP.safeApprove(address(stakedao), crvLPToDeposit);
-    stakedao.deposit(crvLPToDeposit);
+    // deposit crvLPToken to stakedao
+    crvLPToken.safeApprove(address(stakedaoStrategy), 0);
+    crvLPToken.safeApprove(address(stakedaoStrategy), crvLPTokenToDeposit);
+    stakedaoStrategy.deposit(crvLPTokenToDeposit);
   }
 
   /**
@@ -236,22 +235,22 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     actions[0] = IController.ActionArgs(
         IController.ActionType.DepositCollateral,
-        address(this), // vault owner
+        address(this), // vault owner is this address
         address(this), // deposit from this address
-        address(stakedao), // collateral sdcrvLP
-        1, // vaultId
-        _collateralAmount, // amount
+        address(stakedaoStrategy), // collateral is sdToken
+        1, // vaultId is 1
+        _collateralAmount, // amount of sdToken to deposit
         0, // index
         "" // data
     );
 
     actions[1] = IController.ActionArgs(
         IController.ActionType.MintShortOption,
-        address(this), // vault owner
+        address(this), // vault owner is this address
         address(this), // mint to this address
-        otoken, // otoken
-        1, // vaultId
-        _otokenAmount, // amount
+        otoken, // otoken to mint
+        1, // vaultId is 1
+        _otokenAmount, // amount of otokens to mint
         0, // index
         "" // data
     );
@@ -260,18 +259,18 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev settle vault 0 and withdraw all locked collateral
+   * @dev settle vault 1 and withdraw all locked collateral
    */
   function _settleVault() internal {
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
     // this action will always use vault id 1
     actions[0] = IController.ActionArgs(
         IController.ActionType.SettleVault,
-        address(this), // owner
-        address(this), // recipient
-        address(0), // crvLP
-        1, // vaultId
-        0, // amount
+        address(this), // owner is this address
+        address(this), // recipient is this address
+        address(0), // doesn't mtter
+        1, // vaultId is 1 
+        0, // amount doesn't matter
         0, // index
         "" // data
     );
@@ -298,8 +297,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    */
   function _customOTokenCheck(address _nextOToken) internal override view {
     // Can override or replace this.
-     require(_isValidStrike(IOToken(_nextOToken).strikePrice()), 'S9');
-     require (_isValidExpiry(IOToken(_nextOToken).expiryTimestamp()), 'S10');
+     require(_isValidStrike(IOToken(_nextOToken).strikePrice()), 'S8');
+     require (_isValidExpiry(IOToken(_nextOToken).expiryTimestamp()), 'S9');
     /**
      * e.g.
      * check otoken strike price is lower than current spot price for put.
