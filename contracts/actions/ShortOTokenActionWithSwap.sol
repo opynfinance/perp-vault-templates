@@ -16,7 +16,6 @@ import { IWETH } from '../interfaces/IWETH.sol';
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
-
 /**
  * Error Codes
  * S1: msg.sender must be the vault
@@ -147,22 +146,28 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     require(_order.sender.token == otoken, 'S4');
     require(_order.signer.token == address(underlying), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
-    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
 
     // mint options
     _mintOTokens(_collateralAmount, _otokenAmount);
 
     lockedAsset = lockedAsset.add(_collateralAmount);
 
-    IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
+    // this order matters a lot because we need to get the balance before selling otokens, after minting. 
+    uint256 sdTokenBalanceBefore = stakedaoStrategy.balanceOf(address(this));
 
     // sell options on airswap for underlying
+    IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
     _fillAirswapOrder(_order);
 
     // convert the underlying received as premium to sdToken
     _underlyingToSdToken();
 
-    emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
+    // check that minimum premium is received 
+    uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
+    uint256 sdTokenEarned = sdTokenBalanceAfter.sub(sdTokenBalanceBefore);
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
+
+    emit MintAndSellOToken(_collateralAmount, _otokenAmount, sdTokenEarned);
   }
 
   /**
