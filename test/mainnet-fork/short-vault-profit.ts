@@ -5,7 +5,6 @@ import {expect} from 'chai';
 import {
   OpynPerpVault,
   IERC20,
-  IWETH,
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
@@ -481,13 +480,12 @@ describe('Mainnet Fork Tests', function() {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
+      const amountTransferredToP1 = amountToWithdraw.mul(95).div(100);
       const balanceOfP1Before = await wbtc.balanceOf(depositor1.address);
 
       // fee calculations 
-      const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -501,7 +499,7 @@ describe('Mainnet Fork Tests', function() {
       const vaultSdECRVBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
       const balanceOfP1After = await wbtc.balanceOf(depositor1.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
@@ -521,9 +519,7 @@ describe('Mainnet Fork Tests', function() {
       expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect wBTC transferred to p1').to.be.true;
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
     it('option expires', async () => {
@@ -573,13 +569,12 @@ describe('Mainnet Fork Tests', function() {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
+      const amountTransferredToP2 = amountToWithdraw.mul(95).div(100);
       const balanceOfP2Before = await wbtc.balanceOf(depositor2.address);
 
       // fee calculations 
-      const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -593,7 +588,7 @@ describe('Mainnet Fork Tests', function() {
       const vaultSdECRVBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address)
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address)
       const balanceOfP2After = await wbtc.balanceOf(depositor2.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
@@ -611,30 +606,31 @@ describe('Mainnet Fork Tests', function() {
       );
 
       // check p2 balance 
-      expect(balanceOfP2After.gte((balanceOfP2Before.add(amountTransferredToP2))), 'incorrect ETH transferred to p2').to.be.true;
+      expect(balanceOfP2After.gte((balanceOfP2Before.add(amountTransferredToP2))), 'incorrect underlying transferred to p2').to.be.true;
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
     it('p3 withdraws', async () => {
+      const vaultTotalBefore = await vault.totalStakedaoAsset();
+      const sharesBefore = await vault.totalSupply();
+      const sharesToWithdraw = await vault.balanceOf(depositor3.address);
+
       // balance calculations 
       const amountToWithdraw = p3DepositAmount;
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
+      const amountTransferredToP3 = amountToWithdraw.mul(95).div(100);
       const balanceOfP3Before = await wbtc.balanceOf(depositor3.address);
 
       // fee calculations
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
-      const effectiveFee = fee.mul(95).div(100)
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
       await vault
         .connect(depositor3)
         .withdrawUnderlying(await vault.balanceOf(depositor3.address), amountTransferredToP3);
 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
       const balanceOfP3After = await wbtc.balanceOf(depositor3.address);
 
       expect(
@@ -646,12 +642,10 @@ describe('Mainnet Fork Tests', function() {
       );
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
 
       // check p3 balance 
-      expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect ETH transferred to p3').to.be.true;
+      expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect underlying transferred to p3').to.be.true;
     });
   });
 });

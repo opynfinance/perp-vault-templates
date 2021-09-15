@@ -1,28 +1,27 @@
-import {ethers, network} from 'hardhat';
-import {BigNumber, Signer, utils} from 'ethers';
-import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
-import {expect} from 'chai';
+import { ethers, network } from 'hardhat';
+import { BigNumber, Signer, utils } from 'ethers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
 import {
   OpynPerpVault,
   IERC20,
-  IWETH,
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
   StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
-  MockPricer, 
+  MockPricer,
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-import {getOrder} from '../utils/orders';
+import { getOrder } from '../utils/orders';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
-      .readFileSync('.secret')
-      .toString()
-      .trim()
+    .readFileSync('.secret')
+    .toString()
+    .trim()
   : 'test test test test test test test test test test test junk';
 
 enum VaultState {
@@ -38,20 +37,20 @@ enum ActionState {
 }
 
 enum ActionType {
-    OpenVault,
-    MintShortOption,
-    BurnShortOption,
-    DepositLongOption,
-    WithdrawLongOption,
-    DepositCollateral,
-    WithdrawCollateral,
-    SettleVault,
-    Redeem,
-    Call,
-    InvalidAction,
-  }
+  OpenVault,
+  MintShortOption,
+  BurnShortOption,
+  DepositLongOption,
+  WithdrawLongOption,
+  DepositCollateral,
+  WithdrawCollateral,
+  SettleVault,
+  Redeem,
+  Call,
+  InvalidAction,
+}
 
-describe('Mainnet Fork Tests', function() {
+describe('Mainnet Fork Tests', function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(
     mnemonic,
     "m/44'/60'/0'/0/30"
@@ -149,9 +148,9 @@ describe('Mainnet Fork Tests', function() {
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
     controller = (await ethers.getContractAt(
-        'IController',
-        controllerAddress
-      )) as IController;
+      'IController',
+      controllerAddress
+    )) as IController;
   });
 
   this.beforeAll('Deploy vault and sell wBTC calls action', async () => {
@@ -249,7 +248,7 @@ describe('Mainnet Fork Tests', function() {
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
 
-  this.beforeAll('send everyone wbtc', async () => { 
+  this.beforeAll('send everyone wbtc', async () => {
     const wbtcWhale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
 
     // send everyone wbtc
@@ -263,7 +262,7 @@ describe('Mainnet Fork Tests', function() {
     await provider.send('hardhat_stopImpersonatingAccount', [wbtcWhale]);
   })
 
-  this.beforeAll('prepare counterparty wallet', async () => { 
+  this.beforeAll('prepare counterparty wallet', async () => {
     // prepare counterparty
     counterpartyWallet = counterpartyWallet.connect(provider);
     await owner.sendTransaction({
@@ -274,7 +273,7 @@ describe('Mainnet Fork Tests', function() {
     // approve wbtc to be spent by counterparty 
     await wbtc.connect(counterpartyWallet).approve(swapAddress, premium);
   })
-  
+
 
   describe('check the admin setup', async () => {
     it('contract is initialized correctly', async () => {
@@ -379,7 +378,7 @@ describe('Mainnet Fork Tests', function() {
       // check the minted share balances
       const stakedaoDeposited = vaultSdcrvRenWsbtcBalance.sub(vaultSdcrvRenWsbtcBalanceBefore);
       const shares = sharesBefore.div(vaultSdcrvRenWsbtcBalanceBefore).mul(stakedaoDeposited)
-      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
+      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted').to.be.equal(shares)
     });
 
     it('tests getPrice in sdcrvRenWsbtcPricer', async () => {
@@ -415,8 +414,8 @@ describe('Mainnet Fork Tests', function() {
       const premiumInSdcrvRenWsbtc = premium.mul(95).div(100);
       const expectedTotal = vaultSdcrvRenWsbtcBalanceBefore.add(premiumInSdcrvRenWsbtc);
       expectedSdcrvRenWsbtcBalanceInAction = expectedSdcrvRenWsbtcBalanceInVault.add(premiumInSdcrvRenWsbtc);
-      const sellAmount = (collateralAmount.div(10000000000)).toString(); 
-      optionsSold =  collateralAmount.div(10000000000);
+      const sellAmount = (collateralAmount.div(10000000000)).toString();
+      optionsSold = collateralAmount.div(10000000000);
 
       const marginPoolBalanceOfsdcrvRenWsbtcBefore = await sdcrvRenWsbtc.balanceOf(marginPoolAddess);
 
@@ -495,7 +494,7 @@ describe('Mainnet Fork Tests', function() {
     it('p1 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
-      const vaultSdBtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
@@ -503,13 +502,12 @@ describe('Mainnet Fork Tests', function() {
       const denominator = p1DepositAmount.add(p2DepositAmount);
       const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
+      const amountTransferredToP1 = amountToWithdraw.mul(95).div(100);
       const balanceOfP1Before = await wbtc.balanceOf(depositor1.address);
 
       // fee calculations 
-      const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -520,10 +518,10 @@ describe('Mainnet Fork Tests', function() {
       const sharesAfter = await vault.totalSupply();
       const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
       const sdcrvRenWsbtcWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
-      const vaultSdBtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
       const balanceOfP1After = await wbtc.balanceOf(depositor1.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
@@ -532,20 +530,18 @@ describe('Mainnet Fork Tests', function() {
       // check vault balance 
       expect(
         vaultTotalSdcrvRenWsbtc).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
-        'total asset should update'
-      );
-      expect(vaultSdBtcBalanceAfter).to.be.within(
-        vaultSdBtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
-        vaultSdBtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
+          'total asset should update'
+        );
+      expect(vaultSdcrvRenWsbtcBalanceAfter).to.be.within(
+        vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
+        vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
       );
 
       // check p1 balance 
       expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect wBTC transferred to p1').to.be.true;
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
     it('option expires', async () => {
@@ -592,7 +588,7 @@ describe('Mainnet Fork Tests', function() {
     it('p2 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
-      const vaultSdBtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor2.address);
 
@@ -601,15 +597,14 @@ describe('Mainnet Fork Tests', function() {
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       // p2 deposited 70, since btc price doubled, they should get about half back. 
       const amountToWithdraw = p2DepositAmount.mul(35).div(90).add(shareOfPremium);
-      const fee = amountToWithdraw.mul(5).div(1000);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
       // Slippage 5% 
-      const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const amountTransferredToP2 = amountToWithdraw.mul(95).div(100);
       const balanceOfP2Before = await wbtc.balanceOf(depositor2.address);
 
       // fee calculations 
       // Slippage 5%
-      const effectiveFee = fee.mul(95).div(100);
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
       await vault
         .connect(depositor2)
@@ -619,10 +614,10 @@ describe('Mainnet Fork Tests', function() {
       const sharesAfter = await vault.totalSupply();
       const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
       const sdcrvRenWsbtcWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
-      const vaultSdBtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address)
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address)
       const balanceOfP2After = await wbtc.balanceOf(depositor2.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
@@ -632,41 +627,40 @@ describe('Mainnet Fork Tests', function() {
       // check vault balance 
       expect(
         vaultTotalSdcrvRenWsbtc).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
-        'total asset should update'
-      );
-      expect(vaultSdBtcBalanceAfter).to.be.within(
-        vaultSdBtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
-        vaultSdBtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
+          'total asset should update'
+        );
+      expect(vaultSdcrvRenWsbtcBalanceAfter).to.be.within(
+        vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
+        vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
       );
 
       // check p2 balance 
-      expect(balanceOfP2After.gte((balanceOfP2Before.add(amountTransferredToP2))), 'incorrect ETH transferred to p2').to.be.true;
+      expect(balanceOfP2After.gte((balanceOfP2Before.add(amountTransferredToP2))), 'incorrect Underlying transferred to p2').to.be.true;
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
     it('p3 withdraws', async () => {
+      const vaultTotalBefore = await vault.totalStakedaoAsset();
+      const sharesBefore = await vault.totalSupply();
+      const sharesToWithdraw = await vault.balanceOf(depositor3.address);
+
       // balance calculations 
-      // p2 deposited 20, since btc price doubled, they should get about half back. 
       const amountToWithdraw = p3DepositAmount.mul(10).div(90);
-      const fee = amountToWithdraw.mul(5).div(1000);
+      const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
       // Slippage 5%
-      const amountTransferredToP3 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const amountTransferredToP3 = amountToWithdraw.mul(95).div(100);
       const balanceOfP3Before = await wbtc.balanceOf(depositor3.address);
 
       // fee calculations
-      const balanceOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
-    // Slippage 95%
-      const effectiveFee = fee.mul(95).div(100)
+      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
 
       await vault
         .connect(depositor3)
         .withdrawUnderlying(await vault.balanceOf(depositor3.address), amountTransferredToP3);
 
-      const balanceOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
       const balanceOfP3After = await wbtc.balanceOf(depositor3.address);
 
       expect(
@@ -678,44 +672,44 @@ describe('Mainnet Fork Tests', function() {
       );
 
       // check fee 
-      expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
-      ), 'incorrect fee paid out').to.be.true;
+      console.log(balanceOfFeeRecipientAfter.toString(), balanceOfFeeRecipientBefore.toString(), fee.toString())
+      console.log(sharesToWithdraw.toString(), sharesBefore.toString(), vaultTotalBefore.toString())
+      expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
 
       // check p3 balance 
-      expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect ETH transferred to p3').to.be.true;
+      expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect Underlying transferred to p3').to.be.true;
     });
 
-    it('counterparty redeems and gets sdecrv', async () => { 
+    it('counterparty redeems and gets sdecrv', async () => {
 
-        const sdecrvPrice = await oracle.getExpiryPrice(sdcrvRenWsbtc.address, expiry);
-        const sdecrvToETHPrice = sdecrvPrice[0]
-        // options sold * 5000/ 10000 * 1/sdecrvConv = payout, scaling this up to 1e18. 
-        const payout = optionsSold.mul('1000000000000000000').mul('10000').div(sdecrvToETHPrice).div(2)
-        const payoutExpected = payout.mul(9999).div(10000);
+      const sdecrvPrice = await oracle.getExpiryPrice(sdcrvRenWsbtc.address, expiry);
+      const sdecrvToUnderlyingPrice = sdecrvPrice[0]
+      // options sold * 5000/ 10000 * 1/sdecrvConv = payout, scaling this up to 1e18. 
+      const payout = optionsSold.mul('1000000000000000000').mul('10000').div(sdecrvToUnderlyingPrice).div(2)
+      const payoutExpected = payout.mul(9999).div(10000);
 
-        const sdecrvBalanceBefore = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
-        
-        const actionArgs = [
-            {
-              actionType: ActionType.Redeem,
-              owner: ZERO_ADDR,
-              secondAddress: counterpartyWallet.address,
-              asset: otoken.address,
-              vaultId: '0',
-              amount: optionsSold,
-              index: '0',
-              data: ZERO_ADDR,
-            },
-          ]
+      const sdecrvBalanceBefore = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
 
-          await controller.connect(counterpartyWallet).operate(actionArgs);
+      const actionArgs = [
+        {
+          actionType: ActionType.Redeem,
+          owner: ZERO_ADDR,
+          secondAddress: counterpartyWallet.address,
+          asset: otoken.address,
+          vaultId: '0',
+          amount: optionsSold,
+          index: '0',
+          data: ZERO_ADDR,
+        },
+      ]
 
-          const sdecrvBalanceAfter = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
+      await controller.connect(counterpartyWallet).operate(actionArgs);
 
-          // TODO: off by a small amount, need to figure out how best to round. 
-          expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
-          expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;
+      const sdecrvBalanceAfter = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
+
+      // TODO: off by a small amount, need to figure out how best to round. 
+      expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
+      expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;
     })
   });
 });

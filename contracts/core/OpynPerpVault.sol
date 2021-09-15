@@ -239,7 +239,47 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev burns shares, withdraws crvLPToken from stakdao, withdraws underlying from curvePool
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawUnderlying(uint256 _share, uint256 _minEth) external nonReentrant {
+  function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
+    notEmergency();
+    actionsInitialized();
+
+    uint256 currentSdTokenBalance = _balance();
+    uint256 sdTokenToShareOfRecipient = _getWithdrawAmountByShares(_share);
+    uint256 fee = _getWithdrawFee(sdTokenToShareOfRecipient);
+    uint256 sdTokenToWithdraw = sdTokenToShareOfRecipient.sub(fee);
+    require(sdTokenToWithdraw <= currentSdTokenBalance, 'O8');
+
+    // burn shares
+    _burn(msg.sender, _share);
+    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
+
+    // withdraw from stakedao
+    stakedaoStrategy.withdraw(sdTokenToWithdraw);
+
+    // transfer fee to recipient 
+    IERC20 stakedaoToken = IERC20(sdTokenAddress);
+    stakedaoToken.safeTransfer(feeRecipient, fee);
+
+    // withdraw from curve 
+    IERC20 underlyingToken = IERC20(underlying);
+    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
+    uint256 crvLPTokenBalance = stakedaoStrategy.token().balanceOf(address(this));
+    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minUnderlying);
+    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
+    uint256 underlyingOwedToUser = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+
+    // send underlying to user
+    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
+
+    // emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
+  }
+
+  /**
+   * @notice Withdraws curveLPToken from stakedao
+   * @dev burns shares, withdraws crvLPToken from stakdao
+   * @param _share is the number of vault shares to be burned
+   */
+  function withdrawCrvLp (uint256 _share, uint256 _minUnderlying) external nonReentrant {
     notEmergency();
     actionsInitialized();
     uint256 currentSdTokenBalance = _balance();
@@ -249,30 +289,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _burn(msg.sender, _share);
 
     // withdraw from stakedao and curvePool
-    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
-    stakedaoStrategy.withdraw(sdTokenToWithdraw);
-    _withdrawFromCurve(_minEth, _share);
+    IStakeDao sdToken = IStakeDao(sdTokenAddress);
+    sdToken.withdraw(sdTokenToWithdraw);
+    _withdrawFromCurve(_minUnderlying, _share);
   }
-
-  // /**
-  //  * @notice Withdraws underlying from vault using vault shares
-  //  * @dev burns shares, withdraws crvLPToken from stakdao, withdraws underlying from curvePool
-  //  * @param _share is the number of vault shares to be burned
-  //  */
-  // function withdrawUnderlying(uint256 _share, uint256 _minEth) external nonReentrant {
-  //   notEmergency();
-  //   actionsInitialized();
-  //   uint256 currentSdTokenBalance = _balance();
-  //   uint256 sdTokenToWithdraw = _getWithdrawAmountByShares(_share);
-  //   require(sdTokenToWithdraw <= currentSdTokenBalance, 'O8');
-
-  //   _burn(msg.sender, _share);
-
-  //   // withdraw from stakedao and curvePool
-  //   IStakeDao sdToken = IStakeDao(sdTokenAddress);
-  //   sdToken.withdraw(sdTokenToWithdraw);
-  //   _withdrawFromCurve(_minEth, _share);
-  // }
 
   /**
    * @notice anyone can call this to close out the previous round by calling "closePositions" on all actions. 
@@ -412,12 +432,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _mint(msg.sender, share);
   }
 
-  function _withdrawFromCurve(uint256 _minEth, uint256 _share) internal {
+  function _withdrawFromCurve(uint256 _minUnderlying, uint256 _share) internal {
     IERC20 underlyingToken = IERC20(underlying);
     uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
     IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
     uint256 crvLPTokenBalance = stakedaoStrategy.token().balanceOf(address(this));
-    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minEth);
+    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minUnderlying);
     uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
     uint256 underlyingReceived = underlyingBalanceAfter.sub(underlyingBalanceBefore);
 
