@@ -408,8 +408,6 @@ describe('Mainnet Fork Tests', function() {
 
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
-
-      // const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
       const expectedSdcrvRenWsbtcBalanceInVault = vaultSdcrvRenWsbtcBalanceBefore.mul(reserveFactor).div(100)
       let expectedSdcrvRenWsbtcBalanceInAction = vaultSdcrvRenWsbtcBalanceBefore.sub(expectedSdcrvRenWsbtcBalanceInVault)
       const collateralAmount = await sdcrvRenWsbtc.balanceOf(action1.address)

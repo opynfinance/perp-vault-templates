@@ -102,7 +102,7 @@ describe('Mainnet Fork Tests', function () {
   const p1DepositAmount = BigNumber.from('1000000000')
   const p2DepositAmount = BigNumber.from('7000000000')
   const p3DepositAmount = BigNumber.from('2000000000')
-  const premium = BigNumber.from('200000000')
+  const premium = BigNumber.from('800000000')
 
   /**
    *
