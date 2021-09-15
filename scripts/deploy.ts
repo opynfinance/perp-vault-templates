@@ -4,21 +4,21 @@ import { ethers } from 'hardhat'
 import { OpynPerpVault, ShortOTokenActionWithSwap } from "../typechain"
 
 const airswapAddress = "0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA"
-const curveStableSwapSETHPoolAddress = "0xc5424B857f758E906013F3555Dad202e4bdB4567"
+const curveSbtcSwapAddress = "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714"
 const gammaControllerAddress = "0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72"
 const gammaWhitelistAddress = "0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779"
 const newOwnerAddress = "0xb36a0671B3D49587236d7833B01E79798175875f"
-const sdeCRVTokenAddress = "0xa2761B0539374EB7AF2155f76eb09864af075250"
-const vaultWithdrawalFeeRecipientAddress = "0x9d75c85f864ab9149e23f27c35addae09b9b909c"
-const wETHAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+const sdcrvRenWsbtcAddress = "0x24129B935AfF071c4f0554882C0D9573F4975fEd"
+const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
 
 async function deployContracts() {
     // deploy OpynPerpVault
     const OpynPerpVault: ContractFactory = await ethers.getContractFactory('OpynPerpVault');
     const opynPerpVault = await OpynPerpVault.deploy(
-        sdeCRVTokenAddress,
-        curveStableSwapSETHPoolAddress,
-        vaultWithdrawalFeeRecipientAddress,
+        wbtcAddress,
+        sdcrvRenWsbtcAddress,
+        curveSbtcSwapAddress,
+        newOwnerAddress, // Owner is fee recipient 
         "StakeDAO ETH Covered Call Strategy",
         "sdETHCoveredCall"
     ) as OpynPerpVault;
@@ -31,14 +31,14 @@ async function deployContracts() {
     );
     const shortOTokenActionWithSwap = await ShortOTokenActionWithSwap.deploy(
         opynPerpVault.address,
-        sdeCRVTokenAddress,
+        sdcrvRenWsbtcAddress,
         airswapAddress,
         gammaWhitelistAddress,
         gammaControllerAddress,
-        curveStableSwapSETHPoolAddress,
+        curveSbtcSwapAddress,
         0, // type 0 vault
-        wETHAddress,
-        8, // 0.08%
+        wbtcAddress,
+        4, // 0.04%
     ) as ShortOTokenActionWithSwap;
 
     console.log(`\nShortOTokenActionWithSwap deployed at ${shortOTokenActionWithSwap.address}.`)
