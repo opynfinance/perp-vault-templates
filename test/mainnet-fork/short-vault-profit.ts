@@ -89,7 +89,7 @@ describe('Mainnet Fork Tests', function() {
   const p1DepositAmount = BigNumber.from('1000000000')
   const p2DepositAmount = BigNumber.from('7000000000')
   const p3DepositAmount = BigNumber.from('2000000000')
-  const premium = BigNumber.from('200000000')
+  const premium = BigNumber.from('800000000')
 
   /**
    *
@@ -398,7 +398,7 @@ describe('Mainnet Fork Tests', function() {
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    xit('owner mints options with sdcrvRenWsbtc as collateral and sells them', async () => {
+    it('owner mints options with sdcrvRenWsbtc as collateral and sells them', async () => {
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
