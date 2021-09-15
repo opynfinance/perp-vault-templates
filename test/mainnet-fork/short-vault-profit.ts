@@ -11,7 +11,9 @@ import {
   StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
-  MockPricer
+  MockPricer,
+  IStakeDao,
+  ICurve
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
@@ -59,6 +61,8 @@ describe('Mainnet Fork Tests', function() {
   let sbtcPricer: StakedaoEcrvPricer;
   let wbtcPricer: MockPricer;
   let oracle: IOracle;
+  let stakedaoSdcrvRenWsbtcStrategy: IStakeDao;
+  let curvePool: ICurve;
   let provider: typeof ethers.provider;
 
   /**
@@ -130,6 +134,8 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
+    stakedaoSdcrvRenWsbtcStrategy = (await ethers.getContractAt('IStakeDao', sdcrvRenWsbtcAddress)) as IStakeDao;
+    curvePool = (await ethers.getContractAt('ICurve', curvePoolAddress)) as ICurve;
   });
 
   this.beforeAll('Deploy vault and sell wBTC calls action', async () => {
@@ -309,21 +315,29 @@ describe('Mainnet Fork Tests', function() {
     );
 
     it('p1 deposits', async () => {
-      // there is no accurate way of estimating this, so just approximating for now
-      const expectedSdcrvRenWsbtcInVault = p1DepositAmount.mul(95).div(100);
+      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      const crvRenWsbtcTowbtc = await curvePool.get_virtual_price();
+      const amountCrvRenWsbtcDeposited = p1DepositAmount.mul(utils.parseEther('1.0')).div(crvRenWsbtcTowbtc);
+      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdcrvRenWsbtcStrategy.getPricePerFullShare();
+      const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
+
+      // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
+      const upperBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(10000000000)
+      // 1% slippage from the ideal is acceptable at most
+      const lowerBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(99).div(100).mul(10000000000);
+
 
       await wbtc.connect(depositor1).approve(vault.address, p1DepositAmount);
-      await vault.connect(depositor1).depositUnderlying(p1DepositAmount, '0');
+      await vault.connect(depositor1).depositUnderlying(p1DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
+
 
       const vaultTotal = await vault.totalStakedaoAsset();
       const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
       const totalSharesMinted = vaultSdcrvRenWsbtcBalance;
 
+
       // check the sdcrvRenWsbtc token balances
-      expect(
-        (vaultTotal).gte(expectedSdcrvRenWsbtcInVault),
-        'internal accounting is incorrect'
-      ).to.be.true;
+      expect(vaultTotal, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
       expect(vaultSdcrvRenWsbtcBalance).to.be.equal(
         vaultTotal, 'internal balance is incorrect'
       );
@@ -333,28 +347,38 @@ describe('Mainnet Fork Tests', function() {
     });
 
     it('p2 deposits', async () => {
-      // there is no accurate way of estimating this, so just approximating for now
-      const expectedSdcrvRenWsbtcInVault = p1DepositAmount.mul(95).div(100);
+      // Calculate lower and upper bounds
+      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      const crvRenWsbtcTowbtc = await curvePool.get_virtual_price();
+      const amountCrvRenWsbtcDeposited = p2DepositAmount.mul(utils.parseEther('1.0')).div(crvRenWsbtcTowbtc);
+      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdcrvRenWsbtcStrategy.getPricePerFullShare();
+      const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
+      // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
+      const upperBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(10000000000)
+      // 1% slippage from the ideal is acceptable at most
+      const lowerBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(99).div(100).mul(10000000000);
+
+
+      // keep track of shares before
       const sharesBefore = await vault.totalSupply();
       const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
 
+      // Approve and deposit underlying
       await wbtc.connect(depositor2).approve(vault.address, p2DepositAmount);
-      await vault.connect(depositor2).depositUnderlying(p2DepositAmount, '0');
+      await vault.connect(depositor2).depositUnderlying(p2DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
 
       const vaultTotal = await vault.totalStakedaoAsset();
-      const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const sdcrvRenWsbtcDeposited = vaultSdcrvRenWsbtcBalanceAfter.sub(vaultSdcrvRenWsbtcBalanceBefore);
+
       // check the sdcrvRenWsbtc token balances
       // there is no accurate way of estimating this, so just approximating for now
-      expect(
-        (vaultTotal).gte(expectedSdcrvRenWsbtcInVault),
-        'internal accounting is incorrect'
-      ).to.be.true;
+      expect(sdcrvRenWsbtcDeposited, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
       expect(vaultTotal).to.be.equal(
-        vaultSdcrvRenWsbtcBalance, 'internal balance is incorrect'
+        vaultSdcrvRenWsbtcBalanceAfter, 'internal balance is incorrect'
       );
 
       // check the minted share balances
-      const sdcrvRenWsbtcDeposited = vaultSdcrvRenWsbtcBalance.sub(vaultSdcrvRenWsbtcBalanceBefore);
       const shares = sharesBefore.div(vaultSdcrvRenWsbtcBalanceBefore).mul(sdcrvRenWsbtcDeposited)
       expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
     });
@@ -374,7 +398,7 @@ describe('Mainnet Fork Tests', function() {
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    it('owner mints options with sdcrvRenWsbtc as collateral and sells them', async () => {
+    xit('owner mints options with sdcrvRenWsbtc as collateral and sells them', async () => {
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
