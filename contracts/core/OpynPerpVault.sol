@@ -267,7 +267,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev burns shares, withdraws curveLPToken from stakdao
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawCrvLp (uint256 _share, uint256 _minUnderlying) external nonReentrant {
+  function withdrawCrvLp (uint256 _share) external nonReentrant {
      uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
      curveLPToken.safeTransfer(msg.sender, curveLPTokenBalance);
 

@@ -13,7 +13,8 @@ import {
   IOracle,
   IWhitelist,
   MockPricer, 
-  MockCurveWrapper
+  MockCurveWrapper, 
+  IStakeDao
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
@@ -46,8 +47,8 @@ describe('Mainnet Fork Tests', function() {
   // asset used by this action: in this case, wbtc
   let wbtc: IERC20;
   let usdc: IERC20;
-  let crvRenWSBTC: IERC20;
-  let sdcrvRenWSBTC: IERC20;
+//   let crvRenWsbtc: IERC20;
+  let sdcrvRenWsbtc: IERC20;
   let curveLP: IERC20;
 
   let accounts: SignerWithAddress[] = [];
@@ -64,6 +65,7 @@ describe('Mainnet Fork Tests', function() {
   let oracle: IOracle;
   let curveWrapper: MockCurveWrapper;
   let provider: typeof ethers.provider;
+  let stakedaoStrategy: IStakeDao;
 
   /**
    *
@@ -79,9 +81,9 @@ describe('Mainnet Fork Tests', function() {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-  const stakeDaoTokenAddress = '0x24129B935AfF071c4f0554882C0D9573F4975fEd';
+  const sdcrvRenWsbtcAddress = '0x24129B935AfF071c4f0554882C0D9573F4975fEd';
   const curveAddress = '0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714';
-  const sbtcCrvAddress = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3';
+  const crvRenWsbtcAddress = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef'
 
@@ -90,6 +92,9 @@ describe('Mainnet Fork Tests', function() {
   const p2DepositAmount = BigNumber.from('7000000000')
   const p3DepositAmount = BigNumber.from('2000000000')
   const premium = BigNumber.from('200000000')
+
+  /** Variables */
+  let p1CurveLPDepsited: BigNumber;
 
   /**
    *
@@ -123,25 +128,26 @@ describe('Mainnet Fork Tests', function() {
 
   this.beforeAll('Connect to mainnet contracts', async () => {
     wbtc = (await ethers.getContractAt('IERC20', wbtcAddress)) as IERC20;
-    curveLP = (await ethers.getContractAt('IERC20', sbtcCrvAddress)) as IERC20;
+    curveLP = (await ethers.getContractAt('IERC20', crvRenWsbtcAddress)) as IERC20;
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
-    crvRenWSBTC = (await ethers.getContractAt('IERC20', sbtcCrvAddress)) as IERC20;
-    sdcrvRenWSBTC = (await ethers.getContractAt(
+    // crvRenWsbtc = (await ethers.getContractAt('IERC20', crvRenWsbtcAddress)) as IERC20;
+    sdcrvRenWsbtc = (await ethers.getContractAt(
       'IERC20',
-      stakeDaoTokenAddress
+      sdcrvRenWsbtcAddress
     )) as IERC20;
     otokenFactory = (await ethers.getContractAt(
       'IOtokenFactory',
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
+    stakedaoStrategy = (await ethers.getContractAt('IStakeDao', sdcrvRenWsbtcAddress)) as IStakeDao;
   });
 
   this.beforeAll('Deploy vault and sell wBTC calls action', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
     vault = (await VaultContract.deploy(
       wbtc.address,
-      stakeDaoTokenAddress,
+      sdcrvRenWsbtcAddress,
       curveAddress,
       feeRecipient.address,
       'OpynPerpShortVault share',
@@ -154,7 +160,7 @@ describe('Mainnet Fork Tests', function() {
     );
     action1 = (await ShortActionContract.deploy(
       vault.address,
-      stakeDaoTokenAddress,
+      sdcrvRenWsbtcAddress,
       swapAddress,
       whitelistAddress,
       controllerAddress,
@@ -169,7 +175,7 @@ describe('Mainnet Fork Tests', function() {
     );
 
     const CurveWrapper = await ethers.getContractFactory('MockCurveWrapper') 
-    curveWrapper = (await CurveWrapper.deploy(curveAddress, sbtcCrvAddress, wbtcAddress)) as MockCurveWrapper;
+    curveWrapper = (await CurveWrapper.deploy(curveAddress, crvRenWsbtcAddress, wbtcAddress)) as MockCurveWrapper;
   });
 
   this.beforeAll(
@@ -181,7 +187,7 @@ describe('Mainnet Fork Tests', function() {
         'StakedaoEcrvPricer'
       );
       sbtcPricer = (await PricerContract.deploy(
-        sdcrvRenWSBTC.address,
+        sdcrvRenWsbtc.address,
         wbtc.address,
         oracleAddress,
         curveAddress
@@ -200,7 +206,7 @@ describe('Mainnet Fork Tests', function() {
       const signer = await ethers.provider.getSigner(opynOwner);
       await oracle
         .connect(signer)
-        .setAssetPricer(sdcrvRenWSBTC.address, sbtcPricer.address);
+        .setAssetPricer(sdcrvRenWsbtc.address, sbtcPricer.address);
       await oracle
         .connect(signer)
         .setAssetPricer(wbtc.address, wbtcPricer.address);
@@ -209,7 +215,7 @@ describe('Mainnet Fork Tests', function() {
     }
   );
 
-  this.beforeAll('whitelist sdcrvRenWSBTC in the Opyn system', async () => {
+  this.beforeAll('whitelist sdcrvRenWsbtc in the Opyn system', async () => {
     const whitelist = (await ethers.getContractAt(
       'IWhitelist',
       otokenWhitelistAddress
@@ -222,13 +228,13 @@ describe('Mainnet Fork Tests', function() {
     });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
-    await whitelist.connect(signer).whitelistCollateral(stakeDaoTokenAddress);
+    await whitelist.connect(signer).whitelistCollateral(sdcrvRenWsbtcAddress);
     await whitelist
       .connect(signer)
       .whitelistProduct(
         wbtc.address,
         usdc.address,
-        stakeDaoTokenAddress,
+        sdcrvRenWsbtcAddress,
         false
       );
     await provider.send('evm_mine', []);
@@ -296,21 +302,21 @@ describe('Mainnet Fork Tests', function() {
 
     // it('p1 deposits underlying', async () => {
     //   // there is no accurate way of estimating this, so just approximating for now
-    //   const expectedSdcrvRenWSBTCInVault = p1DepositAmount.mul(95).div(100);
+    //   const expectedSdcrvRenWsbtcInVault = p1DepositAmount.mul(95).div(100);
 
     //   await wbtc.connect(depositor1).approve(vault.address, p1DepositAmount);
     //   await vault.connect(depositor1).depositUnderlying(p1DepositAmount, '0');
 
     //   const vaultTotal = await vault.totalStakedaoAsset();
-    //   const vaultSdcrvRenWSBTCBalance = await sdcrvRenWSBTC.balanceOf(vault.address);
-    //   const totalSharesMinted = vaultSdcrvRenWSBTCBalance;
+    //   const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
+    //   const totalSharesMinted = vaultSdcrvRenWsbtcBalance;
 
-    //   // check the sdcrvRenWSBTC token balances
+    //   // check the sdcrvRenWsbtc token balances
     //   expect(
-    //     (vaultTotal).gte(expectedSdcrvRenWSBTCInVault),
+    //     (vaultTotal).gte(expectedSdcrvRenWsbtcInVault),
     //     'internal accounting is incorrect'
     //   ).to.be.true;
-    //   expect(vaultSdcrvRenWSBTCBalance).to.be.equal(
+    //   expect(vaultSdcrvRenWsbtcBalance).to.be.equal(
     //     vaultTotal, 'internal balance is incorrect'
     //   );
 
@@ -323,26 +329,26 @@ describe('Mainnet Fork Tests', function() {
 
     it('p1 deposits crvLP', async () => {
         // there is no accurate way of estimating this, so just approximating for now
-        const expectedSdcrvRenWSBTCInVault = p1DepositAmount.mul(95).div(100);
+        const expectedSdcrvRenWsbtcInVault = p1DepositAmount.mul(95).div(100);
         // p1 deposits to curve first 
         await wbtc.connect(depositor1).approve(curveWrapper.address, p1DepositAmount);
         await curveWrapper.connect(depositor1).add_liquidity(p1DepositAmount, '0');
 
-        const curveLPBalance = await curveLP.balanceOf(depositor1.address);
+        p1CurveLPDepsited = await curveLP.balanceOf(depositor1.address);
 
-        await curveLP.connect(depositor1).approve(vault.address, curveLPBalance);
-        await vault.connect(depositor1).depositCrvLP(curveLPBalance);
+        await curveLP.connect(depositor1).approve(vault.address, p1CurveLPDepsited);
+        await vault.connect(depositor1).depositCrvLP(p1CurveLPDepsited);
   
         const vaultTotal = await vault.totalStakedaoAsset();
-        const vaultSdcrvRenWSBTCBalance = await sdcrvRenWSBTC.balanceOf(vault.address);
-        const totalSharesMinted = vaultSdcrvRenWSBTCBalance;
+        const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
+        const totalSharesMinted = vaultSdcrvRenWsbtcBalance;
   
-        // check the sdcrvRenWSBTC token balances
+        // check the sdcrvRenWsbtc token balances
         expect(
-          (vaultTotal).gte(expectedSdcrvRenWSBTCInVault),
+          (vaultTotal).gte(expectedSdcrvRenWsbtcInVault),
           'internal accounting is incorrect'
         ).to.be.true;
-        expect(vaultSdcrvRenWSBTCBalance).to.be.equal(
+        expect(vaultSdcrvRenWsbtcBalance).to.be.equal(
           vaultTotal, 'internal balance is incorrect'
         );
   
@@ -352,29 +358,84 @@ describe('Mainnet Fork Tests', function() {
 
     // it('p2 deposits', async () => {
     //   // there is no accurate way of estimating this, so just approximating for now
-    //   const expectedSdcrvRenWSBTCInVault = p1DepositAmount.mul(95).div(100);
+    //   const expectedSdcrvRenWsbtcInVault = p1DepositAmount.mul(95).div(100);
     //   const sharesBefore = await vault.totalSupply();
-    //   const vaultSdcrvRenWSBTCBalanceBefore = await sdcrvRenWSBTC.balanceOf(vault.address);
+    //   const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
 
     //   await wbtc.connect(depositor2).approve(vault.address, p2DepositAmount);
     //   await vault.connect(depositor2).depositUnderlying(p2DepositAmount, '0');
 
     //   const vaultTotal = await vault.totalStakedaoAsset();
-    //   const vaultSdcrvRenWSBTCBalance = await sdcrvRenWSBTC.balanceOf(vault.address);
-    //   // check the sdcrvRenWSBTC token balances
+    //   const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
+    //   // check the sdcrvRenWsbtc token balances
     //   // there is no accurate way of estimating this, so just approximating for now
     //   expect(
-    //     (vaultTotal).gte(expectedSdcrvRenWSBTCInVault),
+    //     (vaultTotal).gte(expectedSdcrvRenWsbtcInVault),
     //     'internal accounting is incorrect'
     //   ).to.be.true;
     //   expect(vaultTotal).to.be.equal(
-    //     vaultSdcrvRenWSBTCBalance, 'internal balance is incorrect'
+    //     vaultSdcrvRenWsbtcBalance, 'internal balance is incorrect'
     //   );
 
     //   // check the minted share balances
-    //   const stakedaoDeposited = vaultSdcrvRenWSBTCBalance.sub(vaultSdcrvRenWSBTCBalanceBefore);
-    //   const shares = sharesBefore.div(vaultSdcrvRenWSBTCBalanceBefore).mul(stakedaoDeposited)
+    //   const stakedaoDeposited = vaultSdcrvRenWsbtcBalance.sub(vaultSdcrvRenWsbtcBalanceBefore);
+    //   const shares = sharesBefore.div(vaultSdcrvRenWsbtcBalanceBefore).mul(stakedaoDeposited)
     //   expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
     // });
   });
+
+  describe('withdraw tests', async () => { 
+    it('p1 withdraws', async () => {
+        // vault balance calculations
+        const vaultTotalBefore = await vault.totalStakedaoAsset();
+        const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+        const sharesBefore = await vault.totalSupply();
+        const sharesToWithdraw = await vault.balanceOf(depositor1.address);
+  
+        // p1 balance calculations 
+        const pricePerShare = await stakedaoStrategy.getPricePerFullShare()
+        const feeInSdLP = sharesToWithdraw.div(sharesBefore).mul(vaultTotalBefore).mul(5).div(1000)
+        const feeInCrvLP = feeInSdLP.mul(pricePerShare).div(utils.parseEther('1.0'));
+        const amountTransferredToP1 = p1CurveLPDepsited.sub(feeInCrvLP);
+        const balanceOfP1Before = await curveLP.balanceOf(depositor1.address);
+  
+        // fee calculations 
+        const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
+  
+  
+        await vault
+          .connect(depositor1)
+          .withdrawCrvLp(sharesToWithdraw);
+  
+        // vault balance variables 
+        const sharesAfter = await vault.totalSupply();
+        const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
+        const sdcrvRenWsbtcWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
+        const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+  
+        // fee variables 
+        const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
+        const balanceOfP1After = await curveLP.balanceOf(depositor1.address);
+  
+        expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
+  
+        const vaultTotalSdcrvRenWsbtc = await vault.totalStakedaoAsset();
+        // check vault balance 
+        expect(
+          vaultTotalSdcrvRenWsbtc).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(2) as any,
+            'total asset should update'
+          );
+        expect(vaultSdcrvRenWsbtcBalanceAfter).to.be.within(
+          vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
+          vaultSdcrvRenWsbtcBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
+        );
+
+        console.log(feeInCrvLP.toString(), balanceOfP1After.toString(), balanceOfP1Before.toString())
+        // check p1 balance 
+        expect(balanceOfP1After, 'incorrect wBTC transferred to p1').to.be.within(balanceOfP1Before.add(amountTransferredToP1).sub(5) as any, balanceOfP1Before.add(amountTransferredToP1).add(5) as any)
+  
+        // check fee 
+        expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(feeInSdLP))
+      });
+  })
 });
