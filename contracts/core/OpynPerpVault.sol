@@ -41,7 +41,7 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
  * @author Opyn Team
  * @dev implementation of the Opyn Perp Vault contract that works with stakedao's underlying strategy. 
  * Note that this implementation is meant to only specifically work for the stakedao underlying strategy and is not 
- * a generalized contract. Stakedao's underlying strategy currently accepts curvePool LP tokens called crvLPToken from the 
+ * a generalized contract. Stakedao's underlying strategy currently accepts curvePool LP tokens called curveLPToken from the 
  * underlying curve pool. This strategy allows users to convert their underlying into yield earning sdToken tokens
  * and use the sdToken tokens as collateral to sell underlying call options on Opyn. 
  */
@@ -82,6 +82,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev curvePool for the corresponding stakedao strategy 
   ICurve public curvePool;
 
+  /// @dev the curve LP token address for the particular pool
+  IERC20 public curveLPToken;
+
+  /// @dev the stakedao strategy contract
+  IStakeDao stakedaoStrategy;
+
   VaultState public state;
   VaultState public stateBeforePause;
 
@@ -97,7 +103,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   event StateUpdated(VaultState state);
 
-  event Withdraw(address account, uint256 amountWithdrawn, uint256 fee, uint256 shareBurned);
+  event FeeSent(uint256 amount, address feeRecipient);
+
+  event Withdraw(address account, uint256 amountWithdrawn, uint256 shareBurned);
 
   /*=====================
    *     Modifiers      *
@@ -131,6 +139,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     ) ERC20(_tokenName, _tokenSymbol) {
     underlying = _underlying;
     sdTokenAddress = _sdTokenAddress;
+    stakedaoStrategy = IStakeDao(sdTokenAddress);
+    curveLPToken = stakedaoStrategy.token();
     feeRecipient = _feeRecipient;
     curvePool = ICurve(_curvePoolAddress);
     state = VaultState.Unlocked;
@@ -179,7 +189,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * total underlying value of the sdToken controlled by this vault
    */
   function totalUnderlyingControlled() external view returns (uint256) { 
-    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
     // hard coded to 36 because crv LP token and sdToken are both 18 decimals. 
     return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
   }
@@ -196,7 +205,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @notice Deposits underlying into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
    * @param amount amount of underlying to deposit 
-   * @param minCrvLPToken minimum amount of crvLPToken to get out from adding liquidity. 
+   * @param minCrvLPToken minimum amount of curveLPToken to get out from adding liquidity. 
    */
   function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external nonReentrant {
     notEmergency();
@@ -228,70 +237,40 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(amount > 0, 'O6');
 
     // deposit underlying to curvePool
-    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
-    IERC20 crvLPToken = stakedaoStrategy.token();
-    crvLPToken.safeTransferFrom(msg.sender, address(this), amount);
+    curveLPToken.safeTransferFrom(msg.sender, address(this), amount);
     _depositToStakedaoAndMint();
   }
 
   /**
    * @notice Withdraws underlying from vault using vault shares
-   * @dev burns shares, withdraws crvLPToken from stakdao, withdraws underlying from curvePool
+   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws underlying from curvePool
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
-    notEmergency();
-    actionsInitialized();
-
-    uint256 currentSdTokenBalance = _balance();
-    uint256 sdTokenToShareOfRecipient = _getWithdrawAmountByShares(_share);
-    uint256 fee = _getWithdrawFee(sdTokenToShareOfRecipient);
-    uint256 sdTokenToWithdraw = sdTokenToShareOfRecipient.sub(fee);
-    require(sdTokenToWithdraw <= currentSdTokenBalance, 'O8');
-
-    // burn shares
-    _burn(msg.sender, _share);
-    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
-
-    // withdraw from stakedao
-    stakedaoStrategy.withdraw(sdTokenToWithdraw);
-
-    // transfer fee to recipient 
-    IERC20 stakedaoToken = IERC20(sdTokenAddress);
-    stakedaoToken.safeTransfer(feeRecipient, fee);
 
     // withdraw from curve 
     IERC20 underlyingToken = IERC20(underlying);
     uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
-    uint256 crvLPTokenBalance = stakedaoStrategy.token().balanceOf(address(this));
-    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minUnderlying);
+    uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
+    curvePool.remove_liquidity_one_coin(curveLPTokenBalance, 1, _minUnderlying);
     uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
     uint256 underlyingOwedToUser = underlyingBalanceAfter.sub(underlyingBalanceBefore);
 
     // send underlying to user
     underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
 
-    // emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
+    emit Withdraw(msg.sender, underlyingOwedToUser, _share);
   }
 
   /**
    * @notice Withdraws curveLPToken from stakedao
-   * @dev burns shares, withdraws crvLPToken from stakdao
+   * @dev burns shares, withdraws curveLPToken from stakdao
    * @param _share is the number of vault shares to be burned
    */
   function withdrawCrvLp (uint256 _share, uint256 _minUnderlying) external nonReentrant {
-    notEmergency();
-    actionsInitialized();
-    uint256 currentSdTokenBalance = _balance();
-    uint256 sdTokenToWithdraw = _getWithdrawAmountByShares(_share);
-    require(sdTokenToWithdraw <= currentSdTokenBalance, 'O8');
+     uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
+     curveLPToken.safeTransfer(msg.sender, curveLPTokenBalance);
 
-    _burn(msg.sender, _share);
-
-    // withdraw from stakedao and curvePool
-    IStakeDao sdToken = IStakeDao(sdTokenAddress);
-    sdToken.withdraw(sdTokenToWithdraw);
-    _withdrawFromCurve(_minUnderlying, _share);
   }
 
   /**
@@ -412,14 +391,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // keep track of balance before
     uint256 totalSdTokenBalanceBeforeDeposit = totalStakedaoAsset();
 
-    // deposit crvLPToken to stakedao
-    address cacheSdTokenAddress = sdTokenAddress;
-    IStakeDao stakedaoStrategy = IStakeDao(cacheSdTokenAddress);
-    IERC20 crvLPToken = stakedaoStrategy.token();
-    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
+    // deposit curveLPToken to stakedao
+    uint256 curveLPTokenToDeposit = curveLPToken.balanceOf(address(this));
 
-    crvLPToken.safeIncreaseAllowance(cacheSdTokenAddress, crvLPTokenToDeposit);
-    stakedaoStrategy.deposit(crvLPTokenToDeposit);
+    curveLPToken.safeIncreaseAllowance(sdTokenAddress, curveLPTokenToDeposit);
+    stakedaoStrategy.deposit(curveLPTokenToDeposit);
 
     // mint shares and emit event 
     uint256 totalSdTokenWithDepositedAmount = totalStakedaoAsset();
@@ -432,26 +408,28 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _mint(msg.sender, share);
   }
 
-  function _withdrawFromCurve(uint256 _minUnderlying, uint256 _share) internal {
-    IERC20 underlyingToken = IERC20(underlying);
-    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
-    IStakeDao stakedaoStrategy = IStakeDao(sdTokenAddress);
-    uint256 crvLPTokenBalance = stakedaoStrategy.token().balanceOf(address(this));
-    curvePool.remove_liquidity_one_coin(crvLPTokenBalance, 1, _minUnderlying);
-    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
-    uint256 underlyingReceived = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+  function _withdrawFromStakedao(uint256 _share) internal returns (uint256) {
+    notEmergency();
+    actionsInitialized();
 
-    // calculate fees
-    uint256 fee = _getWithdrawFee(underlyingReceived);
-    uint256 underlyingOwedToUser = underlyingReceived.sub(fee);
+    uint256 currentSdTokenBalance = _balance();
+    uint256 sdTokenToShareOfRecipient = _getWithdrawAmountByShares(_share);
+    uint256 fee = _getWithdrawFee(sdTokenToShareOfRecipient);
+    uint256 sdTokenToWithdraw = sdTokenToShareOfRecipient.sub(fee);
+    require(sdTokenToWithdraw <= currentSdTokenBalance, 'O8');
 
-    // send fee to recipient 
-    underlyingToken.safeTransfer(feeRecipient, fee);
+    // burn shares
+    _burn(msg.sender, _share);
 
-    // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
+    // withdraw from stakedao
+    stakedaoStrategy.withdraw(sdTokenToWithdraw);
 
-    emit Withdraw(msg.sender, underlyingOwedToUser, fee, _share);
+    // transfer fee to recipient 
+    IERC20 stakedaoToken = IERC20(sdTokenAddress);
+    stakedaoToken.safeTransfer(feeRecipient, fee);
+    emit FeeSent(fee, feeRecipient);
+
+    return curveLPToken.balanceOf(address(this));
   }
 
   /**

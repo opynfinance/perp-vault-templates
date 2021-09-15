@@ -672,8 +672,6 @@ describe('Mainnet Fork Tests', function () {
       );
 
       // check fee 
-      console.log(balanceOfFeeRecipientAfter.toString(), balanceOfFeeRecipientBefore.toString(), fee.toString())
-      console.log(sharesToWithdraw.toString(), sharesBefore.toString(), vaultTotalBefore.toString())
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
 
       // check p3 balance 
