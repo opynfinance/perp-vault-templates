@@ -18,8 +18,8 @@ contract MockCurve {
 
     function add_liquidity(uint256[3] memory amounts, uint256) external returns (uint256) {
         underlying.transferFrom(msg.sender, address(this), amounts[0]);
-        ecrv.mint(msg.sender, amounts[0]);
-        return amounts[0];
+        ecrv.mint(msg.sender, amounts[1]);
+        return amounts[1];
     }
 
     function get_virtual_price() external pure returns (uint256) {

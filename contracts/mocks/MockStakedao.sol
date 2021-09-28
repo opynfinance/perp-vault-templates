@@ -9,7 +9,7 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
  */
 contract MockStakedao is ERC20PermitUpgradeable {
     
-    address ecrv;
+  address ecrv;
 
   function init(string memory name_, string memory symbol_, uint8 decimals_, address _ecrv) public {
     __ERC20_init_unchained(name_, symbol_);

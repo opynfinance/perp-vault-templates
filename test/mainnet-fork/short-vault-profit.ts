@@ -8,7 +8,7 @@ import {
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
-  StakedaoEcrvPricer,
+  StakedaoPricer,
   IOracle,
   IWhitelist,
   MockPricer,
@@ -58,7 +58,7 @@ describe('Mainnet Fork Tests', function() {
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let sbtcPricer: StakedaoEcrvPricer;
+  let sbtcPricer: StakedaoPricer;
   let wbtcPricer: MockPricer;
   let oracle: IOracle;
   let stakedaoSdcrvRenWsbtcStrategy: IStakeDao;
@@ -176,14 +176,14 @@ describe('Mainnet Fork Tests', function() {
       provider = ethers.provider;
 
       const PricerContract = await ethers.getContractFactory(
-        'StakedaoEcrvPricer'
+        'StakedaoPricer'
       );
       sbtcPricer = (await PricerContract.deploy(
         sdcrvRenWsbtc.address,
         wbtc.address,
         oracleAddress,
         curvePoolAddress
-      )) as StakedaoEcrvPricer;
+      )) as StakedaoPricer;
       const MockPricerContract = await ethers.getContractFactory('MockPricer');
       wbtcPricer = (await MockPricerContract.deploy(
         oracleAddress

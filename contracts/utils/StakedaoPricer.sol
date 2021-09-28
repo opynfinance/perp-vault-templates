@@ -20,11 +20,11 @@ import { IStakeDao } from "../interfaces/IStakeDao.sol";
  */
 
 /**
- * @title StakedaoEcrvPricer
+ * @title StakedaoPricer
  * @author Opyn Team
  * @notice A Pricer contract for a Stakedao lpToken
  */
-contract StakedaoEcrvPricer {
+contract StakedaoPricer {
     using SafeMath for uint256;
 
     /// @notice curve pool
