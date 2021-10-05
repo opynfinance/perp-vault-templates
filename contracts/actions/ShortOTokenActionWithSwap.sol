@@ -16,6 +16,9 @@ import { IWETH } from '../interfaces/IWETH.sol';
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
+import { ILendingPool } from '../interfaces/ILendingPool.sol';
+
+ import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -57,6 +60,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IOracle public oracle;
   IStakeDao public stakedao;
   IWETH weth;
+  ILendingPool lendingPool;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -67,6 +71,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address _opynWhitelist,
     address _controller,
     address _curve,
+    address _lendingPool,
     uint256 _vaultType,
     address _weth,
     uint256 _min_profits
@@ -81,6 +86,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     oracle = IOracle(controller.oracle());
     stakedao = IStakeDao(_stakedaoToken);
     ecrv = stakedao.token();
+
+    lendingPool = ILendingPool(_lendingPool);
 
     // enable vault to take all the stakedaoToken back and re-distribute.
     IERC20(_stakedaoToken).safeApprove(_vault, uint256(-1));
@@ -137,33 +144,124 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     rolloverTime = block.timestamp;
   }
 
-  /**
-   * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
-   * by filling an order on AirSwap.
-   * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+  // /**
+  //  * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
+  //  * by filling an order on AirSwap.
+  //  * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
+  //  */
+  // function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner {
+  //   onlyActivated();
+  //   require(_order.sender.wallet == address(this), 'S3');
+  //   require(_order.sender.token == currentSpread.shortOtoken, 'S4');
+  //   require(_order.signer.token == address(weth), 'S5');
+  //   require(_order.sender.amount == _otokenAmount, 'S6');
+  //   require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
+
+  //   // buy long otokens
+
+  //   // mint options
+  //   _mintOTokens(_collateralAmount, _otokenAmount);
+
+  //   lockedAsset = lockedAsset.add(_collateralAmount);
+
+  //   IERC20(currentSpread.shortOtoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
+
+  //   // sell options on airswap for weth
+  //   // _fillAirswapOrder(_order);
+
+  //   // convert the weth received as premium to sdeCRV
+  //   // _wethToSdEcrv();
+
+  //   emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
+  // }
+
+  function executeOperation(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata params
+    )
+        external
+        // override
+        returns (bool)
+    {
+
+      require(amounts.length == 1, "too many assets");
+        //
+        // This contract now has the funds requested.
+        // Your logic goes here.
+        //
+        
+        // 1. convert weth to sdecrv
+        console.log(weth.balanceOf(address(this)), amounts[0]);
+        _wethToSdEcrv();
+        // 2. mint options 
+        uint256 wethBorrowed = amounts[0]; // 18 decimals 
+        uint256 otokensToSell = wethBorrowed.div(1e10); // 8 decimals 
+        _mintNakedOTokens(amounts[0], otokensToSell);
+        // 3. use those options to mint options on behalf of mm
+        // 4. deposit the new options and withdraw collateral
+        // 5. transfer in weth
+        // TODO: this already happened, should this move here? 
+        // 6. unwrap sdTokens to weth
+        _sdecrvToWeth();
+        // 7. pay back borrowed amount 
+
+        // At the end of your logic above, this contract owes
+        // the flashloaned amounts + premiums.
+        // Therefore ensure your contract has enough to repay
+        // these amounts.
+
+        // Approve the LendingPool contract allowance to *pull* the owed amount
+        for (uint i = 0; i < assets.length; i++) {
+            uint amountOwing = amounts[i].add(premiums[i]);
+            IERC20(assets[i]).approve(address(lendingPool), amountOwing);
+        }
+
+        return true;
+    }
+  
+  /** 
+   * @notice This has to be an operator for the counterparty. 
+   * Because it has operator permissions, use a separate account when transacting with this and 
+   * limit the amount of money that is approved to be spent to margin pool. 
+   * Always only approve the amount of weth that you will be using for the transaction, never more. 
+   * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
-  function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner {
-    onlyActivated();
-    require(_order.sender.wallet == address(this), 'S3');
-    require(_order.sender.token == otoken, 'S4');
-    require(_order.signer.token == address(weth), 'S5');
-    require(_order.sender.amount == _otokenAmount, 'S6');
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
+  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
+    // 1. flash borrow WETH
+    address receiverAddress = address(this);
+    address[] memory assets = new address[](1);
+    assets[0] = address(weth);
+    uint256[] memory amounts = new uint256[](1);
+    uint256 collateralNeeded = optionsToSell.mul(1e10);
+    uint256 amountSdEcrvInAction = stakedao.balanceOf(address(this));
+    uint256 amountToFlashBorrow = collateralNeeded.sub(amountSdEcrvInAction);
+    amounts[0] = amountToFlashBorrow; 
+    uint256[] memory modes = new uint256[](1);
+    modes[0] = 0;
+    address onBehalfOf = address(this);
+    bytes memory params = "";
+    uint16 referralCode = 0;
 
-    // mint options
-    _mintOTokens(_collateralAmount, _otokenAmount);
+    console.log(weth.balanceOf(address(this)));
 
-    lockedAsset = lockedAsset.add(_collateralAmount);
+    // 2. transfer weth in
+    weth.transferFrom(counterparty, address(this), premium);
 
-    IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
+    console.log(weth.balanceOf(address(this)));
+    
+    lendingPool.flashLoan(
+            receiverAddress,
+            assets,
+            amounts,
+            modes,
+            onBehalfOf,
+            params,
+            referralCode
+        );
 
-    // sell options on airswap for weth
-    _fillAirswapOrder(_order);
-
-    // convert the weth received as premium to sdeCRV
-    _wethToSdECRV();
-
-    emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
   }
 
   /**
@@ -171,7 +269,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * if the option wasn't sold, anyone can close the position. 
    */
   function canClosePosition() public view returns(bool) {
-    if (otoken != address(0) && lockedAsset != 0) { 
+    if (currentSpread.shortOtoken != address(0) && lockedAsset != 0) { 
       return _canSettleVault();
     }
 
@@ -211,7 +309,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _wethToSdECRV() internal {
+  function _wethToSdEcrv() internal {
     uint256 wethBalance = weth.balanceOf(address(this));
 
     uint256[2] memory amounts;
@@ -231,10 +329,19 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     stakedao.deposit(ecrvToDeposit);
   }
 
+  function _sdecrvToWeth() internal { 
+    uint256 sdecrvToWithdraw = stakedao.balanceOf(address(this));
+    stakedao.withdraw(sdecrvToWithdraw);
+    uint256 ecrvBalance = ecrv.balanceOf(address(this));
+    uint256 ethReceived = curve.remove_liquidity_one_coin(ecrvBalance, 0, 0);
+    // wrap eth to weth
+    weth.deposit{value: ethReceived}();
+  }
+
   /**
    * @dev mint otoken in vault 0
    */
-  function _mintOTokens(uint256 _collateralAmount, uint256 _otokenAmount) internal {
+  function _mintNakedOTokens(uint256 _collateralAmount, uint256 _otokenAmount) internal {
     // this action will always use vault id 0
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
 
@@ -253,7 +360,38 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         IController.ActionType.MintShortOption,
         address(this), // vault owner
         address(this), // mint to this address
-        otoken, // otoken
+        currentSpread.shortOtoken, // otoken
+        1, // vaultId
+        _otokenAmount, // amount
+        0, // index
+        "" // data
+    );
+
+    controller.operate(actions);
+  }
+
+  function _mintSpread(uint256 _otokenAmount, address _counterparty) internal { 
+    // this action will always use vault id 0
+    IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
+    IERC20 optionToDeposit = IERC20(currentSpread.shortOtoken);
+    optionToDeposit.safeIncreaseAllowance(controller.pool(), _otokenAmount);
+
+    actions[0] = IController.ActionArgs(
+        IController.ActionType.MintShortOption,
+        _counterparty, // vault owner
+        address(this), // mint to this address
+        currentSpread.longOtoken, // otoken
+        1, // vaultId
+        _otokenAmount, // amount
+        0, // index
+        "" // data
+    );
+
+    actions[1] = IController.ActionArgs(
+        IController.ActionType.DepositLongOption,
+        _counterparty, // vault owner
+        address(this), // deposit from this address
+        currentSpread.shortOtoken, // collateral sdecrv
         1, // vaultId
         _otokenAmount, // amount
         0, // index
@@ -287,8 +425,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev checks if the current vault can be settled
    */
   function _canSettleVault() internal view returns (bool) {
-    if (lockedAsset != 0 && otoken != address(0)) {
-      return controller.isSettlementAllowed(otoken);
+    if (lockedAsset != 0 && currentSpread.shortOtoken != address(0)) {
+      return controller.isSettlementAllowed(currentSpread.shortOtoken);
     }
 
     return false; 

@@ -25,8 +25,13 @@ import { SwapTypes } from '../libraries/SwapTypes.sol';
  */
 
 contract RollOverBase is Ownable {
-  address public otoken;
-  address public nextOToken;
+  struct Spread {
+    address shortOtoken;
+    address longOtoken;
+  }
+
+  Spread public currentSpread;
+  Spread public nextSpread;
 
   uint256 constant public MIN_COMMIT_PERIOD = 18 hours;
   uint256 public commitStateStart;
@@ -67,10 +72,10 @@ contract RollOverBase is Ownable {
    * owner can commit the next otoken, if it's in idle state.
    * or re-commit it if needed during the commit phase.
    */
-  function commitOToken(address _nextOToken) external onlyOwner {
+  function commitSpread (address _shortOtoken, address _longOtoken) external onlyOwner {
     require(state != ActionState.Activated, "R3");
-    _checkOToken(_nextOToken);
-    nextOToken = _nextOToken;
+    // _checkOToken(_nextSpread);
+    nextSpread = Spread(_shortOtoken, _longOtoken);
 
     state = ActionState.Committed;
     
@@ -87,13 +92,13 @@ contract RollOverBase is Ownable {
     onlyCommitted();
     require(block.timestamp - commitStateStart > MIN_COMMIT_PERIOD, "R4");
 
-    otoken = nextOToken;
-    nextOToken = address(0);
+    currentSpread = nextSpread;
+    nextSpread = Spread(address(0), address(0));
 
     state = ActionState.Activated;
   }
 
-  function _checkOToken(address _nextOToken) private view {
-    require(opynWhitelist.isWhitelistedOtoken(_nextOToken), 'R5');
+  function _checkOToken(address _nextSpread) private view {
+    require(opynWhitelist.isWhitelistedOtoken(_nextSpread), 'R5');
   }
 }
