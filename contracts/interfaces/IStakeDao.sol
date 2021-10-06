@@ -6,6 +6,10 @@ pragma solidity ^0.7.2;
 pragma experimental ABIEncoderV2;
 
 interface IStakeDao {
+  function balance() external view returns (uint256);
+
+  function totalSupply() external view returns (uint256);
+
   function depositAll() external;
 
   function deposit(uint256 amount) external;

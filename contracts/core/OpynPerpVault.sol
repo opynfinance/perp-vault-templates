@@ -73,7 +73,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   uint256 public constant BASE = 10000; // 100%
 
   /// @dev Cap for the vault.
-  uint256 public cap; 
+  uint256 public cap = 100000 ether;
 
   /// @dev withdrawal fee percentage. 50 being 0.5%
   uint256 public withdrawalFeePercentage = 50;
@@ -215,16 +215,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(amount > 0, 'O6');
 
     // the sdToken is already deposited into the contract at this point, need to substract it from total
-    uint256[3] memory amounts;
-    amounts[0] = 0; // not depositing any rebBTC
-    amounts[1] = amount; 
-    amounts[2] = 0; 
+    uint256[2] memory amounts;
+    amounts[0] = 0; // depositing only frax
+    amounts[1] = 0; 
 
     // deposit underlying to curvePool
     IERC20 underlyingToken = IERC20(underlying);
     underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
     underlyingToken.approve(address(curvePool), amount);
-    curvePool.add_liquidity(amounts, minCrvLPToken);
+    curvePool.add_liquidity(amounts, 0);
     _depositToStakedaoAndMint();
   }
 

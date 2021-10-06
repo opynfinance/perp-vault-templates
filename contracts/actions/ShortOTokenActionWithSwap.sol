@@ -160,12 +160,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     _fillAirswapOrder(_order);
 
     // convert the underlying received as premium to sdToken
-    _underlyingToSdToken();
+    // _underlyingToSdToken();
 
     // check that minimum premium is received 
     uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
     uint256 sdTokenEarned = sdTokenBalanceAfter.sub(sdTokenBalanceBefore);
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
+    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
 
     emit MintAndSellOToken(_collateralAmount, _otokenAmount, sdTokenEarned);
   }
@@ -215,10 +215,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   function _underlyingToSdToken() internal {
     uint256 underlyingBalance = underlying.balanceOf(address(this));
 
-    uint256[3] memory amounts;
-    amounts[0] = 0;
-    amounts[1] = underlyingBalance;
-    amounts[2] = 0;
+    uint256[2] memory amounts;
+    amounts[0] = underlyingBalance;
+    amounts[1] = 0;
 
     // deposit underlying to curve
     underlying.approve(address(curvePool), underlyingBalance);

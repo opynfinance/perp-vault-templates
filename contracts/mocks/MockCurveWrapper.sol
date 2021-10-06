@@ -21,10 +21,9 @@ contract MockCurveWrapper {
 
     function add_liquidity(uint256 amount, uint256 minCrvLPToken) external {
         // the sdLPToken is already deposited into the contract at this point, need to substract it from total
-        uint256[3] memory amounts;
+        uint256[2] memory amounts;
         amounts[0] = 0; // not depositing any rebBTC
         amounts[1] = amount; 
-        amounts[2] = 0; 
 
         // deposit underlying to curvePool
         underlyingToken.transferFrom(msg.sender, address(this), amount);
