@@ -12,4 +12,5 @@ interface IOracle {
         uint256 _price
     ) external;
     function getPrice(address _asset) external view returns (uint256);
+    function setStablePrice(address _asset, uint256 _price) external;
 }

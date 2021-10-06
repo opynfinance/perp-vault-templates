@@ -1,7 +1,7 @@
-import {ethers, network} from 'hardhat';
-import {BigNumber, Signer, utils} from 'ethers';
-import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
-import {expect} from 'chai';
+import { ethers, network } from 'hardhat';
+import { BigNumber, Signer, utils } from 'ethers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
 import {
   OpynPerpVault,
   IERC20,
@@ -16,13 +16,13 @@ import {
   ICurve
 } from '../../typechain';
 import * as fs from 'fs';
-import {getOrder} from '../utils/orders';
+import { getOrder } from '../utils/orders';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
-      .readFileSync('.secret')
-      .toString()
-      .trim()
+    .readFileSync('.secret')
+    .toString()
+    .trim()
   : 'test test test test test test test test test test test junk';
 
 enum VaultState {
@@ -37,17 +37,17 @@ enum ActionState {
   Idle,
 }
 
-describe('Mainnet Fork Tests', function() {
+describe('Mainnet Fork Tests', function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(
     mnemonic,
     "m/44'/60'/0'/0/30"
   );
   let action1: ShortOTokenActionWithSwap;
-  // asset used by this action: in this case, wbtc
-  let wbtc: IERC20;
-  let usdc: IERC20;
-  let crvRenWsbtc: IERC20;
-  let sdcrvRenWsbtc: IERC20;
+  // asset used by this action: in this case, frax
+  let frax: IERC20;
+  let weth: IERC20;
+  let frax3crv: IERC20;
+  let sdFrax3Crv: IERC20;
 
   let accounts: SignerWithAddress[] = [];
 
@@ -58,10 +58,10 @@ describe('Mainnet Fork Tests', function() {
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let sbtcPricer: StakedaoPricer;
-  let wbtcPricer: MockPricer;
+  let sdFrax3CrvPricer: StakedaoPricer;
+  let wethPricer: MockPricer;
   let oracle: IOracle;
-  let stakedaoSdcrvRenWsbtcStrategy: IStakeDao;
+  let stakedaoSdfrax3crvStrategy: IStakeDao;
   let curvePool: ICurve;
   let provider: typeof ethers.provider;
 
@@ -77,19 +77,19 @@ describe('Mainnet Fork Tests', function() {
   const oracleAddress = '0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833';
   const opynOwner = '0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB';
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
-  const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
-  const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-  const sdcrvRenWsbtcAddress = '0x24129B935AfF071c4f0554882C0D9573F4975fEd';
-  const curvePoolAddress = '0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714';
-  const crvRenWsbtcAddress = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3';
+  const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+  const fraxAddress = '0x853d955aCEf822Db058eb8505911ED77F175b99e';
+  const sdFrax3CrvAddress = '0x5af15DA84A4a6EDf2d9FA6720De921E1026E37b7';
+  const curvePoolAddress = '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B';
+  const frax3crvAddress = '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
-  const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef'
+  const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef';
 
   /** Test Scenario Params */
-  const p1DepositAmount = BigNumber.from('1000000000')
-  const p2DepositAmount = BigNumber.from('7000000000')
-  const p3DepositAmount = BigNumber.from('2000000000')
-  const premium = BigNumber.from('800000000')
+  const p1DepositAmount = utils.parseEther('10');
+  const p2DepositAmount = utils.parseEther('70');
+  const p3DepositAmount = utils.parseEther('20');
+  const premium = utils.parseEther('2');
 
   /**
    *
@@ -122,27 +122,27 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
-    wbtc = (await ethers.getContractAt('IERC20', wbtcAddress)) as IERC20;
-    usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
-    crvRenWsbtc = (await ethers.getContractAt('IERC20', crvRenWsbtcAddress)) as IERC20;
-    sdcrvRenWsbtc = (await ethers.getContractAt(
+    frax = (await ethers.getContractAt('IERC20', fraxAddress)) as IERC20;
+    weth = (await ethers.getContractAt('IERC20', wethAddress)) as IERC20;
+    frax3crv = (await ethers.getContractAt('IERC20', frax3crvAddress)) as IERC20;
+    sdFrax3Crv = (await ethers.getContractAt(
       'IERC20',
-      sdcrvRenWsbtcAddress
+      sdFrax3CrvAddress
     )) as IERC20;
     otokenFactory = (await ethers.getContractAt(
       'IOtokenFactory',
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
-    stakedaoSdcrvRenWsbtcStrategy = (await ethers.getContractAt('IStakeDao', sdcrvRenWsbtcAddress)) as IStakeDao;
+    stakedaoSdfrax3crvStrategy = (await ethers.getContractAt('IStakeDao', sdFrax3CrvAddress)) as IStakeDao;
     curvePool = (await ethers.getContractAt('ICurve', curvePoolAddress)) as ICurve;
   });
 
-  this.beforeAll('Deploy vault and sell wBTC calls action', async () => {
+  this.beforeAll('Deploy vault and sell eth calls action', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
     vault = (await VaultContract.deploy(
-      wbtc.address,
-      sdcrvRenWsbtcAddress,
+      frax.address,
+      sdFrax3CrvAddress,
       curvePoolAddress,
       feeRecipient.address,
       'OpynPerpShortVault share',
@@ -155,13 +155,13 @@ describe('Mainnet Fork Tests', function() {
     );
     action1 = (await ShortActionContract.deploy(
       vault.address,
-      sdcrvRenWsbtcAddress,
+      sdFrax3CrvAddress,
       swapAddress,
       whitelistAddress,
       controllerAddress,
       curvePoolAddress,
       0, // type 0 vault
-      wbtc.address,
+      frax.address,
       20 // 0.2%
     )) as ShortOTokenActionWithSwap;
 
@@ -171,25 +171,26 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll(
-    "Deploy sbtcPricer, wbtcPricer and update sbtcPricer in opyn's oracle",
+    "Deploy sdFrax3CrvPricer, mock weth pricer, set frax to stable price and update wethpricer and sdFrax3CrvPricer in opyn's oracle",
     async () => {
       provider = ethers.provider;
 
       const PricerContract = await ethers.getContractFactory(
         'StakedaoPricer'
       );
-      sbtcPricer = (await PricerContract.deploy(
-        sdcrvRenWsbtc.address,
-        wbtc.address,
+      sdFrax3CrvPricer = (await PricerContract.deploy(
+        sdFrax3Crv.address,
+        frax.address,
         oracleAddress,
         curvePoolAddress
       )) as StakedaoPricer;
+
       const MockPricerContract = await ethers.getContractFactory('MockPricer');
-      wbtcPricer = (await MockPricerContract.deploy(
+      wethPricer = (await MockPricerContract.deploy(
         oracleAddress
       )) as MockPricer;
 
-      // impersonate owner and change the sbtcPricer
+      // impersonate owner and change the sdFrax3CrvPricer
       await owner.sendTransaction({
         to: opynOwner,
         value: utils.parseEther('2.0')
@@ -198,56 +199,59 @@ describe('Mainnet Fork Tests', function() {
       const signer = await ethers.provider.getSigner(opynOwner);
       await oracle
         .connect(signer)
-        .setAssetPricer(sdcrvRenWsbtc.address, sbtcPricer.address);
+        .setStablePrice(frax.address, '100000000');
       await oracle
         .connect(signer)
-        .setAssetPricer(wbtc.address, wbtcPricer.address);
+        .setAssetPricer(weth.address, wethPricer.address);
+      await oracle
+        .connect(signer)
+        .setAssetPricer(sdFrax3Crv.address, sdFrax3CrvPricer.address);
       await provider.send('evm_mine', []);
       await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
     }
   );
 
-  this.beforeAll('whitelist sdcrvRenWsbtc in the Opyn system', async () => {
+  this.beforeAll('whitelist sdFrax3Crv in the Opyn system', async () => {
     const whitelist = (await ethers.getContractAt(
       'IWhitelist',
       otokenWhitelistAddress
     )) as IWhitelist;
 
-    // impersonate owner and change the sbtcPricer
+    // impersonate owner and change the sdFrax3CrvPricer
     await owner.sendTransaction({
       to: opynOwner,
       value: utils.parseEther('1.0')
     });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
-    await whitelist.connect(signer).whitelistCollateral(sdcrvRenWsbtcAddress);
+    await whitelist.connect(signer).whitelistCollateral(sdFrax3CrvAddress);
     await whitelist
       .connect(signer)
       .whitelistProduct(
-        wbtc.address,
-        usdc.address,
-        sdcrvRenWsbtcAddress,
-        false
+        weth.address,
+        frax.address,
+        sdFrax3CrvAddress,
+        true
       );
     await provider.send('evm_mine', []);
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
 
-  this.beforeAll('send everyone wbtc', async () => { 
-    const wbtcWhale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
+  this.beforeAll('send everyone frax', async () => {
+    const fraxWhale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
 
-    // send everyone wbtc
-    await provider.send('hardhat_impersonateAccount', [wbtcWhale]);
-    const signer = await ethers.provider.getSigner(wbtcWhale);
-    await wbtc.connect(signer).transfer(counterpartyWallet.address, premium);
-    await wbtc.connect(signer).transfer(depositor1.address, p1DepositAmount);
-    await wbtc.connect(signer).transfer(depositor2.address, p2DepositAmount);
-    await wbtc.connect(signer).transfer(depositor3.address, p3DepositAmount);
+    // send everyone frax
+    await provider.send('hardhat_impersonateAccount', [fraxWhale]);
+    const signer = await ethers.provider.getSigner(fraxWhale);
+    await frax.connect(signer).transfer(counterpartyWallet.address, premium);
+    await frax.connect(signer).transfer(depositor1.address, p1DepositAmount);
+    await frax.connect(signer).transfer(depositor2.address, p2DepositAmount);
+    await frax.connect(signer).transfer(depositor3.address, p3DepositAmount);
     await provider.send('evm_mine', []);
-    await provider.send('hardhat_stopImpersonatingAccount', [wbtcWhale]);
+    await provider.send('hardhat_stopImpersonatingAccount', [fraxWhale]);
   })
 
-  this.beforeAll('prepare counterparty wallet', async () => { 
+  this.beforeAll('prepare counterparty wallet', async () => {
     // prepare counterparty
     counterpartyWallet = counterpartyWallet.connect(provider);
     await owner.sendTransaction({
@@ -255,10 +259,10 @@ describe('Mainnet Fork Tests', function() {
       value: utils.parseEther('3000')
     });
 
-    // approve wbtc to be spent by counterparty 
-    await wbtc.connect(counterpartyWallet).approve(swapAddress, premium);
+    // approve frax to be spent by counterparty 
+    await frax.connect(counterpartyWallet).approve(swapAddress, premium);
   })
-  
+
 
   describe('check the admin setup', async () => {
     it('contract is initialized correctly', async () => {
@@ -290,18 +294,18 @@ describe('Mainnet Fork Tests', function() {
         expiry = (Math.floor(currentTimestamp / day) + 10) * day + 28800;
 
         await otokenFactory.createOtoken(
-          wbtc.address,
-          usdc.address,
-          sdcrvRenWsbtc.address,
+          frax.address,
+          weth.address,
+          sdFrax3Crv.address,
           otokenStrikePrice,
           expiry,
           false
         );
 
         const otokenAddress = await otokenFactory.getOtoken(
-          wbtc.address,
-          usdc.address,
-          sdcrvRenWsbtc.address,
+          frax.address,
+          weth.address,
+          sdFrax3Crv.address,
           otokenStrikePrice,
           expiry,
           false
@@ -316,9 +320,9 @@ describe('Mainnet Fork Tests', function() {
 
     it('p1 deposits', async () => {
       // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
-      const crvRenWsbtcTowbtc = await curvePool.get_virtual_price();
-      const amountCrvRenWsbtcDeposited = p1DepositAmount.mul(utils.parseEther('1.0')).div(crvRenWsbtcTowbtc);
-      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdcrvRenWsbtcStrategy.getPricePerFullShare();
+      const frax3crvTofrax = await curvePool.get_virtual_price();
+      const amountCrvRenWsbtcDeposited = p1DepositAmount.mul(utils.parseEther('1.0')).div(frax3crvTofrax);
+      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdfrax3crvStrategy.getPricePerFullShare();
       const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
 
       // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
@@ -327,18 +331,18 @@ describe('Mainnet Fork Tests', function() {
       const lowerBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(99).div(100).mul(10000000000);
 
 
-      await wbtc.connect(depositor1).approve(vault.address, p1DepositAmount);
+      await frax.connect(depositor1).approve(vault.address, p1DepositAmount);
       await vault.connect(depositor1).depositUnderlying(p1DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
 
 
       const vaultTotal = await vault.totalStakedaoAsset();
-      const vaultSdcrvRenWsbtcBalance = await sdcrvRenWsbtc.balanceOf(vault.address);
-      const totalSharesMinted = vaultSdcrvRenWsbtcBalance;
+      const vaultSdfrax3crvBalance = await sdFrax3Crv.balanceOf(vault.address);
+      const totalSharesMinted = vaultSdfrax3crvBalance;
 
 
-      // check the sdcrvRenWsbtc token balances
+      // check the sdFrax3Crv token balances
       expect(vaultTotal, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
-      expect(vaultSdcrvRenWsbtcBalance).to.be.equal(
+      expect(vaultSdfrax3crvBalance).to.be.equal(
         vaultTotal, 'internal balance is incorrect'
       );
 
@@ -349,9 +353,9 @@ describe('Mainnet Fork Tests', function() {
     it('p2 deposits', async () => {
       // Calculate lower and upper bounds
       // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
-      const crvRenWsbtcTowbtc = await curvePool.get_virtual_price();
-      const amountCrvRenWsbtcDeposited = p2DepositAmount.mul(utils.parseEther('1.0')).div(crvRenWsbtcTowbtc);
-      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdcrvRenWsbtcStrategy.getPricePerFullShare();
+      const frax3crvTofrax = await curvePool.get_virtual_price();
+      const amountCrvRenWsbtcDeposited = p2DepositAmount.mul(utils.parseEther('1.0')).div(frax3crvTofrax);
+      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdfrax3crvStrategy.getPricePerFullShare();
       const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
       // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
       const upperBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(10000000000)
@@ -361,34 +365,34 @@ describe('Mainnet Fork Tests', function() {
 
       // keep track of shares before
       const sharesBefore = await vault.totalSupply();
-      const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdfrax3crvBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
 
       // Approve and deposit underlying
-      await wbtc.connect(depositor2).approve(vault.address, p2DepositAmount);
+      await frax.connect(depositor2).approve(vault.address, p2DepositAmount);
       await vault.connect(depositor2).depositUnderlying(p2DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
 
       const vaultTotal = await vault.totalStakedaoAsset();
-      const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
-      const sdcrvRenWsbtcDeposited = vaultSdcrvRenWsbtcBalanceAfter.sub(vaultSdcrvRenWsbtcBalanceBefore);
+      const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+      const sdFrax3CrvDeposited = vaultSdfrax3crvBalanceAfter.sub(vaultSdfrax3crvBalanceBefore);
 
-      // check the sdcrvRenWsbtc token balances
+      // check the sdFrax3Crv token balances
       // there is no accurate way of estimating this, so just approximating for now
-      expect(sdcrvRenWsbtcDeposited, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
+      expect(sdFrax3CrvDeposited, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
       expect(vaultTotal).to.be.equal(
-        vaultSdcrvRenWsbtcBalanceAfter, 'internal balance is incorrect'
+        vaultSdfrax3crvBalanceAfter, 'internal balance is incorrect'
       );
 
       // check the minted share balances
-      const shares = sharesBefore.div(vaultSdcrvRenWsbtcBalanceBefore).mul(sdcrvRenWsbtcDeposited)
-      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
+      const shares = sharesBefore.div(vaultSdfrax3crvBalanceBefore).mul(sdFrax3CrvDeposited)
+      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted').to.be.equal(shares)
     });
 
-    it('tests getPrice in sbtcPricer', async () => {
-      await wbtcPricer.setPrice('4000000000000');
-      const wbtcPrice = await oracle.getPrice(wbtc.address);
-      const sdcrvRenWsbtcPrice = await oracle.getPrice(sdcrvRenWsbtc.address);
-      expect(wbtcPrice.toNumber()).to.be.lessThanOrEqual(
-        sdcrvRenWsbtcPrice.toNumber()
+    it('tests getPrice in sdFrax3CrvPricer', async () => {
+      await wethPricer.setPrice('4000000000000');
+      const fraxPrice = await oracle.getPrice(frax.address);
+      const sdFrax3CrvPrice = await oracle.getPrice(sdFrax3Crv.address);
+      expect(fraxPrice.toNumber()).to.be.lessThanOrEqual(
+        sdFrax3CrvPrice.toNumber()
       );
     });
 
@@ -398,33 +402,33 @@ describe('Mainnet Fork Tests', function() {
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    it('owner mints options with sdcrvRenWsbtc as collateral and sells them', async () => {
+    it('owner mints options with sdFrax3Crv as collateral and sells them', async () => {
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
       await provider.send('evm_mine', []);
 
-      const vaultSdcrvRenWsbtcBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdfrax3crvBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
 
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
-      const expectedSdcrvRenWsbtcBalanceInVault = vaultSdcrvRenWsbtcBalanceBefore.mul(reserveFactor).div(100)
-      let expectedSdcrvRenWsbtcBalanceInAction = vaultSdcrvRenWsbtcBalanceBefore.sub(expectedSdcrvRenWsbtcBalanceInVault)
-      const collateralAmount = await sdcrvRenWsbtc.balanceOf(action1.address)
-      const premiumInSdcrvRenWsbtc = premium.mul(95).div(100);
-      const expectedTotal = vaultSdcrvRenWsbtcBalanceBefore.add(premiumInSdcrvRenWsbtc);
-      expectedSdcrvRenWsbtcBalanceInAction = expectedSdcrvRenWsbtcBalanceInVault.add(premiumInSdcrvRenWsbtc);
-      const sellAmount = (collateralAmount.div(10000000000)).toString(); 
-      const marginPoolSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(marginPoolAddess);
+      const expectedSdfrax3crvBalanceInVault = vaultSdfrax3crvBalanceBefore.mul(reserveFactor).div(100)
+      let expectedSdfrax3crvBalanceInAction = vaultSdfrax3crvBalanceBefore.sub(expectedSdfrax3crvBalanceInVault)
+      const collateralAmount = await sdFrax3Crv.balanceOf(action1.address)
+      const premiumInSdfrax3crv = premium.mul(95).div(100);
+      const expectedTotal = vaultSdfrax3crvBalanceBefore.add(premiumInSdfrax3crv);
+      expectedSdfrax3crvBalanceInAction = expectedSdfrax3crvBalanceInVault.add(premiumInSdfrax3crv);
+      const sellAmount = (collateralAmount.div(10000000000)).toString();
+      const marginPoolSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
-      const marginPoolBalanceOfsdcrvRenWsbtcBefore = await sdcrvRenWsbtc.balanceOf(marginPoolAddess);
+      const marginPoolBalanceOfsdFrax3CrvBefore = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
       const order = await getOrder(
         action1.address,
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        wbtc.address,
+        frax.address,
         premium.toString(),
         swapAddress,
         counterpartyWallet.privateKey
@@ -437,19 +441,19 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
-      const vaultSdcrvRenWsbtcBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
-      // check sdcrvRenWsbtc balance in action and vault
-      expect(vaultSdcrvRenWsbtcBalanceAfter).to.be.within(
-        expectedSdcrvRenWsbtcBalanceInVault.sub(1) as any, expectedSdcrvRenWsbtcBalanceInVault.add(1) as any, "incorrect balance in vault"
+      // check sdFrax3Crv balance in action and vault
+      expect(vaultSdfrax3crvBalanceAfter).to.be.within(
+        expectedSdfrax3crvBalanceInVault.sub(1) as any, expectedSdfrax3crvBalanceInVault.add(1) as any, "incorrect balance in vault"
       );
       expect(
         (await vault.totalStakedaoAsset()).gte(expectedTotal),
         'incorrect accounting in vault'
       ).to.be.true;
-      expect(((await sdcrvRenWsbtc.balanceOf(action1.address)).gte(expectedSdcrvRenWsbtcBalanceInAction), 'incorrect sdcrvRenWSBTC balance in action'))
+      expect(((await sdFrax3Crv.balanceOf(action1.address)).gte(expectedSdfrax3crvBalanceInAction), 'incorrect sdcrvRenWSBTC balance in action'))
       expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
-      expect(await wbtc.balanceOf(action1.address)).to.be.equal('0');
+      expect(await frax.balanceOf(action1.address)).to.be.equal('0');
 
 
       // check the otoken balance of counterparty
@@ -457,10 +461,10 @@ describe('Mainnet Fork Tests', function() {
         sellAmount
       );
 
-      const marginPoolBalanceOfsdcrvRenWsbtcAfter = await sdcrvRenWsbtc.balanceOf(marginPoolAddess);
+      const marginPoolBalanceOfsdFrax3CrvAfter = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
       // check sdcrvRenWSBTC balance in opyn 
-      expect(marginPoolBalanceOfsdcrvRenWsbtcAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfsdcrvRenWsbtcBefore.add(collateralAmount));
+      expect(marginPoolBalanceOfsdFrax3CrvAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfsdFrax3CrvBefore.add(collateralAmount));
     });
 
     it('p3 deposits', async () => {
@@ -468,33 +472,33 @@ describe('Mainnet Fork Tests', function() {
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const expectedTotal = vaultTotalBefore.add(effectiveP3deposit);
       const sharesBefore = await vault.totalSupply();
-      const actualAmountInVaultBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const actualAmountInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
 
-      await wbtc.connect(depositor3).approve(vault.address, p3DepositAmount);
+      await frax.connect(depositor3).approve(vault.address, p3DepositAmount);
       await vault.connect(depositor3).depositUnderlying(p3DepositAmount, '0');
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
-      const sdcrvRenWsbtcDeposited = vaultTotalAfter.sub(vaultTotalBefore);
-      actualAmountInVault = await sdcrvRenWsbtc.balanceOf(vault.address);
-      // check the sdcrvRenWsbtc token balances
+      const sdFrax3CrvDeposited = vaultTotalAfter.sub(vaultTotalBefore);
+      actualAmountInVault = await sdFrax3Crv.balanceOf(vault.address);
+      // check the sdFrax3Crv token balances
       // there is no accurate way of estimating this, so just approximating for now
       expect(
         (await vault.totalStakedaoAsset()).gte(expectedTotal),
         'internal accounting is incorrect'
       ).to.be.true;
       expect(actualAmountInVault).to.be.equal(
-        actualAmountInVaultBefore.add(sdcrvRenWsbtcDeposited), 'internal accounting should match actual balance'
+        actualAmountInVaultBefore.add(sdFrax3CrvDeposited), 'internal accounting should match actual balance'
       );
 
       // check the minted share balances
-      const shares = sdcrvRenWsbtcDeposited.mul(sharesBefore).div(vaultTotalBefore)
+      const shares = sdFrax3CrvDeposited.mul(sharesBefore).div(vaultTotalBefore)
       expect((await vault.balanceOf(depositor3.address))).to.be.equal(shares)
     });
 
     it('p1 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
-      const vaultSdECRVBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdECRVBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
@@ -504,10 +508,10 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
       const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
       const amountTransferredToP1 = amountToWithdraw.mul(95).div(100);
-      const balanceOfP1Before = await wbtc.balanceOf(depositor1.address);
+      const balanceOfP1Before = await frax.balanceOf(depositor1.address);
 
       // fee calculations 
-      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -517,28 +521,28 @@ describe('Mainnet Fork Tests', function() {
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
       const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
-      const sdcrvRenWsbtcWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
-      const vaultSdECRVBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const sdFrax3CrvWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
+      const vaultSdECRVBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
-      const balanceOfP1After = await wbtc.balanceOf(depositor1.address);
+      const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address);
+      const balanceOfP1After = await frax.balanceOf(depositor1.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
-      const vaultTotalSdcrvRenWsbtc = await vault.totalStakedaoAsset();
+      const vaultTotalSdfrax3crv = await vault.totalStakedaoAsset();
       // check vault balance 
       expect(
-        vaultTotalSdcrvRenWsbtc).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
-        'total asset should update'
-      );
+        vaultTotalSdfrax3crv).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
+          'total asset should update'
+        );
       expect(vaultSdECRVBalanceAfter).to.be.within(
-        vaultSdECRVBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
-        vaultSdECRVBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).sub(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).add(1) as any,
       );
 
       // check p1 balance 
-      expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect wBTC transferred to p1').to.be.true;
+      expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect eth transferred to p1').to.be.true;
 
       // check fee 
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
@@ -550,20 +554,20 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wbtcPricer.setExpiryPriceInOracle(wbtc.address, expiry, '3000000000000');
-      await sbtcPricer.setExpiryPriceInOracle(expiry);
+      await wethPricer.setExpiryPriceInOracle(frax.address, expiry, '3000000000000');
+      await sdFrax3CrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
       await provider.send('evm_increaseTime', [day]); // increase time
       await provider.send('evm_mine', []);
 
       const sbtcControlledByActionBefore = await action1.currentValue();
-      const sbtcBalanceInVaultBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const sbtcBalanceInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
 
       await vault.closePositions();
 
-      const sbtcBalanceInVaultAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
-      const sbtcBalanceInActionAfter = await sdcrvRenWsbtc.balanceOf(action1.address);
+      const sbtcBalanceInVaultAfter = await sdFrax3Crv.balanceOf(vault.address);
+      const sbtcBalanceInActionAfter = await sdFrax3Crv.balanceOf(action1.address);
       const sbtcControlledByActionAfter = await action1.currentValue();
       const vaultTotal = await vault.totalStakedaoAsset();
 
@@ -583,7 +587,7 @@ describe('Mainnet Fork Tests', function() {
     it('p2 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
-      const vaultSdECRVBalanceBefore = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const vaultSdECRVBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor2.address);
 
@@ -593,10 +597,10 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
       const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
       const amountTransferredToP2 = amountToWithdraw.mul(95).div(100);
-      const balanceOfP2Before = await wbtc.balanceOf(depositor2.address);
+      const balanceOfP2Before = await frax.balanceOf(depositor2.address);
 
       // fee calculations 
-      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
 
 
       await vault
@@ -606,25 +610,25 @@ describe('Mainnet Fork Tests', function() {
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
       const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
-      const sdcrvRenWsbtcWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
-      const vaultSdECRVBalanceAfter = await sdcrvRenWsbtc.balanceOf(vault.address);
+      const sdFrax3CrvWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
+      const vaultSdECRVBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
       // fee variables 
-      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address)
-      const balanceOfP2After = await wbtc.balanceOf(depositor2.address);
+      const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address)
+      const balanceOfP2After = await frax.balanceOf(depositor2.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
-      const vaultTotalSdcrvRenWsbtc = await vault.totalStakedaoAsset();
+      const vaultTotalSdfrax3crv = await vault.totalStakedaoAsset();
 
       // check vault balance 
       expect(
-        vaultTotalSdcrvRenWsbtc).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
-        'total asset should update'
-      );
+        vaultTotalSdfrax3crv).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
+          'total asset should update'
+        );
       expect(vaultSdECRVBalanceAfter).to.be.within(
-        vaultSdECRVBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).sub(1) as any,
-        vaultSdECRVBalanceBefore.sub(sdcrvRenWsbtcWithdrawn).add(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).sub(1) as any,
+        vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).add(1) as any,
       );
 
       // check p2 balance 
@@ -643,23 +647,23 @@ describe('Mainnet Fork Tests', function() {
       const amountToWithdraw = p3DepositAmount;
       const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
       const amountTransferredToP3 = amountToWithdraw.mul(95).div(100);
-      const balanceOfP3Before = await wbtc.balanceOf(depositor3.address);
+      const balanceOfP3Before = await frax.balanceOf(depositor3.address);
 
       // fee calculations
-      const balanceOfFeeRecipientBefore = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
+      const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
 
       await vault
         .connect(depositor3)
         .withdrawUnderlying(await vault.balanceOf(depositor3.address), amountTransferredToP3);
 
-      const balanceOfFeeRecipientAfter = await sdcrvRenWsbtc.balanceOf(feeRecipient.address);
-      const balanceOfP3After = await wbtc.balanceOf(depositor3.address);
+      const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address);
+      const balanceOfP3After = await frax.balanceOf(depositor3.address);
 
       expect(
         (await vault.totalStakedaoAsset()).eq('0'),
         'total in vault should be empty'
       ).to.be.true;
-      expect(await sdcrvRenWsbtc.balanceOf(vault.address), 'total in vault should be empty').to.be.equal(
+      expect(await sdFrax3Crv.balanceOf(vault.address), 'total in vault should be empty').to.be.equal(
         '0'
       );
 

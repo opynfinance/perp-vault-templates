@@ -72,8 +72,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   uint256 public constant BASE = 10000; // 100%
 
-  /// @dev Cap for the vault. hardcoded at 1000 for initial release
-  uint256 public cap = 1000 ether;
+  /// @dev Cap for the vault.
+  uint256 public cap; 
 
   /// @dev withdrawal fee percentage. 50 being 0.5%
   uint256 public withdrawalFeePercentage = 50;
