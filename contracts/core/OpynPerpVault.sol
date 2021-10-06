@@ -22,11 +22,11 @@ import "hardhat/console.sol";
  * O3: cannot call setActions, actions have already been initialized
  * O4: action being set is using an invalid address
  * O5: action being set is a duplicated action
- * O6: deposited underlying (msg.value) must be greater than 0
- * O7: cannot accept underlying deposit, total sdToken controlled by the vault would exceed vault cap
- * O8: unable to withdraw underlying, sdToken to withdraw would exceed or be equal to the current vault sdToken balance
- * O9: unable to withdraw underlying, underlying fee transfer to fee recipient (feeRecipient) failed
- * O10: unable to withdraw underlying, underlying withdrawal to user (msg.sender) failed
+ * O6: deposited wantedAsset (msg.value) must be greater than 0
+ * O7: cannot accept wantedAsset deposit, total sdToken controlled by the vault would exceed vault cap
+ * O8: unable to withdraw wantedAsset, sdToken to withdraw would exceed or be equal to the current vault sdToken balance
+ * O9: unable to withdraw wantedAsset, wantedAsset fee transfer to fee recipient (feeRecipient) failed
+ * O10: unable to withdraw wantedAsset, wantedAsset withdrawal to user (msg.sender) failed
  * O11: cannot close vault positions, vault is not in locked state (VaultState.Locked)
  * O12: unable to rollover vault, length of allocation percentages (_allocationPercentages) passed is not equal to the initialized actions length
  * O13: unable to rollover vault, vault is not in unlocked state (VaultState.Unlocked)
@@ -35,17 +35,17 @@ import "hardhat/console.sol";
  * O16: withdraw reserve percentage must be less than 50% (5000)
  * O17: cannot call emergencyPause, vault is already in emergency state
  * O18: cannot call resumeFromPause, vault is not in emergency state
- * O19: cannot receive underlying from any address other than the curve pool address (curvePool)
+ * O19: cannot receive wantedAsset from any address other than the curve pool address (curvePool)
  */
 
 /** 
  * @title OpynPerpVault
  * @author Opyn Team
- * @dev implementation of the Opyn Perp Vault contract that works with stakedao's underlying strategy. 
- * Note that this implementation is meant to only specifically work for the stakedao underlying strategy and is not 
- * a generalized contract. Stakedao's underlying strategy currently accepts curvePool LP tokens called curveLPToken from the 
- * underlying curve pool. This strategy allows users to convert their underlying into yield earning sdToken tokens
- * and use the sdToken tokens as collateral to sell underlying call options on Opyn. 
+ * @dev implementation of the Opyn Perp Vault contract that works with stakedao's wantedAsset strategy. 
+ * Note that this implementation is meant to only specifically work for the stakedao wantedAsset strategy and is not 
+ * a generalized contract. Stakedao's wantedAsset strategy currently accepts curvePool LP tokens called curveLPToken from the 
+ * wantedAsset curve pool. This strategy allows users to convert their wantedAsset into yield earning sdToken tokens
+ * and use the sdToken tokens as collateral to sell wantedAsset call options on Opyn. 
  */
 
 contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
@@ -64,8 +64,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev address to which all fees are sent
   address public feeRecipient;
 
-  /// @dev address of the underlying address which is earning yields
-  address public underlying;
+  /// @dev address of the wantedAsset address which is earning yields
+  address public wantedAsset;
 
   /// @dev stakedao LP token address
   address public sdTokenAddress;
@@ -132,14 +132,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    *====================*/
 
   constructor (
-    address _underlying,
+    address _wantedAsset,
     address _sdTokenAddress,
     address _curvePoolAddress,
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
     ) ERC20(_tokenName, _tokenSymbol) {
-    underlying = _underlying;
+    wantedAsset = _wantedAsset;
     sdTokenAddress = _sdTokenAddress;
     stakedaoStrategy = IStakeDao(sdTokenAddress);
     curveLPToken = stakedaoStrategy.token();
@@ -188,7 +188,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * total underlying value of the sdToken controlled by this vault
+   * total wantedAsset value of the sdToken controlled by this vault
    */
   function totalUnderlyingControlled() external view returns (uint256) { 
     // hard coded to 36 because crv LP token and sdToken are both 18 decimals. 
@@ -204,9 +204,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @notice Deposits underlying into the contract and mint vault shares. 
+   * @notice Deposits wantedAsset into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
-   * @param amount amount of underlying to deposit 
+   * @param amount amount of wantedAsset to deposit 
    * @param minCrvLPToken minimum amount of curveLPToken to get out from adding liquidity. 
    */
   function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external nonReentrant {
@@ -219,10 +219,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     amounts[0] = 0; // depositing only frax
     amounts[1] = 0; 
 
-    // deposit underlying to curvePool
-    IERC20 underlyingToken = IERC20(underlying);
-    underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
-    underlyingToken.approve(address(curvePool), amount);
+    // deposit wantedAsset to curvePool
+    IERC20 wantedAssetToken = IERC20(wantedAsset);
+    wantedAssetToken.safeTransferFrom(msg.sender, address(this), amount);
+    wantedAssetToken.approve(address(curvePool), amount);
     curvePool.add_liquidity(amounts, 0);
     _depositToStakedaoAndMint();
   }
@@ -237,30 +237,30 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     require(amount > 0, 'O6');
 
-    // deposit underlying to curvePool
+    // deposit wantedAsset to curvePool
     curveLPToken.safeTransferFrom(msg.sender, address(this), amount);
     _depositToStakedaoAndMint();
   }
 
   /**
-   * @notice Withdraws underlying from vault using vault shares
-   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws underlying from curvePool
+   * @notice Withdraws wantedAsset from vault using vault shares
+   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws wantedAsset from curvePool
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
 
     // withdraw from curve 
-    IERC20 underlyingToken = IERC20(underlying);
-    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
+    IERC20 wantedAssetToken = IERC20(wantedAsset);
+    uint256 wantedAssetBalanceBefore = wantedAssetToken.balanceOf(address(this));
     uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
     curvePool.remove_liquidity_one_coin(curveLPTokenBalance, 1, _minUnderlying);
-    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
-    uint256 underlyingOwedToUser = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+    uint256 wantedAssetBalanceAfter = wantedAssetToken.balanceOf(address(this));
+    uint256 wantedAssetOwedToUser = wantedAssetBalanceAfter.sub(wantedAssetBalanceBefore);
 
-    // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
+    // send wantedAsset to user
+    wantedAssetToken.safeTransfer(msg.sender, wantedAssetOwedToUser);
 
-    emit Withdraw(msg.sender, underlyingOwedToUser, _share);
+    emit Withdraw(msg.sender, wantedAssetOwedToUser, _share);
   }
 
   /**
@@ -461,7 +461,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of wunderlying withdrawing.
+   * @dev get amount of fee charged based on total amount of wwantedAsset withdrawing.
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);

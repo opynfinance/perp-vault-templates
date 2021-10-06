@@ -456,7 +456,6 @@ describe('Mainnet Fork Tests', function () {
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor2.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-      console.log(vaultTotal.toString())
     });
 
     it('tests getPrice in sdFrax3CrvPricer', async () => {

@@ -16,15 +16,17 @@ import { IWETH } from '../interfaces/IWETH.sol';
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
+import 'hardhat/console.sol';
+
 /**
  * Error Codes
  * S1: msg.sender must be the vault
  * S2: cannot currently close the vault position
  * S3: seller for the order (_order.sender.wallet) must be this contract
  * S4: token to sell (_order.sender.token) must be the currently activated oToken
- * S5: token to sell for (_order.signer.token) must be the underlying
+ * S5: token to sell for (_order.signer.token) must be the wantedAsset
  * S6: tokens being sold (_order.sender.amount) and tokens being minted (_otokenAmount) must be the same
- * S7: amount of underlying being sold for (_order.signer.amount) does not meet the minimum option premium
+ * S7: amount of wantedAsset being sold for (_order.signer.amount) does not meet the minimum option premium
  * S8: strike price for the next oToken is too low
  * S9: expiry timestamp for the next oToken is invalid
  */
@@ -44,7 +46,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   uint256 constant public BASE = 10000;
   /// @dev the minimum strike price of the option chosen needs to be at least 105% of spot. 
   /// This is set expecting the contract to be a strategy selling calls. For puts should change this. 
-  uint256 constant public MIN_STRIKE = 10500;
+  uint256 constant public MIN_STRIKE = 9500;
   uint256 public MIN_PROFITS; // 100 being 1%
   uint256 public lockedAsset;
   uint256 public rolloverTime;
@@ -54,7 +56,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IERC20 crvLPToken;
   IOracle public oracle;
   IStakeDao public stakedaoStrategy;
-  IERC20 underlying;
+  IERC20 wantedAsset;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -66,12 +68,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address _controller,
     address _curvePoolAddress,
     uint256 _vaultType,
-    address _underlying,
+    address _wantedAsset,
     uint256 _min_profits
   ) {
     MIN_PROFITS = _min_profits;
     vault = _vault;
-    underlying = IERC20(_underlying);
+    wantedAsset = IERC20(_wantedAsset);
 
     controller = IController(_controller);
     curvePool = ICurve(_curvePoolAddress);
@@ -97,7 +99,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev return the net worth of this strategy, in terms of underlying.
+   * @dev return the net worth of this strategy, in terms of wantedAsset.
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
@@ -144,7 +146,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     onlyActivated();
     require(_order.sender.wallet == address(this), 'S3');
     require(_order.sender.token == otoken, 'S4');
-    require(_order.signer.token == address(underlying), 'S5');
+    require(_order.signer.token == address(wantedAsset), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
 
     // mint options
@@ -155,12 +157,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // this order matters a lot because we need to get the balance before selling otokens, after minting. 
     uint256 sdTokenBalanceBefore = stakedaoStrategy.balanceOf(address(this));
 
-    // sell options on airswap for underlying
+    // sell options on airswap for wantedAsset
     IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
     _fillAirswapOrder(_order);
 
-    // convert the underlying received as premium to sdToken
-    // _underlyingToSdToken();
+    // convert the wantedAsset received as premium to sdToken
+    // _wantedAssetToSdToken();
 
     // check that minimum premium is received 
     uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
@@ -212,15 +214,15 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   /**
    * @dev add liquidity to curve, deposit into stakedao.
    */
-  function _underlyingToSdToken() internal {
-    uint256 underlyingBalance = underlying.balanceOf(address(this));
+  function _wantedAssetToSdToken() internal {
+    uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
 
     uint256[2] memory amounts;
-    amounts[0] = underlyingBalance;
+    amounts[0] = wantedAssetBalance;
     amounts[1] = 0;
 
-    // deposit underlying to curve
-    underlying.approve(address(curvePool), underlyingBalance);
+    // deposit wantedAsset to curve
+    wantedAsset.approve(address(curvePool), wantedAssetBalance);
     curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
     uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
 
@@ -300,9 +302,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * so accessing otoken will give u the current otoken. 
    */
   function _customOTokenCheck(address _nextOToken) internal override view {
+    IOToken nextToken = IOToken(_nextOToken);
     // Can override or replace this.
-     require(_isValidStrike(IOToken(_nextOToken).strikePrice()), 'S8');
-     require (_isValidExpiry(IOToken(_nextOToken).expiryTimestamp()), 'S9');
+     require(_isValidStrike(nextToken.strikePrice(), nextToken.underlyingAsset()), 'S8');
+     require (_isValidExpiry(nextToken.expiryTimestamp()), 'S9');
     /**
      * e.g.
      * check otoken strike price is lower than current spot price for put.
@@ -316,10 +319,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev funtion to check that the otoken being sold meets a minimum valid strike price
    * this hook is triggered in the _customOtokenCheck function. 
    */
-  function _isValidStrike(uint256 strikePrice) internal view returns (bool) { 
-    uint256 spotPrice = oracle.getPrice(address(underlying));
-    // checks that the strike price set is > than 105% of current price
-    return strikePrice >= spotPrice.mul(MIN_STRIKE).div(BASE);
+  function _isValidStrike(uint256 strikePrice, address underlying) internal view returns (bool) { 
+    uint256 spotPrice = oracle.getPrice(underlying);
+    // checks that the strike price set is < than 95% of current price
+    console.log(spotPrice);
+    console.log(strikePrice);
+    return strikePrice <= spotPrice.mul(MIN_STRIKE).div(BASE);
   }
 
   /**
