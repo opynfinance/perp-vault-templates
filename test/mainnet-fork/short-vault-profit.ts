@@ -332,38 +332,6 @@ describe('Mainnet Fork Tests', function () {
       }
     );
 
-    xit('p1 deposits', async () => {
-      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
-      const frax3crvTofrax = await curvePool.get_virtual_price();
-      const amountCrvRenWsbtcDeposited = p1DepositAmount.mul(utils.parseEther('1.0')).div(frax3crvTofrax);
-      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdfrax3crvStrategy.getPricePerFullShare();
-      const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
-
-      // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
-      const upperBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(10000000000)
-      // 1% slippage from the ideal is acceptable at most
-      const lowerBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(99).div(100).mul(10000000000);
-
-
-      await frax.connect(depositor1).approve(vault.address, p1DepositAmount);
-      await vault.connect(depositor1).depositUnderlying(p1DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
-
-
-      const vaultTotal = await vault.totalStakedaoAsset();
-      const vaultSdfrax3crvBalance = await sdFrax3Crv.balanceOf(vault.address);
-      const totalSharesMinted = vaultSdfrax3crvBalance;
-
-
-      // check the sdFrax3Crv token balances
-      expect(vaultTotal, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
-      expect(vaultSdfrax3crvBalance).to.be.equal(
-        vaultTotal, 'internal balance is incorrect'
-      );
-
-      // check the minted share balances
-      expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-    });
-
     it('p1 deposits FRAX3CRV', async () => {
       // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
       const amountfrax3crvDeposited = p1DepositAmount
@@ -390,43 +358,6 @@ describe('Mainnet Fork Tests', function () {
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-    });
-
-    xit('p2 deposits', async () => {
-      // Calculate lower and upper bounds
-      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
-      const frax3crvTofrax = await curvePool.get_virtual_price();
-      const amountCrvRenWsbtcDeposited = p2DepositAmount.mul(utils.parseEther('1.0')).div(frax3crvTofrax);
-      const sdCrvRenWsbtcToCrvRenWsbtc = await stakedaoSdfrax3crvStrategy.getPricePerFullShare();
-      const amountSdCrvRenWsbtcDeposited = amountCrvRenWsbtcDeposited.mul(utils.parseEther('1.0')).div(sdCrvRenWsbtcToCrvRenWsbtc);
-      // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
-      const upperBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(10000000000)
-      // 1% slippage from the ideal is acceptable at most
-      const lowerBoundOfSdCrvRenWsbtcDeposited = amountSdCrvRenWsbtcDeposited.mul(99).div(100).mul(10000000000);
-
-
-      // keep track of shares before
-      const sharesBefore = await vault.totalSupply();
-      const vaultSdfrax3crvBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
-
-      // Approve and deposit underlying
-      await frax.connect(depositor2).approve(vault.address, p2DepositAmount);
-      await vault.connect(depositor2).depositUnderlying(p2DepositAmount, lowerBoundOfSdCrvRenWsbtcDeposited);
-
-      const vaultTotal = await vault.totalStakedaoAsset();
-      const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
-      const sdFrax3CrvDeposited = vaultSdfrax3crvBalanceAfter.sub(vaultSdfrax3crvBalanceBefore);
-
-      // check the sdFrax3Crv token balances
-      // there is no accurate way of estimating this, so just approximating for now
-      expect(sdFrax3CrvDeposited, 'internal accounting is incorrect').to.be.within(lowerBoundOfSdCrvRenWsbtcDeposited as any, upperBoundOfSdCrvRenWsbtcDeposited as any);
-      expect(vaultTotal).to.be.equal(
-        vaultSdfrax3crvBalanceAfter, 'internal balance is incorrect'
-      );
-
-      // check the minted share balances
-      const shares = sharesBefore.div(vaultSdfrax3crvBalanceBefore).mul(sdFrax3CrvDeposited)
-      expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted').to.be.equal(shares)
     });
 
     it('p2 deposits FRAX3CRV', async () => {
@@ -542,33 +473,39 @@ describe('Mainnet Fork Tests', function () {
       expect(marginPoolBalanceOfsdFrax3CrvAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfsdFrax3CrvBefore.add(collateralAmount));
     });
 
-    xit('p3 deposits', async () => {
-      const effectiveP3deposit = p3DepositAmount.mul(95).div(100)
+    it('p3 deposits FRAX3CRV', async () => {
+      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      const amountfrax3crvDeposited = p3DepositAmount
+
+      // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
+      const sdfrax3crvSupplyBefore = await stakedaoSdfrax3crvStrategy.totalSupply();
+      const frax3crvBalanceInStakedao = await stakedaoSdfrax3crvStrategy.balance();
+      const sdFrax3crvDeposited = amountfrax3crvDeposited.mul(sdfrax3crvSupplyBefore).div(frax3crvBalanceInStakedao);
+
+      // keep track of balance before
       const vaultTotalBefore = await vault.totalStakedaoAsset();
-      const expectedTotal = vaultTotalBefore.add(effectiveP3deposit);
       const sharesBefore = await vault.totalSupply();
-      const actualAmountInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
+      const vaultSdfrax3crvBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
 
-      await frax.connect(depositor3).approve(vault.address, p3DepositAmount);
-      await vault.connect(depositor3).depositUnderlying(p3DepositAmount, '0');
+      // approve and deposit 
+      await frax3crv.connect(depositor3).approve(vault.address, amountfrax3crvDeposited);
+      await vault.connect(depositor3).depositCrvLP(amountfrax3crvDeposited);
 
-      const vaultTotalAfter = await vault.totalStakedaoAsset();
-      const sdFrax3CrvDeposited = vaultTotalAfter.sub(vaultTotalBefore);
-      actualAmountInVault = await sdFrax3Crv.balanceOf(vault.address);
+
+      const vaultTotal = await vault.totalStakedaoAsset();
+      const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+
       // check the sdFrax3Crv token balances
-      // there is no accurate way of estimating this, so just approximating for now
-      expect(
-        (await vault.totalStakedaoAsset()).gte(expectedTotal),
-        'internal accounting is incorrect'
-      ).to.be.true;
-      expect(actualAmountInVault).to.be.equal(
-        actualAmountInVaultBefore.add(sdFrax3CrvDeposited), 'internal accounting should match actual balance'
+      expect(vaultTotal.sub(vaultTotalBefore), 'internal accounting is incorrect').to.be.eq(sdFrax3crvDeposited);
+      expect(vaultSdfrax3crvBalanceAfter.sub(vaultSdfrax3crvBalanceBefore), 'internal balance is incorrect').to.be.equal(
+        sdFrax3crvDeposited
       );
 
       // check the minted share balances
-      const shares = sdFrax3CrvDeposited.mul(sharesBefore).div(vaultTotalBefore)
-      expect((await vault.balanceOf(depositor3.address))).to.be.equal(shares)
+      const sharesMinted = sdFrax3crvDeposited.mul(sharesBefore).div(vaultTotalBefore)
+      expect((await vault.balanceOf(depositor3.address)), 'incorrcect amount of shares minted').to.be.equal(sharesMinted)
     });
+
 
     xit('p1 withdraws', async () => {
       // vault balance calculations

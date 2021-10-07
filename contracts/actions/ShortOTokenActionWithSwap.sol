@@ -167,7 +167,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // check that minimum premium is received 
     uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
     uint256 sdTokenEarned = sdTokenBalanceAfter.sub(sdTokenBalanceBefore);
-    console.log(_collateralAmount, sdTokenEarned);
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
 
     emit MintAndSellOToken(_collateralAmount, _otokenAmount, sdTokenEarned);
@@ -226,7 +225,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // wantedAsset.approve(address(curvePool), wantedAssetBalance);
     // curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
     uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
-    console.log(crvLPTokenToDeposit);
 
     // deposit crvLPToken to stakedao
     crvLPToken.safeApprove(address(stakedaoStrategy), 0);
