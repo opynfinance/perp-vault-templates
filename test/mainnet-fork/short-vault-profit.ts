@@ -89,7 +89,7 @@ describe('Mainnet Fork Tests', function () {
   const p1DepositAmount = utils.parseEther('1000');
   const p2DepositAmount = utils.parseEther('7000');
   const p3DepositAmount = utils.parseEther('2000');
-  const premium = utils.parseEther('2');
+  const premium = utils.parseEther('40');
 
   /**
    *
@@ -256,6 +256,7 @@ describe('Mainnet Fork Tests', function () {
     // send everyone frax
     await provider.send('hardhat_impersonateAccount', [frax3crvWhale]);
     const signer = await ethers.provider.getSigner(frax3crvWhale);
+    await frax3crv.connect(signer).transfer(counterpartyWallet.address, premium);
     await frax3crv.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await frax3crv.connect(signer).transfer(depositor2.address, p2DepositAmount);
     await frax3crv.connect(signer).transfer(depositor3.address, p3DepositAmount);
@@ -273,6 +274,7 @@ describe('Mainnet Fork Tests', function () {
 
     // approve frax to be spent by counterparty 
     await frax.connect(counterpartyWallet).approve(swapAddress, premium);
+    await frax3crv.connect(counterpartyWallet).approve(swapAddress, premium);
   })
 
 
@@ -484,11 +486,10 @@ describe('Mainnet Fork Tests', function () {
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
       const expectedSdfrax3crvBalanceInVault = vaultSdfrax3crvBalanceBefore.mul(reserveFactor).div(100)
-      let expectedSdfrax3crvBalanceInAction = vaultSdfrax3crvBalanceBefore.sub(expectedSdfrax3crvBalanceInVault)
       const collateralAmount = await sdFrax3Crv.balanceOf(action1.address)
-      const premiumInSdfrax3crv = premium.mul(95).div(100);
+      const premiumInSdfrax3crv = premium.mul(await stakedaoSdfrax3crvStrategy.totalSupply()).div(await stakedaoSdfrax3crvStrategy.balance());
       const expectedTotal = vaultSdfrax3crvBalanceBefore.add(premiumInSdfrax3crv);
-      expectedSdfrax3crvBalanceInAction = expectedSdfrax3crvBalanceInVault.add(premiumInSdfrax3crv);
+      const expectedSdfrax3crvBalanceInAction = vaultSdfrax3crvBalanceBefore.sub(expectedSdfrax3crvBalanceInVault).add(premiumInSdfrax3crv);
       const sellAmount = (collateralAmount.div(otokenStrikePrice)).div(100).toString();
 
       const marginPoolBalanceOfsdFrax3CrvBefore = await sdFrax3Crv.balanceOf(marginPoolAddess);
@@ -498,7 +499,7 @@ describe('Mainnet Fork Tests', function () {
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        frax.address,
+        frax3crv.address,
         premium.toString(),
         swapAddress,
         counterpartyWallet.privateKey
@@ -511,30 +512,34 @@ describe('Mainnet Fork Tests', function () {
 
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
-      // const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+      const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
-      // // check sdFrax3Crv balance in action and vault
-      // expect(vaultSdfrax3crvBalanceAfter).to.be.within(
-      //   expectedSdfrax3crvBalanceInVault.sub(1) as any, expectedSdfrax3crvBalanceInVault.add(1) as any, "incorrect balance in vault"
-      // );
+      // check sdFrax3Crv balance in action and vault
+      expect(vaultSdfrax3crvBalanceAfter).to.be.within(
+        expectedSdfrax3crvBalanceInVault.sub(1) as any, expectedSdfrax3crvBalanceInVault.add(1) as any, "incorrect balance in vault"
+      );
+
+      expect(await vault.totalStakedaoAsset(), 'incorrect accounting in vault').to.be.eq(expectedTotal);
       // expect(
       //   (await vault.totalStakedaoAsset()).gte(expectedTotal),
       //   'incorrect accounting in vault'
       // ).to.be.true;
-      // expect(((await sdFrax3Crv.balanceOf(action1.address)).gte(expectedSdfrax3crvBalanceInAction), 'incorrect sdcrvRenWSBTC balance in action'))
-      // expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
-      // expect(await frax.balanceOf(action1.address)).to.be.equal('0');
+      expect((await sdFrax3Crv.balanceOf(action1.address)), 'incorrect sdFrax3Crv balance in action').to.be.eq(premiumInSdfrax3crv);
+      // expect(((await sdFrax3Crv.balanceOf(action1.address)).gte(expectedSdfrax3crvBalanceInAction), 'incorrect sdFrax3Crv balance in action'))
+      expect(await (await action1.currentValue()).add(1), 'incorrect current value in action').to.be.eq(expectedSdfrax3crvBalanceInAction);
+      expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount);
+      expect(await frax.balanceOf(action1.address)).to.be.equal('0');
 
 
-      // // check the otoken balance of counterparty
-      // expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
-      //   sellAmount
-      // );
+      // check the otoken balance of counterparty
+      expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
+        sellAmount
+      );
 
-      // const marginPoolBalanceOfsdFrax3CrvAfter = await sdFrax3Crv.balanceOf(marginPoolAddess);
+      const marginPoolBalanceOfsdFrax3CrvAfter = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
-      // // check sdcrvRenWSBTC balance in opyn 
-      // expect(marginPoolBalanceOfsdFrax3CrvAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfsdFrax3CrvBefore.add(collateralAmount));
+      // check sdFrax3Crv balance in opyn 
+      expect(marginPoolBalanceOfsdFrax3CrvAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfsdFrax3CrvBefore.add(collateralAmount));
     });
 
     xit('p3 deposits', async () => {
@@ -650,8 +655,8 @@ describe('Mainnet Fork Tests', function () {
         (await action1.lockedAsset()).eq('0'),
         'all collateral should be unlocked'
       ).to.be.true;
-      expect(sbtcBalanceInActionAfter, 'no sdcrvRenWSBTC should be left in action').to.be.equal('0');
-      expect(sbtcControlledByActionAfter, 'no sdcrvRenWSBTC should be controlled by action').to.be.equal('0');
+      expect(sbtcBalanceInActionAfter, 'no sdFrax3Crv should be left in action').to.be.equal('0');
+      expect(sbtcControlledByActionAfter, 'no sdFrax3Crv should be controlled by action').to.be.equal('0');
     });
 
     xit('p2 withdraws', async () => {

@@ -146,7 +146,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     onlyActivated();
     require(_order.sender.wallet == address(this), 'S3');
     require(_order.sender.token == otoken, 'S4');
-    require(_order.signer.token == address(wantedAsset), 'S5');
+    // require(_order.signer.token == address(wantedAsset), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
 
     // mint options
@@ -162,12 +162,13 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     _fillAirswapOrder(_order);
 
     // convert the wantedAsset received as premium to sdToken
-    // _wantedAssetToSdToken();
+    _wantedAssetToSdToken();
 
     // check that minimum premium is received 
     uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
     uint256 sdTokenEarned = sdTokenBalanceAfter.sub(sdTokenBalanceBefore);
-    // require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
+    console.log(_collateralAmount, sdTokenEarned);
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
 
     emit MintAndSellOToken(_collateralAmount, _otokenAmount, sdTokenEarned);
   }
@@ -215,16 +216,17 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev add liquidity to curve, deposit into stakedao.
    */
   function _wantedAssetToSdToken() internal {
-    uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
+    // uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
 
-    uint256[2] memory amounts;
-    amounts[0] = wantedAssetBalance;
-    amounts[1] = 0;
+    // uint256[2] memory amounts;
+    // amounts[0] = wantedAssetBalance;
+    // amounts[1] = 0;
 
-    // deposit wantedAsset to curve
-    wantedAsset.approve(address(curvePool), wantedAssetBalance);
-    curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
+    // // deposit wantedAsset to curve
+    // wantedAsset.approve(address(curvePool), wantedAssetBalance);
+    // curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
     uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
+    console.log(crvLPTokenToDeposit);
 
     // deposit crvLPToken to stakedao
     crvLPToken.safeApprove(address(stakedaoStrategy), 0);
@@ -322,8 +324,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   function _isValidStrike(uint256 strikePrice, address underlying) internal view returns (bool) { 
     uint256 spotPrice = oracle.getPrice(underlying);
     // checks that the strike price set is < than 95% of current price
-    console.log(spotPrice);
-    console.log(strikePrice);
     return strikePrice <= spotPrice.mul(MIN_STRIKE).div(BASE);
   }
 
