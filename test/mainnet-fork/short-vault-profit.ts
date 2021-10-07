@@ -333,7 +333,7 @@ describe('Mainnet Fork Tests', function () {
     );
 
     it('p1 deposits FRAX3CRV', async () => {
-      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      // calculating the ideal amount of sdCrvRenWsdFrax3Crv that should be deposited
       const amountfrax3crvDeposited = p1DepositAmount
 
       // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
@@ -361,7 +361,7 @@ describe('Mainnet Fork Tests', function () {
     });
 
     it('p2 deposits FRAX3CRV', async () => {
-      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      // calculating the ideal amount of sdCrvRenWsdFrax3Crv that should be deposited
       const amountfrax3crvDeposited = p2DepositAmount
 
       // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
@@ -474,7 +474,7 @@ describe('Mainnet Fork Tests', function () {
     });
 
     it('p3 deposits FRAX3CRV', async () => {
-      // calculating the ideal amount of sdCrvRenWsbtc that should be deposited
+      // calculating the ideal amount of sdCrvRenWsdFrax3Crv that should be deposited
       const amountfrax3crvDeposited = p3DepositAmount
 
       // multiplying by 10^10 to scale a 10^8 number to a 10^18 number
@@ -507,7 +507,7 @@ describe('Mainnet Fork Tests', function () {
     });
 
 
-    xit('p1 withdraws', async () => {
+    it('p1 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const vaultSdECRVBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
@@ -560,43 +560,43 @@ describe('Mainnet Fork Tests', function () {
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
-    xit('option expires', async () => {
+    it('option expires', async () => {
       // increase time
       await provider.send('evm_setNextBlockTimestamp', [expiry + day]);
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wethPricer.setExpiryPriceInOracle(frax.address, expiry, '3000000000000');
+      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '3000000000000');
       await sdFrax3CrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
       await provider.send('evm_increaseTime', [day]); // increase time
       await provider.send('evm_mine', []);
 
-      const sbtcControlledByActionBefore = await action1.currentValue();
-      const sbtcBalanceInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
+      const sdFrax3CrvControlledByActionBefore = await action1.currentValue();
+      const sdFrax3CrvBalanceInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
 
       await vault.closePositions();
 
-      const sbtcBalanceInVaultAfter = await sdFrax3Crv.balanceOf(vault.address);
-      const sbtcBalanceInActionAfter = await sdFrax3Crv.balanceOf(action1.address);
-      const sbtcControlledByActionAfter = await action1.currentValue();
+      const sdFrax3CrvBalanceInVaultAfter = await sdFrax3Crv.balanceOf(vault.address);
+      const sdFrax3CrvBalanceInActionAfter = await sdFrax3Crv.balanceOf(action1.address);
+      const sdFrax3CrvControlledByActionAfter = await action1.currentValue();
       const vaultTotal = await vault.totalStakedaoAsset();
 
       // check vault balances
-      expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sbtcBalanceInVaultAfter);
-      expect(sbtcBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sbtcBalanceInVaultBefore.add(sbtcControlledByActionBefore));
+      expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdFrax3CrvBalanceInVaultAfter);
+      expect(sdFrax3CrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdFrax3CrvBalanceInVaultBefore.add(sdFrax3CrvControlledByActionBefore));
 
       // check action balances
       expect(
         (await action1.lockedAsset()).eq('0'),
         'all collateral should be unlocked'
       ).to.be.true;
-      expect(sbtcBalanceInActionAfter, 'no sdFrax3Crv should be left in action').to.be.equal('0');
-      expect(sbtcControlledByActionAfter, 'no sdFrax3Crv should be controlled by action').to.be.equal('0');
+      expect(sdFrax3CrvBalanceInActionAfter, 'no sdFrax3Crv should be left in action').to.be.equal('0');
+      expect(sdFrax3CrvControlledByActionAfter, 'no sdFrax3Crv should be controlled by action').to.be.equal('0');
     });
 
-    xit('p2 withdraws', async () => {
+    it('p2 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const vaultSdECRVBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
@@ -650,7 +650,7 @@ describe('Mainnet Fork Tests', function () {
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
-    xit('p3 withdraws', async () => {
+    it('p3 withdraws', async () => {
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor3.address);
