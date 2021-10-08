@@ -215,15 +215,18 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(amount > 0, 'O6');
 
     // the sdToken is already deposited into the contract at this point, need to substract it from total
-    uint256[2] memory amounts;
-    amounts[0] = 0; // depositing only frax
+    uint256[4] memory amounts;
+    amounts[0] = amount; // depositing only frax
     amounts[1] = 0; 
+    amounts[2] = 0;
+    amounts[3] = 0;
 
     // deposit wantedAsset to curvePool
     IERC20 wantedAssetToken = IERC20(wantedAsset);
     wantedAssetToken.safeTransferFrom(msg.sender, address(this), amount);
     wantedAssetToken.approve(address(curvePool), amount);
-    curvePool.add_liquidity(amounts, 0);
+
+    curvePool.add_liquidity(address(curveLPToken), amounts, 0);
     _depositToStakedaoAndMint();
   }
 

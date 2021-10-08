@@ -19,19 +19,19 @@ contract MockCurveWrapper {
         underlyingToken = MockERC20(_underlying);
     }
 
-    function add_liquidity(uint256 amount, uint256 minCrvLPToken) external {
-        // the sdLPToken is already deposited into the contract at this point, need to substract it from total
-        uint256[2] memory amounts;
-        amounts[0] = 0; // not depositing any rebBTC
-        amounts[1] = amount; 
+    // function add_liquidity(uint256 amount, uint256 minCrvLPToken) external {
+    //     // the sdLPToken is already deposited into the contract at this point, need to substract it from total
+    //     uint256[2] memory amounts;
+    //     amounts[0] = 0; // not depositing any rebBTC
+    //     amounts[1] = amount; 
 
-        // deposit underlying to curvePool
-        underlyingToken.transferFrom(msg.sender, address(this), amount);
-        underlyingToken.approve(address(curvePool), amount);
-        curvePool.add_liquidity(amounts, minCrvLPToken);
-        uint256 curveLPTokenBalance = curveLPToken.balanceOf(address(this));
-        curveLPToken.transfer(msg.sender, curveLPTokenBalance);
-    }
+    //     // deposit underlying to curvePool
+    //     underlyingToken.transferFrom(msg.sender, address(this), amount);
+    //     underlyingToken.approve(address(curvePool), amount);
+    //     curvePool.add_liquidity(amounts, minCrvLPToken);
+    //     uint256 curveLPTokenBalance = curveLPToken.balanceOf(address(this));
+    //     curveLPToken.transfer(msg.sender, curveLPTokenBalance);
+    // }
 
 
     // function remove_liquidity_one_coin(uint256 amount, int128, uint256) external returns (uint256) {
