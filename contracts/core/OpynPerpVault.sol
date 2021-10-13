@@ -271,7 +271,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     IERC20 wantedAssetToken = IERC20(wantedAsset);
     uint256 wantedAssetBalanceBefore = wantedAssetToken.balanceOf(address(this));
     uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
-    console.log(address(curveMetaZap), address(curveLPToken));
     curveLPToken.remove_liquidity_one_coin(curveLPTokenBalance, 0, _minUnderlying);
     uint256 wantedAssetBalanceAfter = wantedAssetToken.balanceOf(address(this));
     uint256 wantedAssetOwedToUser = wantedAssetBalanceAfter.sub(wantedAssetBalanceBefore);

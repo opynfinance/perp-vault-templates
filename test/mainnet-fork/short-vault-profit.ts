@@ -712,168 +712,133 @@ describe('Mainnet Fork Tests', function () {
     });
   });
 
-  // describe('Test deposit underlying and withdraw underlying', async() => { 
-  //   this.beforeAll('send everyone frax', async () => {
-  //     const fraxWhale = '0x7AfaFe3C06F4D4864fE37E981bf73279B5f44218'
+  describe('Test deposit underlying and withdraw underlying', async() => { 
+    this.beforeAll('send everyone frax', async () => {
+      const fraxWhale = '0x7AfaFe3C06F4D4864fE37E981bf73279B5f44218'
   
-  //     // send everyone frax
-  //     await provider.send('hardhat_impersonateAccount', [fraxWhale]);
-  //     const signer = await ethers.provider.getSigner(fraxWhale);
-  //     await frax.connect(signer).transfer(depositor1.address, p1DepositAmount);
-  //     await provider.send('evm_mine', []);
-  //     await provider.send('hardhat_stopImpersonatingAccount', [fraxWhale]);
-  //   })
+      // send everyone frax
+      await provider.send('hardhat_impersonateAccount', [fraxWhale]);
+      const signer = await ethers.provider.getSigner(fraxWhale);
+      await frax.connect(signer).transfer(depositor1.address, p1DepositAmount);
+      await provider.send('evm_mine', []);
+      await provider.send('hardhat_stopImpersonatingAccount', [fraxWhale]);
+    })
 
-  //   this.beforeAll('send everyone usdc', async () => {
-  //     const usdcWhale = '0x036B96EEA235880a9e82fb128E5f6c107dFe8f57'
-  //     const usdcAmount = p1DepositAmount.div(1000000000000);
+    this.beforeAll('send everyone usdc', async () => {
+      const usdcWhale = '0x036B96EEA235880a9e82fb128E5f6c107dFe8f57'
+      const usdcAmount = p1DepositAmount.div(1000000000000);
   
-  //     // send everyone usdc
-  //     await provider.send('hardhat_impersonateAccount', [usdcWhale]);
-  //     const signer = await ethers.provider.getSigner(usdcWhale);
-  //     await usdc.connect(signer).transfer(depositor1.address, usdcAmount);
-  //     await provider.send('evm_mine', []);
-  //     await provider.send('hardhat_stopImpersonatingAccount', [usdcWhale]);
-  //   })
+      // send everyone usdc
+      await provider.send('hardhat_impersonateAccount', [usdcWhale]);
+      const signer = await ethers.provider.getSigner(usdcWhale);
+      await usdc.connect(signer).transfer(depositor1.address, usdcAmount);
+      await provider.send('evm_mine', []);
+      await provider.send('hardhat_stopImpersonatingAccount', [usdcWhale]);
+    })
 
-  //   this.beforeAll('send everyone usdt', async () => {
-  //     const usdtWhale = '0x67aB29354a70732CDC97f372Be81d657ce8822cd'
-  //     const usdtAmount = p1DepositAmount.div(1000000000000);
+    this.beforeAll('send everyone usdt', async () => {
+      const usdtWhale = '0x67aB29354a70732CDC97f372Be81d657ce8822cd'
+      const usdtAmount = p1DepositAmount.div(1000000000000);
   
-  //     // send everyone usdt
-  //     await provider.send('hardhat_impersonateAccount', [usdtWhale]);
-  //     const signer = await ethers.provider.getSigner(usdtWhale);
-  //     await usdt.connect(signer).transfer(depositor1.address, usdtAmount);
-  //     await provider.send('evm_mine', []);
-  //     await provider.send('hardhat_stopImpersonatingAccount', [usdtWhale]);
-  //   })
+      // send everyone usdt
+      await provider.send('hardhat_impersonateAccount', [usdtWhale]);
+      const signer = await ethers.provider.getSigner(usdtWhale);
+      await usdt.connect(signer).transfer(depositor1.address, usdtAmount);
+      await provider.send('evm_mine', []);
+      await provider.send('hardhat_stopImpersonatingAccount', [usdtWhale]);
+    })
 
-  //   it('p1 deposits frax', async () => {
-  //     // balances before
-  //     const amountFraxDeposited = p1DepositAmount
-  //     const p1FraxBalanceBefore = await frax.balanceOf(depositor1.address);
-  //     const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
+    it('p1 deposits frax', async () => {
+      // balances before
+      const amountFraxDeposited = p1DepositAmount
+      const p1FraxBalanceBefore = await frax.balanceOf(depositor1.address);
+      const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
 
-  //     // approve and deposit
-  //     await frax.connect(depositor1).approve(vault.address, amountFraxDeposited);
-  //     await vault.connect(depositor1).depositUnderlying(amountFraxDeposited, 0, 0);
+      // approve and deposit
+      await frax.connect(depositor1).approve(vault.address, amountFraxDeposited);
+      await vault.connect(depositor1).depositUnderlying(amountFraxDeposited, 0, 0);
 
-  //     // balances after
-  //     const p1FraxBalanceAfter = await frax.balanceOf(depositor1.address);
-  //     const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
-  //     const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+      // balances after
+      const p1FraxBalanceAfter = await frax.balanceOf(depositor1.address);
+      const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
+      const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
-  //     expect(p1FraxBalanceAfter, 'incorrect p1 frax balance').to.be.eq('0')
-  //     expect((p1FraxBalanceBefore).gte(totalVaultBalanceAfter), 'incorrect amount of frax deposited from p1').to.be.true 
-  //     expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
-  //     expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
-  //     expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
+      expect(p1FraxBalanceAfter, 'incorrect p1 frax balance').to.be.eq('0')
+      expect((p1FraxBalanceBefore).gte(totalVaultBalanceAfter), 'incorrect amount of frax deposited from p1').to.be.true 
+      expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
+      expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
+      expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
 
-  //     // // check the minted share balances
-  //     // expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-  //   });
+      // check the minted share balances
+      expect((await vault.balanceOf(depositor1.address)).gte(p1DepositAmount.mul(90).div(100)), 'incorrcect amount of shares minted').to.be.true
+    });
 
-  //   it('p1 deposits usdc', async () => {
-  //     // balances before
-  //     const amountUsdcDeposited = p1DepositAmount.div(1000000000000)
-  //     const p1UsdcBalanceBefore = await usdc.balanceOf(depositor1.address);
-  //     const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
+    it('p1 withdraws', async () => {
+      const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
-  //     // approve and deposit
-  //     await usdc.connect(depositor1).approve(vault.address, amountUsdcDeposited);
-  //     await vault.connect(depositor1).depositUnderlying(amountUsdcDeposited, 0, 2);
+      await vault
+        .connect(depositor1)
+        .withdrawUnderlying(sharesToWithdraw, '0');
 
-  //     // balances after
-  //     const p1UsdcBalanceAfter = await usdc.balanceOf(depositor1.address);
-  //     const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
-  //     const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+    });
 
-  //     // expect(p1UsdcBalanceAfter, 'incorrect p1 usdc balance').to.be.eq('0')
-  //     // expect((p1UsdcBalanceBefore).gte(totalVaultBalanceAfter.div(1000000000000)), 'incorrect amount of usdc deposited from p1').to.be.true 
-  //     // expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
-  //     // expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
-  //     // expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
+    it('p1 deposits usdc', async () => {
+      // balances before
+      const amountUsdcDeposited = p1DepositAmount.div(1000000000000)
+      const p1UsdcBalanceBefore = await usdc.balanceOf(depositor1.address);
+      const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
 
-  //     // // check the minted share balances
-  //     // expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-  //   });
+      // approve and deposit
+      await usdc.connect(depositor1).approve(vault.address, amountUsdcDeposited);
+      await vault.connect(depositor1).depositUnderlying(amountUsdcDeposited, 0, 2);
 
-  //   it('p1 deposits usdt', async () => {
-  //     // balances before
-  //     const amountUsdtDeposited = p1DepositAmount.div(1000000000000)
-  //     const p1UsdtBalanceBefore = await usdt.balanceOf(depositor1.address);
-  //     const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
+      // balances after
+      const p1UsdcBalanceAfter = await usdc.balanceOf(depositor1.address);
+      const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
+      const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
-  //     // approve and deposit
-  //     await usdt.connect(depositor1).approve(vault.address, amountUsdtDeposited);
-  //     await vault.connect(depositor1).depositUnderlying(amountUsdtDeposited, 0, 3);
+      expect(p1UsdcBalanceAfter, 'incorrect p1 usdc balance').to.be.eq('0')
+      expect((p1UsdcBalanceBefore).gte(totalVaultBalanceAfter.div(1000000000000)), 'incorrect amount of usdc deposited from p1').to.be.true 
+      expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
+      expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
+      expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
 
-  //     // balances after
-  //     const p1UsdtBalanceAfter = await usdt.balanceOf(depositor1.address);
-  //     const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
-  //     const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+      // check the minted share balances
+      expect((await vault.balanceOf(depositor1.address)).gte(p1DepositAmount.mul(90).div(100)), 'incorrcect amount of shares minted').to.be.true
+    });
 
-  //     // expect(p1UsdtBalanceAfter, 'incorrect p1 usdt balance').to.be.eq('0')
-  //     // expect((p1UsdtBalanceBefore).gte(totalVaultBalanceAfter.div(1000000000000)), 'incorrect amount of usdt deposited from p1').to.be.true 
-  //     // expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
-  //     // expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
-  //     // expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
+    it('p1 withdraws', async () => {
+      const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
-  //     // // check the minted share balances
-  //     // expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
-  //   });
+      await vault
+        .connect(depositor1)
+        .withdrawUnderlying(sharesToWithdraw, '0');
 
-  //   it('p1 withdraws', async () => {
-  //     // vault balance calculations
-  //     const vaultTotalBefore = await vault.totalStakedaoAsset();
-  //     const vaultSdECRVBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
-  //     const sharesBefore = await vault.totalSupply();
-  //     const sharesToWithdraw = await vault.balanceOf(depositor1.address);
+    });
 
-  //     // // p1 balance calculations 
-  //     // const denominator = p1DepositAmount.add(p2DepositAmount);
-  //     // const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
-  //     // const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
-  //     // const fee = sharesToWithdraw.mul(vaultTotalBefore).div(sharesBefore).mul(5).div(1000);
-  //     // const amountTransferredToP1 = amountToWithdraw.mul(95).div(100);
-  //     // const balanceOfP1Before = await frax.balanceOf(depositor1.address);
+    it('p1 deposits usdt', async () => {
+      // balances before
+      const amountUsdtDeposited = p1DepositAmount.div(1000000000000)
+      const p1UsdtBalanceBefore = await usdt.balanceOf(depositor1.address);
+      const totalVaultBalanceBefore = await vault.totalStakedaoAsset();
 
-  //     // // fee calculations 
-  //     // const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
+      // approve and deposit
+      await usdt.connect(depositor1).approve(vault.address, amountUsdtDeposited);
+      await vault.connect(depositor1).depositUnderlying(amountUsdtDeposited, 0, 3);
 
+      // balances after
+      const p1UsdtBalanceAfter = await usdt.balanceOf(depositor1.address);
+      const totalVaultBalanceAfter = await vault.totalStakedaoAsset();
+      const vaultSdFraxCrvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
 
-  //     await vault
-  //       .connect(depositor1)
-  //       .withdrawUnderlying(sharesToWithdraw, '0');
+      expect(p1UsdtBalanceAfter, 'incorrect p1 usdt balance').to.be.eq('0')
+      expect((p1UsdtBalanceBefore).gte(totalVaultBalanceAfter.div(1000000000000)), 'incorrect amount of usdt deposited from p1').to.be.true 
+      expect(totalVaultBalanceBefore, 'incorrect initial vault balance').to.be.eq('0')
+      expect(totalVaultBalanceAfter.gt('0'), 'vault balance should have increased').to.be.true;
+      expect(vaultSdFraxCrvBalanceAfter,'mismatch between vault recorded balance and actual balance').to.be.eq(totalVaultBalanceAfter);
 
-  //     // // vault balance variables 
-  //     // const sharesAfter = await vault.totalSupply();
-  //     // const expectedVaultTotalAfter = vaultTotalBefore.mul(sharesAfter).div(sharesBefore);
-  //     // const sdFrax3CrvWithdrawn = vaultTotalBefore.sub(expectedVaultTotalAfter);
-  //     // const vaultSdECRVBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
-
-  //     // // fee variables 
-  //     // const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address);
-  //     // const balanceOfP1After = await frax.balanceOf(depositor1.address);
-
-  //     // expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
-
-  //     // const vaultTotalSdfrax3crv = await vault.totalStakedaoAsset();
-  //     // // check vault balance 
-  //     // expect(
-  //     //   vaultTotalSdfrax3crv).to.be.within(expectedVaultTotalAfter as any, expectedVaultTotalAfter.add(50) as any,
-  //     //     'total asset should update'
-  //     //   );
-  //     // expect(vaultSdECRVBalanceAfter).to.be.within(
-  //     //   vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).sub(1) as any,
-  //     //   vaultSdECRVBalanceBefore.sub(sdFrax3CrvWithdrawn).add(1) as any,
-  //     // );
-
-  //     // // check p1 balance 
-  //     // expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect eth transferred to p1').to.be.true;
-
-  //     // // check fee 
-  //     // expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
-  //   });
-  // })
+      // check the minted share balances
+      expect((await vault.balanceOf(depositor1.address)).gte(p1DepositAmount.mul(90).div(100)), 'incorrcect amount of shares minted').to.be.true
+    });
+  })
 });
