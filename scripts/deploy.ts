@@ -11,7 +11,8 @@ const gammaWhitelistAddress = "0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779"
 const newOwnerAddress = "0xb36a0671B3D49587236d7833B01E79798175875f"
 const sdcrvRenWsbtcAddress = "0x24129B935AfF071c4f0554882C0D9573F4975fEd"
 const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-// const usdcAddress;
+const fraxAddress = '0x853d955aCEf822Db058eb8505911ED77F175b99e';
+const sdFrax3CrvAddress = ''
 let accounts: SignerWithAddress[] = [];
 
 async function deployContracts() {
@@ -34,7 +35,7 @@ async function deployContracts() {
     // deploy OpynPerpVault
     const OpynPerpVault: ContractFactory = await ethers.getContractFactory('OpynPerpVault');
     const opynPerpVault = await OpynPerpVault.connect(deployer).deploy(
-        wbtcAddress,
+        fraxAddress,
         sdcrvRenWsbtcAddress,
         curve3PoolAddress,
         newOwnerAddress, // Owner is fee recipient 
@@ -57,7 +58,7 @@ async function deployContracts() {
         gammaControllerAddress,
         curve3PoolAddress,
         0, // type 0 vault
-        wbtcAddress,
+        fraxAddress,
         4, // 0.04%
         {gasPrice: 131000000000}
     ) as ShortOTokenActionWithSwap;
