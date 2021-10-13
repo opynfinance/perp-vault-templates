@@ -11,6 +11,7 @@ import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import { IAction } from '../interfaces/IAction.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
+import { ICurveZap } from '../interfaces/ICurveZap.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
 
 import "hardhat/console.sol";
@@ -35,7 +36,7 @@ import "hardhat/console.sol";
  * O16: withdraw reserve percentage must be less than 50% (5000)
  * O17: cannot call emergencyPause, vault is already in emergency state
  * O18: cannot call resumeFromPause, vault is not in emergency state
- * O19: cannot receive wantedAsset from any address other than the curve pool address (curvePool)
+ * O19: cannot receive wantedAsset from any address other than the curve pool address (curveMetaZap)
  */
 
 /** 
@@ -43,7 +44,7 @@ import "hardhat/console.sol";
  * @author Opyn Team
  * @dev implementation of the Opyn Perp Vault contract that works with stakedao's wantedAsset strategy. 
  * Note that this implementation is meant to only specifically work for the stakedao wantedAsset strategy and is not 
- * a generalized contract. Stakedao's wantedAsset strategy currently accepts curvePool LP tokens called curveLPToken from the 
+ * a generalized contract. Stakedao's wantedAsset strategy currently accepts curveMetaZap LP tokens called curveLPToken from the 
  * wantedAsset curve pool. This strategy allows users to convert their wantedAsset into yield earning sdToken tokens
  * and use the sdToken tokens as collateral to sell wantedAsset call options on Opyn. 
  */
@@ -81,11 +82,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
 
-  /// @dev curvePool for the corresponding stakedao strategy 
-  ICurve public curvePool;
+  /// @dev curveMetaZap for the corresponding stakedao strategy 
+  ICurveZap public curveMetaZap;
 
   /// @dev the curve LP token address for the particular pool
-  IERC20 public curveLPToken;
+  ICurve public curveLPToken;
 
   /// @dev the stakedao strategy contract
   IStakeDao stakedaoStrategy;
@@ -140,7 +141,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   constructor (
     address _wantedAsset,
     address _sdTokenAddress,
-    address _curvePoolAddress,
+    address _curveMetaZapAddress,
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
@@ -148,9 +149,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     wantedAsset = _wantedAsset;
     sdTokenAddress = _sdTokenAddress;
     stakedaoStrategy = IStakeDao(sdTokenAddress);
-    curveLPToken = stakedaoStrategy.token();
+    curveLPToken = ICurve(address(stakedaoStrategy.token()));
     feeRecipient = _feeRecipient;
-    curvePool = ICurve(_curvePoolAddress);
+    curveMetaZap = ICurveZap(_curveMetaZapAddress);
     state = VaultState.Unlocked;
   }
 
@@ -197,8 +198,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * total wantedAsset value of the sdToken controlled by this vault
    */
   function totalUnderlyingControlled() external view returns (uint256) { 
-    // hard coded to 36 because crv LP token and sdToken are both 18 decimals. 
-    return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+    // hard coded to 36 because curve LP token and sdToken are both 18 decimals. 
+    return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curveLPToken.get_virtual_price()).div(10**36);
   }
 
   /**
@@ -211,7 +212,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   /**
    * @notice Deposits wantedAsset into the contract and mint vault shares. 
-   * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
+   * @dev deposit into the curveMetaZap, then into stakedao, then mint the shares to depositor, and emit the deposit event
    * @param amount amount of wantedAsset to deposit 
    * @param minCrvLPToken minimum amount of curveLPToken to get out from adding liquidity. 
    */
@@ -235,12 +236,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       assetAddress = BASE_COINS[indexOfAsset.sub(1)];
     }
     
-    // deposit wantedAsset to curvePool
+    // deposit wantedAsset to curveMetaZap
     IERC20 asset = IERC20(assetAddress);
     asset.safeTransferFrom(msg.sender, address(this), amount);
-    asset.safeIncreaseAllowance(address(curvePool), amount);
+    asset.safeIncreaseAllowance(address(curveMetaZap), amount);
 
-    curvePool.add_liquidity(address(curveLPToken), amounts, minCrvLPToken);
+    curveMetaZap.add_liquidity(address(curveLPToken), amounts, minCrvLPToken);
     _depositToStakedaoAndMint();
   }
 
@@ -254,14 +255,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     require(amount > 0, 'O6');
 
-    // deposit wantedAsset to curvePool
-    curveLPToken.safeTransferFrom(msg.sender, address(this), amount);
+    // deposit wantedAsset to curveMetaZap
+    IERC20(address(curveLPToken)).safeTransferFrom(msg.sender, address(this), amount);
     _depositToStakedaoAndMint();
   }
 
   /**
    * @notice Withdraws wantedAsset from vault using vault shares
-   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws wantedAsset from curvePool
+   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws wantedAsset from curveMetaZap
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
@@ -270,15 +271,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     IERC20 wantedAssetToken = IERC20(wantedAsset);
     uint256 wantedAssetBalanceBefore = wantedAssetToken.balanceOf(address(this));
     uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
-    console.log(address(curvePool), address(curveLPToken));
-    curvePool.remove_liquidity_one_coin(address(curveLPToken), curveLPTokenBalance, 0, _minUnderlying);
-    // uint256 wantedAssetBalanceAfter = wantedAssetToken.balanceOf(address(this));
-    // uint256 wantedAssetOwedToUser = wantedAssetBalanceAfter.sub(wantedAssetBalanceBefore);
+    console.log(address(curveMetaZap), address(curveLPToken));
+    curveLPToken.remove_liquidity_one_coin(curveLPTokenBalance, 0, _minUnderlying);
+    uint256 wantedAssetBalanceAfter = wantedAssetToken.balanceOf(address(this));
+    uint256 wantedAssetOwedToUser = wantedAssetBalanceAfter.sub(wantedAssetBalanceBefore);
 
-    // // send wantedAsset to user
-    // wantedAssetToken.safeTransfer(msg.sender, wantedAssetOwedToUser);
+    // send wantedAsset to user
+    wantedAssetToken.safeTransfer(msg.sender, wantedAssetOwedToUser);
 
-    // emit Withdraw(msg.sender, wantedAssetOwedToUser, _share);
+    emit Withdraw(msg.sender, wantedAssetOwedToUser, _share);
   }
 
   /**
@@ -288,7 +289,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function withdrawCrvLp (uint256 _share) external nonReentrant {
      uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
-     curveLPToken.safeTransfer(msg.sender, curveLPTokenBalance);
+     IERC20(address(curveLPToken)).safeTransfer(msg.sender, curveLPTokenBalance);
 
   }
 
@@ -413,7 +414,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // deposit curveLPToken to stakedao
     uint256 curveLPTokenToDeposit = curveLPToken.balanceOf(address(this));
 
-    curveLPToken.safeIncreaseAllowance(sdTokenAddress, curveLPTokenToDeposit);
+    IERC20(address(curveLPToken)).safeIncreaseAllowance(sdTokenAddress, curveLPTokenToDeposit);
     stakedaoStrategy.deposit(curveLPTokenToDeposit);
 
     // mint shares and emit event 

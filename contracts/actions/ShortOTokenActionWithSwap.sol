@@ -8,7 +8,7 @@ import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import { IAction } from '../interfaces/IAction.sol';
 import { IController } from '../interfaces/IController.sol';
-import { ICurve } from '../interfaces/ICurve.sol';
+import { ICurveZap } from '../interfaces/ICurveZap.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
@@ -52,8 +52,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   uint256 public rolloverTime;
 
   IController public controller;
-  ICurve public curvePool;
-  IERC20 crvLPToken;
+  ICurveZap public curveMetaZap;
+  IERC20 curveLPToken;
   IOracle public oracle;
   IStakeDao public stakedaoStrategy;
   IERC20 wantedAsset;
@@ -66,7 +66,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address _swap,
     address _opynWhitelist,
     address _controller,
-    address _curvePoolAddress,
+    address _curveMetaZapAddress,
     uint256 _vaultType,
     address _wantedAsset,
     uint256 _min_profits
@@ -76,11 +76,11 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     wantedAsset = IERC20(_wantedAsset);
 
     controller = IController(_controller);
-    curvePool = ICurve(_curvePoolAddress);
+    curveMetaZap = ICurveZap(_curveMetaZapAddress);
 
     oracle = IOracle(controller.oracle());
     stakedaoStrategy = IStakeDao(_sdTokenAddress);
-    crvLPToken = stakedaoStrategy.token();
+    curveLPToken = stakedaoStrategy.token();
 
     // enable vault to take all the sdToken back and re-distribute.
     IERC20(_sdTokenAddress).safeApprove(_vault, uint256(-1));
@@ -138,7 +138,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev owner only function to mint options with "crvLPToken" and sell otokens in this contract 
+   * @dev owner only function to mint options with "curveLPToken" and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
@@ -215,21 +215,22 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev add liquidity to curve, deposit into stakedao.
    */
   function _wantedAssetToSdToken() internal {
-    // uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
 
-    // uint256[2] memory amounts;
-    // amounts[0] = wantedAssetBalance;
-    // amounts[1] = 0;
+    // the sdToken is already deposited into the contract at this point, need to substract it from total
+    uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
 
-    // // deposit wantedAsset to curve
-    // wantedAsset.approve(address(curvePool), wantedAssetBalance);
-    // curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
-    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
+    uint256[4] memory amounts;
+    amounts[0] = wantedAssetBalance;
 
-    // deposit crvLPToken to stakedao
-    crvLPToken.safeApprove(address(stakedaoStrategy), 0);
-    crvLPToken.safeApprove(address(stakedaoStrategy), crvLPTokenToDeposit);
-    stakedaoStrategy.deposit(crvLPTokenToDeposit);
+    // deposit wantedAsset to curve
+    wantedAsset.approve(address(curveMetaZap), wantedAssetBalance);
+    curveMetaZap.add_liquidity(address(curveLPToken), amounts, 0); // minimum amount of curveLPToken to receive is 0
+    uint256 curveLPTokenToDeposit = curveLPToken.balanceOf(address(this));
+
+    // deposit curveLPToken to stakedao
+    curveLPToken.safeApprove(address(stakedaoStrategy), 0);
+    curveLPToken.safeApprove(address(stakedaoStrategy), curveLPTokenToDeposit);
+    stakedaoStrategy.deposit(curveLPTokenToDeposit);
   }
 
   /**

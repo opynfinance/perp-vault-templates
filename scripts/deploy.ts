@@ -5,12 +5,13 @@ import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import { OpynPerpVault, ShortOTokenActionWithSwap } from "../typechain"
 
 const airswapAddress = "0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA"
-const curveSbtcSwapAddress = "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714"
+const curve3PoolAddress = "0xA79828DF1850E8a3A3064576f380D90aECDD3359"
 const gammaControllerAddress = "0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72"
 const gammaWhitelistAddress = "0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779"
 const newOwnerAddress = "0xb36a0671B3D49587236d7833B01E79798175875f"
 const sdcrvRenWsbtcAddress = "0x24129B935AfF071c4f0554882C0D9573F4975fEd"
 const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
+// const usdcAddress;
 let accounts: SignerWithAddress[] = [];
 
 async function deployContracts() {
@@ -31,16 +32,16 @@ async function deployContracts() {
     console.log(deployer.address, "deployer")
     
     // deploy OpynPerpVault
-    // const OpynPerpVault: ContractFactory = await ethers.getContractFactory('OpynPerpVault');
-    // const opynPerpVault = await OpynPerpVault.connect(deployer).deploy(
-    //     wbtcAddress,
-    //     sdcrvRenWsbtcAddress,
-    //     curveSbtcSwapAddress,
-    //     newOwnerAddress, // Owner is fee recipient 
-    //     "StakeDAO wBTC Covered Call Strategy",
-    //     "sdWbtcCoveredCall", {gasPrice: 150000000000}
-    // ) as OpynPerpVault;
-    const opynPerpVault = (await ethers.getContractAt('OpynPerpVault', '0x227e4635c5fe22D1e36daB1C921B62f8ACC451b9')) as OpynPerpVault
+    const OpynPerpVault: ContractFactory = await ethers.getContractFactory('OpynPerpVault');
+    const opynPerpVault = await OpynPerpVault.connect(deployer).deploy(
+        wbtcAddress,
+        sdcrvRenWsbtcAddress,
+        curve3PoolAddress,
+        newOwnerAddress, // Owner is fee recipient 
+        "StakeDAO frax Put Strategy",
+        "sdFraxPut", {gasPrice: 150000000000}
+    ) as OpynPerpVault;
+    // const opynPerpVault = (await ethers.getContractAt('OpynPerpVault', '0x227e4635c5fe22D1e36daB1C921B62f8ACC451b9')) as OpynPerpVault
 
     console.log(`\nOpynPerpVault deployed at ${opynPerpVault.address}.`)
 
@@ -54,7 +55,7 @@ async function deployContracts() {
         airswapAddress,
         gammaWhitelistAddress,
         gammaControllerAddress,
-        curveSbtcSwapAddress,
+        curve3PoolAddress,
         0, // type 0 vault
         wbtcAddress,
         4, // 0.04%

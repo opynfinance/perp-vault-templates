@@ -27,7 +27,7 @@ export default {
     hardhat: {
       forking: {
         enabled: process.env.FORK === 'true',
-        url: `https://eth-mainnet.alchemyapi.io/v2/SR-wBhpxMirgFtp4OGeJoWKO1ObmVeFg`,
+        url: `https://mainnet.infura.io/v3/9a1eacc6b18f436dab839c1713616fd1`,
       },
       initialBaseFeePerGas: 0 // workaround for eip-1559 (solidity-coverage)
     },
