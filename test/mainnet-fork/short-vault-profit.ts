@@ -187,7 +187,7 @@ describe('Mainnet Fork Tests', function () {
       );
       sdFrax3CrvPricer = (await PricerContract.deploy(
         sdFrax3Crv.address,
-        frax.address,
+        usdc.address,
         oracleAddress,
         frax3crv.address
       )) as StakedaoPricer;
@@ -204,9 +204,9 @@ describe('Mainnet Fork Tests', function () {
       });
       await provider.send('hardhat_impersonateAccount', [opynOwner]);
       const signer = await ethers.provider.getSigner(opynOwner);
-      await oracle
-        .connect(signer)
-        .setStablePrice(frax.address, '100000000');
+      // await oracle
+      //   .connect(signer)
+      //   .setStablePrice(frax.address, '100000000');
       await oracle
         .connect(signer)
         .setAssetPricer(weth.address, wethPricer.address);
@@ -236,7 +236,7 @@ describe('Mainnet Fork Tests', function () {
       .connect(signer)
       .whitelistProduct(
         weth.address,
-        frax.address,
+        usdc.address,
         sdFrax3CrvAddress,
         true
       );
@@ -312,7 +312,7 @@ describe('Mainnet Fork Tests', function () {
 
         await otokenFactory.createOtoken(
           weth.address,
-          frax.address,
+          usdc.address,
           sdFrax3Crv.address,
           otokenStrikePrice,
           expiry,
@@ -321,7 +321,7 @@ describe('Mainnet Fork Tests', function () {
 
         const otokenAddress = await otokenFactory.getOtoken(
           weth.address,
-          frax.address,
+          usdc.address,
           sdFrax3Crv.address,
           otokenStrikePrice,
           expiry,
@@ -396,9 +396,9 @@ describe('Mainnet Fork Tests', function () {
 
     it('tests getPrice in sdFrax3CrvPricer', async () => {
       await wethPricer.setPrice('400000000000'); // $4000
-      const fraxPrice = await oracle.getPrice(frax.address);
+      const usdcPrice = await oracle.getPrice(usdc.address);
       const sdFrax3CrvPrice = await oracle.getPrice(sdFrax3Crv.address);
-      expect(fraxPrice.toNumber()).to.be.lessThanOrEqual(
+      expect(usdcPrice.toNumber()).to.be.lessThanOrEqual(
         sdFrax3CrvPrice.toNumber()
       );
     });
