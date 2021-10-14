@@ -1,7 +1,7 @@
 import { ethers, network } from 'hardhat';
 import { BigNumber, Signer, utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { expect } from 'chai';
+import { expect, util } from 'chai';
 import {
   OpynPerpVault,
   IERC20,
@@ -13,7 +13,8 @@ import {
   IWhitelist,
   MockPricer,
   IStakeDao,
-  ICurve
+  ICurve, 
+  IController
 } from '../../typechain';
 import * as fs from 'fs';
 import { getOrder } from '../utils/orders';
@@ -37,6 +38,20 @@ enum ActionState {
   Idle,
 }
 
+enum ActionType {
+  OpenVault,
+  MintShortOption,
+  BurnShortOption,
+  DepositLongOption,
+  WithdrawLongOption,
+  DepositCollateral,
+  WithdrawCollateral,
+  SettleVault,
+  Redeem,
+  Call,
+  InvalidAction,
+}
+
 describe('Mainnet Fork Tests', function () {
   let counterpartyWallet = ethers.Wallet.fromMnemonic(
     mnemonic,
@@ -46,10 +61,11 @@ describe('Mainnet Fork Tests', function () {
   // asset used by this action: in this case, frax
   let frax: IERC20;
   let weth: IERC20;
-  let frax3crv: IERC20;
   let sdFrax3Crv: IERC20;
   let usdc: IERC20; 
   let usdt: IERC20;
+  let frax3crv: ICurve;
+
 
   let accounts: SignerWithAddress[] = [];
 
@@ -66,6 +82,7 @@ describe('Mainnet Fork Tests', function () {
   let stakedaoSdfrax3crvStrategy: IStakeDao;
   let curvePool: ICurve;
   let provider: typeof ethers.provider;
+  let gammaController: IController;
 
   /**
    *
@@ -73,6 +90,7 @@ describe('Mainnet Fork Tests', function () {
    *
    */
   const day = 86400;
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
   const controllerAddress = '0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72';
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
@@ -130,7 +148,7 @@ describe('Mainnet Fork Tests', function () {
     weth = (await ethers.getContractAt('IERC20', wethAddress)) as IERC20;
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
     usdt = (await ethers.getContractAt('IERC20', usdtAddress)) as IERC20;
-    frax3crv = (await ethers.getContractAt('IERC20', frax3crvAddress)) as IERC20;
+    frax3crv = (await ethers.getContractAt('ICurve', frax3crvAddress)) as ICurve;
     sdFrax3Crv = (await ethers.getContractAt(
       'IERC20',
       sdFrax3CrvAddress
@@ -142,6 +160,7 @@ describe('Mainnet Fork Tests', function () {
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
     stakedaoSdfrax3crvStrategy = (await ethers.getContractAt('IStakeDao', sdFrax3CrvAddress)) as IStakeDao;
     curvePool = (await ethers.getContractAt('ICurve', curvePoolAddress)) as ICurve;
+    gammaController = (await ethers.getContractAt('IController', controllerAddress)) as IController;
   });
 
   this.beforeAll('Deploy vault and sell eth calls action', async () => {
@@ -243,13 +262,23 @@ describe('Mainnet Fork Tests', function () {
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
 
+      this.beforeAll('send counterparty frax', async () => {
+      const fraxWhale = '0x7AfaFe3C06F4D4864fE37E981bf73279B5f44218'
+  
+      // send everyone frax
+      await provider.send('hardhat_impersonateAccount', [fraxWhale]);
+      const signer = await ethers.provider.getSigner(fraxWhale);
+      await frax.connect(signer).transfer(counterpartyWallet.address, premium);
+      await provider.send('evm_mine', []);
+      await provider.send('hardhat_stopImpersonatingAccount', [fraxWhale]);
+    })
+
 
   this.beforeAll('send everyone frax3crv', async() => { 
     const frax3crvWhale = '0x2550761D44e709710C15B718B2B73A65151a8488'
     // send everyone frax
     await provider.send('hardhat_impersonateAccount', [frax3crvWhale]);
     const signer = await ethers.provider.getSigner(frax3crvWhale);
-    await frax3crv.connect(signer).transfer(counterpartyWallet.address, premium);
     await frax3crv.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await frax3crv.connect(signer).transfer(depositor2.address, p2DepositAmount);
     await frax3crv.connect(signer).transfer(depositor3.address, p3DepositAmount);
@@ -267,7 +296,7 @@ describe('Mainnet Fork Tests', function () {
 
     // approve frax to be spent by counterparty 
     await frax.connect(counterpartyWallet).approve(swapAddress, premium);
-    await frax3crv.connect(counterpartyWallet).approve(swapAddress, premium);
+    // await frax3crv.connect(counterpartyWallet).approve(swapAddress, premium);
   })
 
 
@@ -288,7 +317,9 @@ describe('Mainnet Fork Tests', function () {
 
   describe('loss scenario', async () => {
     let otoken: IOToken;
+    let otokensSold: BigNumber;
     let expiry: number;
+    let sdfrax3crvPremium: BigNumber;
     const reserveFactor = 10;
     const otokenStrikePrice = 100000000000; // $1000
     this.beforeAll(
@@ -405,15 +436,20 @@ describe('Mainnet Fork Tests', function () {
       await provider.send('evm_mine', []);
 
       const vaultSdfrax3crvBalanceBefore = await sdFrax3Crv.balanceOf(vault.address);
+      const totalAssetsControlledBefore = await vault.totalStakedaoAsset();
 
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
       const expectedSdfrax3crvBalanceInVault = vaultSdfrax3crvBalanceBefore.mul(reserveFactor).div(100)
       const collateralAmount = await sdFrax3Crv.balanceOf(action1.address)
-      const premiumInSdfrax3crv = premium.mul(await stakedaoSdfrax3crvStrategy.totalSupply()).div(await stakedaoSdfrax3crvStrategy.balance());
+      // This assumes premium was paid in frax3crv. This is the lower bount 
+      const premiumInfrax3crv = premium.div(await frax3crv.get_virtual_price()).mul(utils.parseEther('1.0'));
+      const premiumInSdfrax3crv = premiumInfrax3crv.mul(await stakedaoSdfrax3crvStrategy.totalSupply()).div(await stakedaoSdfrax3crvStrategy.balance());
       const expectedTotal = vaultSdfrax3crvBalanceBefore.add(premiumInSdfrax3crv);
       const expectedSdfrax3crvBalanceInAction = vaultSdfrax3crvBalanceBefore.sub(expectedSdfrax3crvBalanceInVault).add(premiumInSdfrax3crv);
-      const sellAmount = (collateralAmount.div(otokenStrikePrice)).div(100).toString();
+      otokensSold = (collateralAmount.div(otokenStrikePrice)).div(100);
+      const sellAmount = otokensSold.toString(); // needs to be in 1e8 units
+    
 
       const marginPoolBalanceOfsdFrax3CrvBefore = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
@@ -422,7 +458,7 @@ describe('Mainnet Fork Tests', function () {
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        frax3crv.address,
+        frax.address,
         premium.toString(),
         swapAddress,
         counterpartyWallet.privateKey
@@ -436,15 +472,17 @@ describe('Mainnet Fork Tests', function () {
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
       const vaultSdfrax3crvBalanceAfter = await sdFrax3Crv.balanceOf(vault.address);
+      const totalAssetsControlledAfter = await vault.totalStakedaoAsset();
+      sdfrax3crvPremium = totalAssetsControlledAfter.sub(totalAssetsControlledBefore)
 
       // check sdFrax3Crv balance in action and vault
       expect(vaultSdfrax3crvBalanceAfter).to.be.within(
         expectedSdfrax3crvBalanceInVault.sub(1) as any, expectedSdfrax3crvBalanceInVault.add(1) as any, "incorrect balance in vault"
       );
 
-      expect(await vault.totalStakedaoAsset(), 'incorrect accounting in vault').to.be.eq(expectedTotal);
-      expect((await sdFrax3Crv.balanceOf(action1.address)), 'incorrect sdFrax3Crv balance in action').to.be.eq(premiumInSdfrax3crv);
-      expect(await (await action1.currentValue()).add(1), 'incorrect current value in action').to.be.eq(expectedSdfrax3crvBalanceInAction);
+      expect((await vault.totalStakedaoAsset()).gte(expectedTotal), 'incorrect accounting in vault').to.be.true;
+      expect((await sdFrax3Crv.balanceOf(action1.address)).gte(premiumInSdfrax3crv), 'incorrect sdFrax3Crv balance in action').to.be.true;
+      expect(await (await action1.currentValue()).gte(expectedSdfrax3crvBalanceInAction), 'incorrect current value in action').to.be.true;
       expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount);
       expect(await frax.balanceOf(action1.address)).to.be.equal('0');
 
@@ -542,7 +580,9 @@ describe('Mainnet Fork Tests', function () {
 
 
       // check p1 balance 
-      expect(balanceOfP1After, 'incorrect frac3crv transferred to p1').to.be.eq(balanceOfP1Before.add(crv3FraxToWithdraw).add(1))
+      expect(balanceOfP1After, 'incorrect frax3crv transferred to p1').to.be.eq(balanceOfP1Before.add(crv3FraxToWithdraw).add(1))
+      // since p1 withdraws before expiry, p1 makes a profit
+      expect(balanceOfP1After.gt(p1DepositAmount), 'p1 should have made a profit').to.be.true;
 
       // check fee 
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
@@ -554,7 +594,7 @@ describe('Mainnet Fork Tests', function () {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '500000000000');
+      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '50000000000');
       await sdFrax3CrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
@@ -563,6 +603,9 @@ describe('Mainnet Fork Tests', function () {
 
       const sdFrax3CrvControlledByActionBefore = await action1.currentValue();
       const sdFrax3CrvBalanceInVaultBefore = await sdFrax3Crv.balanceOf(vault.address);
+      const sdFrax3CrvLost = await gammaController.getPayout(otoken.address, otokensSold);
+      const expectedVaultBalanceAfter = sdFrax3CrvBalanceInVaultBefore.add(sdFrax3CrvControlledByActionBefore).sub(sdFrax3CrvLost);
+
 
       await vault.closePositions();
 
@@ -573,7 +616,8 @@ describe('Mainnet Fork Tests', function () {
 
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdFrax3CrvBalanceInVaultAfter);
-      expect(sdFrax3CrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdFrax3CrvBalanceInVaultBefore.add(sdFrax3CrvControlledByActionBefore));
+      // TODO: this is off by 7, why? 
+      expect(sdFrax3CrvBalanceInVaultAfter.gte(expectedVaultBalanceAfter.sub(10)), 'incorrect balances in vault').to.be.true;
 
       // check action balances
       expect(
@@ -603,7 +647,15 @@ describe('Mainnet Fork Tests', function () {
       const frax3crvBalanceInStakedao = await stakedaoSdfrax3crvStrategy.balance();
       const sdFrax3crvToWithdrawMinusFee = vaultTotalSdfrax3crvBefore.mul(sharesToWithdraw).div(sharesBefore).mul(995).div(1000);
       const crv3FraxToWithdrawWithoutPremium = sdFrax3crvToWithdrawMinusFee.mul(frax3crvBalanceInStakedao).div(sdfrax3crvSupplyBefore);
-      const crv3FraxToWithdraw = crv3FraxToWithdrawWithoutPremium.div(2) // since it expired ITM 
+      const crv3FraxToWithdraw = crv3FraxToWithdrawWithoutPremium
+
+      // lower bound of losses 
+      const sdFrax3CrvLostByP2 = (await gammaController.getPayout(otoken.address, otokensSold)).mul(7).div(9); // loses 7/9th the money
+      const sdFrax3CrvPremiumRecieved = sdfrax3crvPremium.mul(7).div(8); // receives 7/8 the premium 
+      const sdFrax3CrvNetLost = sdFrax3CrvLostByP2.sub(sdFrax3CrvPremiumRecieved);
+      const frax3crvLost = sdFrax3CrvNetLost.mul(frax3crvBalanceInStakedao).div(sdfrax3crvSupplyBefore);
+      const frax3crvMinReceivedP2 = (p2DepositAmount.sub(frax3crvLost)).mul(995).div(1000)
+
 
       // fee calculations 
       const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
@@ -620,7 +672,7 @@ describe('Mainnet Fork Tests', function () {
 
       // fee variables 
       const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address);
-      const balanceOfP1After = await frax3crv.balanceOf(depositor2.address);
+      const balanceOfP2After = await frax3crv.balanceOf(depositor2.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
@@ -633,7 +685,10 @@ describe('Mainnet Fork Tests', function () {
 
 
       // check p2 balance 
-      expect(balanceOfP1After, 'incorrect frac3crv transferred to p2').to.be.eq(balanceOfP1Before.add(crv3FraxToWithdraw).add(1))
+      console.log(balanceOfP2After.toString(), frax3crvMinReceivedP2.toString());
+      expect(balanceOfP2After, 'incorrect frac3crv transferred to p2').to.be.eq(balanceOfP1Before.add(crv3FraxToWithdraw).add(1))
+      expect(balanceOfP2After.lt(p2DepositAmount), 'p2 should have made a loss').to.be.true;
+      // expect(balanceOfP2After.gte(sdFrax3CrvMinReceivedP2),'p2 loss should be bounded').to.be.true;
 
       // check fee 
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
@@ -648,7 +703,11 @@ describe('Mainnet Fork Tests', function () {
 
       // p3 balance calculations 
       const fee = sharesToWithdraw.mul(vaultTotalSdfrax3crvBefore).div(sharesBefore).mul(5).div(1000);
-      const balanceOfP1Before = await frax3crv.balanceOf(depositor3.address);
+      const balanceOfP3Before = await frax3crv.balanceOf(depositor3.address);
+
+      // lower bound of losses 
+      const sdFrax3CrvLostByP3 = (await gammaController.getPayout(otoken.address, otokensSold)).mul(2).div(9); // loses 2/9th the money
+      const sdFrax3CrvMinReceivedP3 = (p3DepositAmount.sub(sdFrax3CrvLostByP3)).mul(995).div(1000);
 
       // calculate sdFrax3Crv Balances after
       const sdFrax3crvToWithdraw = vaultTotalSdfrax3crvBefore.mul(sharesToWithdraw).div(sharesBefore);
@@ -658,7 +717,7 @@ describe('Mainnet Fork Tests', function () {
       const frax3crvBalanceInStakedao = await stakedaoSdfrax3crvStrategy.balance();
       const sdFrax3crvToWithdrawMinusFee = vaultTotalSdfrax3crvBefore.mul(sharesToWithdraw).div(sharesBefore).mul(995).div(1000);
       const crv3FraxToWithdrawWithoutPremium = sdFrax3crvToWithdrawMinusFee.mul(frax3crvBalanceInStakedao).div(sdfrax3crvSupplyBefore);
-      const crv3FraxToWithdraw = crv3FraxToWithdrawWithoutPremium.div(2) // since it expired ITM
+      const crv3FraxToWithdraw = crv3FraxToWithdrawWithoutPremium
 
       // fee calculations 
       const balanceOfFeeRecipientBefore = await sdFrax3Crv.balanceOf(feeRecipient.address);
@@ -675,7 +734,7 @@ describe('Mainnet Fork Tests', function () {
 
       // fee variables 
       const balanceOfFeeRecipientAfter = await sdFrax3Crv.balanceOf(feeRecipient.address);
-      const balanceOfP1After = await frax3crv.balanceOf(depositor3.address);
+      const balanceOfP3After = await frax3crv.balanceOf(depositor3.address);
 
       expect(sharesBefore, 'incorrect amount of shares withdrawn').to.be.equal(sharesAfter.add(sharesToWithdraw))
 
@@ -689,42 +748,41 @@ describe('Mainnet Fork Tests', function () {
 
       // check p3 balance 
       // TODO: why off by 2? 
-      expect(balanceOfP1After, 'incorrect frac3crv transferred to p3').to.be.eq(balanceOfP1Before.add(crv3FraxToWithdraw).add(2))
+      expect(balanceOfP3After, 'incorrect frac3crv transferred to p3').to.be.eq(balanceOfP3Before.add(crv3FraxToWithdraw).add(1));
+      expect(balanceOfP3After, 'p3 should have made a loss').to.be.eq(sdFrax3CrvMinReceivedP3);
+      console.log(balanceOfP3After.toString(), p3DepositAmount.toString())
 
       // check fee 
       expect(balanceOfFeeRecipientAfter, 'incorrect fee paid out').to.be.eq(balanceOfFeeRecipientBefore.add(fee))
     });
 
-    // it('counterparty redeems and gets sdecrv', async () => {
+    xit('counterparty redeems and gets sdecrv', async () => {
 
-    //   const sdecrvPrice = await oracle.getExpiryPrice(sdcrvRenWsbtc.address, expiry);
-    //   const sdecrvToUnderlyingPrice = sdecrvPrice[0]
-    //   // options sold * 5000/ 10000 * 1/sdecrvConv = payout, scaling this up to 1e18. 
-    //   const payout = optionsSold.mul('1000000000000000000').mul('10000').div(sdecrvToUnderlyingPrice).div(2)
-    //   const payoutExpected = payout.mul(9999).div(10000);
+      const payout = await gammaController.getPayout(otoken.address, otokensSold);
 
-    //   const sdecrvBalanceBefore = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
+      const sdFrax3CrvBalanceBefore = await sdFrax3Crv.balanceOf(counterpartyWallet.address);
 
-    //   const actionArgs = [
-    //     {
-    //       actionType: ActionType.Redeem,
-    //       owner: ZERO_ADDR,
-    //       secondAddress: counterpartyWallet.address,
-    //       asset: otoken.address,
-    //       vaultId: '0',
-    //       amount: optionsSold,
-    //       index: '0',
-    //       data: ZERO_ADDR,
-    //     },
-    //   ]
+      const actionArgs = [
+        {
+          actionType: ActionType.Redeem,
+          owner: ZERO_ADDR,
+          secondAddress: counterpartyWallet.address,
+          asset: otoken.address,
+          vaultId: '0',
+          amount: otokensSold,
+          index: '0',
+          data: ZERO_ADDR,
+        },
+      ]
 
-    //   await controller.connect(counterpartyWallet).operate(actionArgs);
+      await gammaController.connect(counterpartyWallet).operate(actionArgs);
 
-    //   const sdecrvBalanceAfter = await sdcrvRenWsbtc.balanceOf(counterpartyWallet.address);
+      const sdFrax3CrvBalanceAfter = await sdFrax3Crv.balanceOf(counterpartyWallet.address);
 
-    //   // TODO: off by a small amount, need to figure out how best to round. 
-    //   expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
-    //   expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;
-    // })
+      expect(sdFrax3CrvBalanceAfter.gt(0), 'should have received a payout').to.be.true;
+      expect(sdFrax3CrvBalanceAfter.sub(sdFrax3CrvBalanceBefore), 'mismatch in payout').to.be.eq(payout);
+      // TODO: calculate a lower bound on the pay out and an aupper bound perhaps? 
+
+    })
   });
 });

@@ -269,6 +269,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @dev settle vault 1 and withdraw all locked collateral
    */
   function _settleVault() internal {
+    uint256 sdBalanceBefore = stakedaoStrategy.balanceOf(address(this));
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](1);
     // this action will always use vault id 1
     actions[0] = IController.ActionArgs(
@@ -283,6 +284,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
+
+    uint256 sdBalanceAfter = stakedaoStrategy.balanceOf(address(this));
+    uint256 amountreturned = sdBalanceAfter.sub(sdBalanceBefore);
   }
 
   /**

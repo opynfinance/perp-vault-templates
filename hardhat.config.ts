@@ -6,6 +6,7 @@ import "dotenv/config"
 import * as fs from 'fs';
 import "hardhat-contract-sizer"
 import "hardhat-gas-reporter"
+import "@nomiclabs/hardhat-etherscan";
 import { HardhatUserConfig } from 'hardhat/config';
 import 'solidity-coverage';
 
@@ -40,6 +41,12 @@ export default {
     kovan: {
       url: `https://kovan.infura.io/v3/${infuraKey}`,
       accounts: {
+        mnemonic
+      }
+    }, 
+    mainnet: { 
+      url: `https://mainnet.infura.io/v3/9a1eacc6b18f436dab839c1713616fd1`,
+            accounts: {
         mnemonic
       }
     }
