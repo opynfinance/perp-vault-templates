@@ -168,7 +168,7 @@ describe('Mainnet Fork Tests', function () {
       controllerAddress,
       curvePoolAddress,
       0, // type 0 vault
-      frax.address,
+      usdc.address,
       20 // 0.2%
     )) as ShortOTokenActionWithSwap;
 
@@ -244,15 +244,16 @@ describe('Mainnet Fork Tests', function () {
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
 
-      this.beforeAll('send counterparty frax', async () => {
-      const fraxWhale = '0x7AfaFe3C06F4D4864fE37E981bf73279B5f44218'
+      this.beforeAll('send counterparty usdc', async () => {
+      const usdcWhale = '0x7AfaFe3C06F4D4864fE37E981bf73279B5f44218'
+      const premiumToSend = premium.div(1000000000000);
   
       // send everyone frax
-      await provider.send('hardhat_impersonateAccount', [fraxWhale]);
-      const signer = await ethers.provider.getSigner(fraxWhale);
-      await frax.connect(signer).transfer(counterpartyWallet.address, premium);
+      await provider.send('hardhat_impersonateAccount', [usdcWhale]);
+      const signer = await ethers.provider.getSigner(usdcWhale);
+      await usdc.connect(signer).transfer(counterpartyWallet.address, premiumToSend);
       await provider.send('evm_mine', []);
-      await provider.send('hardhat_stopImpersonatingAccount', [fraxWhale]);
+      await provider.send('hardhat_stopImpersonatingAccount', [usdcWhale]);
     })
 
 
@@ -277,7 +278,7 @@ describe('Mainnet Fork Tests', function () {
     });
 
     // approve frax to be spent by counterparty 
-    await frax.connect(counterpartyWallet).approve(swapAddress, premium);
+    await usdc.connect(counterpartyWallet).approve(swapAddress, premium);
     // await frax3crv.connect(counterpartyWallet).approve(swapAddress, premium);
   })
 
@@ -430,13 +431,15 @@ describe('Mainnet Fork Tests', function () {
 
       const marginPoolBalanceOfsdFrax3CrvBefore = await sdFrax3Crv.balanceOf(marginPoolAddess);
 
+      const premiumToSend = premium.div(1000000000000)
+
       const order = await getOrder(
         action1.address,
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        frax.address,
-        premium.toString(),
+        usdc.address,
+        premiumToSend.toString(),
         swapAddress,
         counterpartyWallet.privateKey
       );

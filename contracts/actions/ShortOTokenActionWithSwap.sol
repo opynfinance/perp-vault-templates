@@ -146,7 +146,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     onlyActivated();
     require(_order.sender.wallet == address(this), 'S3');
     require(_order.sender.token == otoken, 'S4');
-    // require(_order.signer.token == address(wantedAsset), 'S5');
+    require(_order.signer.token == address(wantedAsset), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
 
     // mint options
@@ -220,7 +220,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256 wantedAssetBalance = wantedAsset.balanceOf(address(this));
 
     uint256[4] memory amounts;
-    amounts[0] = wantedAssetBalance;
+    amounts[2] = wantedAssetBalance;
 
     // deposit wantedAsset to curve
     wantedAsset.approve(address(curveMetaZap), wantedAssetBalance);
