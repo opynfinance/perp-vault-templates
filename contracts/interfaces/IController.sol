@@ -36,6 +36,8 @@ interface IController {
     uint256[] collateralAmounts;
   }
 
+  function setOperator(address _operator, bool _isOperator) external ;
+
   function pool() external view returns (address);
 
   function getPayout(address _otoken, uint256 _amount) external view returns (uint256);
