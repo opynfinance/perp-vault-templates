@@ -423,7 +423,22 @@ describe('Mainnet Fork Tests', function() {
       const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
-      const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
+      
+      const longStrikePrice = await longOtoken.strikePrice();
+      const shortStrikePrice = await shortOtoken.strikePrice();
+      
+      console.log('longStrikePrice', longStrikePrice.toString(), 'shortStrikePrice', shortStrikePrice.toString());
+      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
+      const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
+      console.log('collateralRequiredPerOption', collateralRequiredPerOption.toString());
+
+      const sdcrvAmount = collateralAmount;
+      console.log('total sdcrv in action: ', sdcrvAmount.toString() );
+      // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
+
+      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption).toString();
+      console.log('sellAmount', sellAmount);
+
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddress);
@@ -452,7 +467,7 @@ describe('Mainnet Fork Tests', function() {
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
-      
+
 
       // check sdeCRV balance in action and vault
       // expect(vaultSdecrvBalanceAfter).to.be.within(
@@ -465,8 +480,17 @@ describe('Mainnet Fork Tests', function() {
       // ).to.be.true;
       // expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
       // expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
-      
-      // expect(await weth.balanceOf(action1.address)).to.be.equal('0');
+
+      // checking that we pay fee from sdcrv wrapping and flashloan
+      expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
+
+      // console.log('long balance', IERC20(currentSpread.longOtoken).balanceOf(address(this)));
+
+      // check the otoken balance of the address
+      // expect( (await shortOtoken.balanceOf(action1.address)), 'Mismatch of shortOtokens' ).to.be.equal(sellAmount);
+
+      expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(5).div(100)   ),
+        'Fee paid on the transaction are higher than 5% of the premium' ).to.be.true;
 
 
       // check the otoken balance of counterparty

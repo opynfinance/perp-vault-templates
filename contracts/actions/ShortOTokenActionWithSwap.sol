@@ -197,12 +197,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
         console.log( 'sdecrv before flash loan', stakedao.balanceOf(address(this) ) );
 
-        address counterparty = abi.decode(params, (address));
+        (uint256 otokensToSell, address counterparty) = abi.decode(params, (uint256, address));
 
         _wethToSdEcrv();
         // 2. mint options 
         uint256 wethBorrowed = amounts[0]; // 18 decimals 
-        uint256 otokensToSell = wethBorrowed.div(1e10); // 8 decimals 
+        // uint256 otokensToSell = wethBorrowed.div(1e10); // 8 decimals 
 
         console.log( 'weth borrowed', wethBorrowed );
 
@@ -210,15 +210,18 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
                       stakedao.balanceOf(address(this)) 
                   );
 
-        _mintNakedOTokens(amounts[0], otokensToSell);
+        uint256 sdcrvAvailable = stakedao.balanceOf(address(this));
+        
+        
+        _mintNakedOTokens( otokensToSell.mul(1e10), otokensToSell);
 
-        IERC20 optionToDeposit = IERC20(currentSpread.shortOtoken);
+        // IERC20 optionToDeposit = IERC20(currentSpread.shortOtoken);
 
-        console.log('short option minted:', optionToDeposit.balanceOf(address(this)) );
+        // console.log('short option minted:', optionToDeposit.balanceOf(address(this)) );
 
-        console.log( 'sdecrv balance after flash loan and after minting short options', 
-              stakedao.balanceOf(address(this)) 
-          );
+        // console.log( 'sdecrv balance after flash loan and after minting short options', 
+        //       stakedao.balanceOf(address(this)) 
+        //   );
 
         // 3. use those options to mint options on behalf of mm
 
@@ -229,13 +232,15 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         // _mintSpread( optionToDeposit.balanceOf(address(this)), address(this));
 
         // 4. deposit the new options and withdraw collateral
-        _depositAndWithdraw( otokensToSell, amounts[0], counterparty );
+        _depositAndWithdraw( otokensToSell.mul(1e10), otokensToSell );
+        
 
         // 5. transfer in weth
         // TODO: this already happened, should this move here? 
         // 6. unwrap sdTokens to weth
         _sdecrvToWeth();
         // 7. pay back borrowed amount 
+        console.log('WETH available to repay flashloan is: ', weth.balanceOf(address(this)));
 
         // At the end of your logic above, this contract owes
         // the flashloaned amounts + premiums.
@@ -266,7 +271,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256[] memory amounts = new uint256[](1);
     uint256 collateralNeeded = optionsToSell.mul(1e10);
     uint256 amountSdEcrvInAction = stakedao.balanceOf(address(this));
+    
+    // todo optmize the borrowing amount  this line
     uint256 amountToFlashBorrow = collateralNeeded.sub(amountSdEcrvInAction);
+    // uint256 amountToFlashBorrow = collateralNeeded;
     amounts[0] = amountToFlashBorrow; 
     uint256[] memory modes = new uint256[](1);
     modes[0] = 0;
@@ -274,7 +282,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     // bytes memory params = "";
 
-    bytes memory params = abi.encode(counterparty);
+    bytes memory params = abi.encode(optionsToSell, counterparty);
 
     
     uint16 referralCode = 0;
@@ -286,6 +294,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     console.log('before flash loan after counterparty pay premium WETH amount is ', weth.balanceOf(address(this)));
     
+    console.log('amount to borrow', amountToFlashBorrow );
+
     lendingPool.flashLoan(
             receiverAddress,
             assets,
@@ -348,6 +358,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    */
   function _wethToSdEcrv() internal {
     uint256 wethBalance = weth.balanceOf(address(this));
+
 
     uint256[2] memory amounts;
     amounts[0] = wethBalance;
@@ -458,7 +469,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     console.log('long balance', IERC20(currentSpread.longOtoken).balanceOf(address(this)));
   } 
 
-  function _depositAndWithdraw(uint256 _otokenAmount, uint256 _collateralAmount, address _counterparty) internal { 
+  function _depositAndWithdraw(uint256 _collateralAmount, uint256 _otokenAmount) internal { 
     // this action will always use vault id 0 
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
     IERC20 optionToDeposit = IERC20(currentSpread.longOtoken);
@@ -467,7 +478,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256 shortStrike = IOToken(currentSpread.shortOtoken).strikePrice();
     uint256 longStrike = IOToken(currentSpread.longOtoken).strikePrice();
 
-    // TODO call marginCalculator
+    // TODO improve with marginCalculator
     uint256 requiredCollateral = ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike)).mul(_otokenAmount);
     
     console.log('_depositAndWithdraw _collateralAmount', _collateralAmount);
@@ -476,8 +487,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     uint256 collateralToBeWithdrawn = (_collateralAmount.sub(requiredCollateral));
     console.log('_depositAndWithdraw collateralToBeWithdrawn', collateralToBeWithdrawn);
-
-    console.log( 'bf', stakedao.balanceOf( address(this) ) );
 
     actions[0] = IController.ActionArgs(
         IController.ActionType.DepositLongOption,
@@ -503,7 +512,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     controller.operate(actions);
 
-    console.log('af', stakedao.balanceOf(address(this) ) );
+    console.log('short balance', IERC20(currentSpread.shortOtoken).balanceOf(address(this)));
+    console.log('long balance', IERC20(currentSpread.longOtoken).balanceOf(address(this)));
 
   } 
 
