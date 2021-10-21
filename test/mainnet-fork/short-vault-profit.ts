@@ -484,13 +484,16 @@ describe('Mainnet Fork Tests', function() {
       // checking that we pay fee from sdcrv wrapping and flashloan
       expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
 
-      // console.log('long balance', IERC20(currentSpread.longOtoken).balanceOf(address(this)));
-
-      // check the otoken balance of the address
-      // expect( (await shortOtoken.balanceOf(action1.address)), 'Mismatch of shortOtokens' ).to.be.equal(sellAmount);
-
       expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(5).div(100)   ),
         'Fee paid on the transaction are higher than 5% of the premium' ).to.be.true;
+
+      // check correct amounts in MM vault
+      const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
+      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+
+      // check the otoken balance of the MM
+      // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
 
 
       // check the otoken balance of counterparty
