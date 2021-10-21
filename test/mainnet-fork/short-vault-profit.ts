@@ -491,6 +491,16 @@ describe('Mainnet Fork Tests', function() {
       const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+      expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
+      expect( (mmVault.shortAmounts[0]), 'MM does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
+
+      // check correct amounts in action vault
+      const actionVault =  await controller.getVault(action1.address, 1);
+      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(shortOtoken.address);
+      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(longOtoken.address);
+      expect( (actionVault.longAmounts[0]), 'Action does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
+      expect( (actionVault.shortAmounts[0]), 'Action does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
+
 
       // check the otoken balance of the MM
       // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
