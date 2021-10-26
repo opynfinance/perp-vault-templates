@@ -436,7 +436,7 @@ describe('Mainnet Fork Tests', function() {
       console.log('total sdcrv in action: ', sdcrvAmount.toString() );
       // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
 
-      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption).toString();
+      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
       console.log('sellAmount', sellAmount);
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
@@ -446,7 +446,7 @@ describe('Mainnet Fork Tests', function() {
       const order = await getOrder(
         action1.address,
         shortOtoken.address,
-        sellAmount,
+        sellAmount.toString(),
         counterpartyWallet.address,
         weth.address,
         premium.toString(),
@@ -463,7 +463,7 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
-      await action1.flashMintAndSellOToken(sellAmount, premium, counterpartyWallet.address);
+      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
@@ -500,6 +500,8 @@ describe('Mainnet Fork Tests', function() {
       expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(longOtoken.address);
       expect( (actionVault.longAmounts[0]), 'Action does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
       expect( (actionVault.shortAmounts[0]), 'Action does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
+      expect( (actionVault.collateralAssets[0]), 'Action does not have the right collateral' ).to.be.equal(stakeDaoLP.address);
+      expect( (actionVault.collateralAmounts[0]), 'Action does not have the correct amount of required collateral' ).to.be.lte( collateralAmount );
 
 
       // check the otoken balance of the MM
