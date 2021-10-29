@@ -191,17 +191,23 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         //
         // This contract now has the funds requested.
         // Your logic goes here.
-        //
+        //        
+        (uint256 otokensToSell, address counterparty) = abi.decode(params, (uint256, address));
         
         // 1. convert weth to sdecrv
-        console.log(weth.balanceOf(address(this)), amounts[0]);
         _wethToSdEcrv();
+
         // 2. mint options 
         uint256 wethBorrowed = amounts[0]; // 18 decimals 
-        uint256 otokensToSell = wethBorrowed.div(1e10); // 8 decimals 
-        _mintNakedOTokens(amounts[0], otokensToSell);
-        // 3. use those options to mint options on behalf of mm
+        uint256 sdcrvAvailable = stakedao.balanceOf(address(this));
+        _mintNakedOTokens( otokensToSell.mul(1e10), otokensToSell);
+
+        // 3. use those options to mint options on behalf of mm      
+        _mintSpread( otokensToSell, counterparty );
+
         // 4. deposit the new options and withdraw collateral
+        _depositAndWithdraw( otokensToSell.mul(1e10), otokensToSell );
+        
         // 5. transfer in weth
         // TODO: this already happened, should this move here? 
         // 6. unwrap sdTokens to weth
@@ -237,20 +243,20 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256[] memory amounts = new uint256[](1);
     uint256 collateralNeeded = optionsToSell.mul(1e10);
     uint256 amountSdEcrvInAction = stakedao.balanceOf(address(this));
+    
     uint256 amountToFlashBorrow = collateralNeeded.sub(amountSdEcrvInAction);
     amounts[0] = amountToFlashBorrow; 
     uint256[] memory modes = new uint256[](1);
     modes[0] = 0;
     address onBehalfOf = address(this);
-    bytes memory params = "";
+
+    bytes memory params = abi.encode(optionsToSell, counterparty);
+
+    
     uint16 referralCode = 0;
-
-    console.log(weth.balanceOf(address(this)));
-
+    
     // 2. transfer weth in
     weth.transferFrom(counterparty, address(this), premium);
-
-    console.log(weth.balanceOf(address(this)));
     
     lendingPool.flashLoan(
             receiverAddress,
@@ -312,6 +318,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   function _wethToSdEcrv() internal {
     uint256 wethBalance = weth.balanceOf(address(this));
 
+
     uint256[2] memory amounts;
     amounts[0] = wethBalance;
     amounts[1] = 0;
@@ -371,18 +378,20 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   function _mintSpread(uint256 _otokenAmount, address _counterparty) internal { 
-    // this action will always use vault id 0
-    IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
+    // this action will always use vault id 0 
+    IController.ActionArgs[] memory actions = new IController.ActionArgs[](3);
     IERC20 optionToDeposit = IERC20(currentSpread.shortOtoken);
     optionToDeposit.safeIncreaseAllowance(controller.pool(), _otokenAmount);
 
+    uint256 vaultId = controller.getAccountVaultCounter(_counterparty) + 1;
+
     actions[0] = IController.ActionArgs(
-        IController.ActionType.MintShortOption,
-        _counterparty, // vault owner
-        address(this), // mint to this address
-        currentSpread.longOtoken, // otoken
-        1, // vaultId
-        _otokenAmount, // amount
+        IController.ActionType.OpenVault,
+        _counterparty, // owner
+        address(this), // second address
+        address(0), // ecrv, otoken
+        vaultId, // vaultId
+        0, // amount
         0, // index
         "" // data
     );
@@ -392,14 +401,65 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         _counterparty, // vault owner
         address(this), // deposit from this address
         currentSpread.shortOtoken, // collateral sdecrv
+        vaultId, // vaultId
+        _otokenAmount, // amount
+        0, // index
+        "" // data
+    );
+
+    actions[2] = IController.ActionArgs(
+      IController.ActionType.MintShortOption,
+      _counterparty, // vault owner
+      address(this), // mint to this address
+      currentSpread.longOtoken, // otoken
+      vaultId, // vaultId
+      _otokenAmount, // amount
+      0, // index
+      "" // data
+    );
+
+    controller.operate(actions);
+  } 
+
+  function _depositAndWithdraw(uint256 _collateralAmount, uint256 _otokenAmount) internal { 
+    // this action will always use vault id 0 
+    IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
+    IERC20 optionToDeposit = IERC20(currentSpread.longOtoken);
+    optionToDeposit.safeIncreaseAllowance(controller.pool(), _otokenAmount);
+    
+    uint256 shortStrike = IOToken(currentSpread.shortOtoken).strikePrice();
+    uint256 longStrike = IOToken(currentSpread.longOtoken).strikePrice();
+
+    // TODO improve with marginCalculator
+    uint256 requiredCollateral = ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike)).mul(_otokenAmount);
+
+    uint256 collateralToBeWithdrawn = (_collateralAmount.sub(requiredCollateral));
+
+    actions[0] = IController.ActionArgs(
+        IController.ActionType.DepositLongOption,
+        address(this), // vault owner
+        address(this), // deposit from this address
+        currentSpread.longOtoken, // collateral sdecrv
         1, // vaultId
         _otokenAmount, // amount
         0, // index
         "" // data
     );
 
+    actions[1] = IController.ActionArgs(
+        IController.ActionType.WithdrawCollateral,
+        address(this), // vault owner
+        address(this), // withdraw to the owner address
+        address(stakedao), // collateral sdecrv
+        1, // vaultId
+        collateralToBeWithdrawn, // amount
+        0, // index
+        "" // data
+    );
+
     controller.operate(actions);
-  }
+
+  } 
 
   /**
    * @dev settle vault 0 and withdraw all locked collateral
