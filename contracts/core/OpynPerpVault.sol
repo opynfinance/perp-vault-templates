@@ -13,6 +13,8 @@ import { IAction } from '../interfaces/IAction.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
 
+import 'hardhat/console.sol';
+
 /**
  * Error Codes
  * O1: actions for the vault have not been initialized
@@ -221,7 +223,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 totalWithDepositedAmount = totalStakedaoAsset();
     require(totalWithDepositedAmount < cap, 'O7');
     uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
+
+    console.log('sdecrvDeposited', sdecrvDeposited, 'totalSdecrvBalanceBeforeDeposit', totalSdecrvBalanceBeforeDeposit);
+
     uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
+
+    console.log('share', share);
+    console.log('msg.sender', msg.sender);
+    console.log('msg.value', msg.value);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -308,6 +317,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       sumPercentage = sumPercentage.add(_allocationPercentages[i]);
       require(sumPercentage <= cacheBase, 'O14');
 
+      console.log('cacheBase', cacheBase);
+
       uint256 newAmount = cacheTotalAsset.mul(_allocationPercentages[i]).div(cacheBase);
 
       if (newAmount > 0) IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
@@ -391,6 +402,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
+
+    console.log('shareSupply', shareSupply);
+
+    console.log('_totalAssetAmount', _totalAssetAmount);
 
     // share amount
     return shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);

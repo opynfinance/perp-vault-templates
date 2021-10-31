@@ -18,7 +18,7 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
- import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -267,6 +267,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             params,
             referralCode
         );
+
+
+    // TODO : do this before repyain flash loan to avoid multiple fee
+    _wethToSdEcrv();
 
   }
 
