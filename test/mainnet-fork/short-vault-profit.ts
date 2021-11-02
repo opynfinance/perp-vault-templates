@@ -12,10 +12,17 @@ import {
   StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
-  MockPricer
+  MockPricer,
+  IController
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
+import Ethers from '@typechain/ethers-v5';
+
+//esilnt-ignore-next-line
+const {expectRevert} = require('@openzeppelin/test-helpers'); // eslint-disable-line
+//import {expectRevert} from '@openzeppelin/test-helpers';
+//const expectRevert = await import("@openzeppelin/test-helpers");
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -47,6 +54,7 @@ describe('Mainnet Fork Tests', function() {
   let usdc: MockERC20;
   let ecrv: MockERC20;
   let stakeDaoLP: MockERC20;
+  let controller: IController;
 
   let accounts: SignerWithAddress[] = [];
 
@@ -80,9 +88,9 @@ describe('Mainnet Fork Tests', function() {
   const curveAddress = '0xc5424B857f758E906013F3555Dad202e4bdB4567';
   const ecrvAddress = '0xA3D87FffcE63B53E0d54fAa1cc983B7eB0b74A9c';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
-  const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef'
+  const marginPoolAddress = '0x5934807cC0654d46755eBd2848840b616256C6Ef';
   const aaveLendingPoolAddres = '0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9';
-
+  
   /**
    *
    * Setup
@@ -97,7 +105,7 @@ describe('Mainnet Fork Tests', function() {
       _feeRecipient,
       _depositor1,
       _depositor2,
-      _depositor3,
+      _depositor3
     ] = accounts;
 
     await network.provider.send("hardhat_setBalance", [
@@ -110,7 +118,7 @@ describe('Mainnet Fork Tests', function() {
 
     depositor1 = _depositor1;
     depositor2 = _depositor2;
-    depositor3 = _depositor3;
+    depositor3 = _depositor3
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
@@ -126,6 +134,7 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
+    controller = (await ethers.getContractAt('IController', controllerAddress)) as IController;
   });
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
@@ -152,7 +161,7 @@ describe('Mainnet Fork Tests', function() {
       aaveLendingPoolAddres,
       0, // type 0 vault
       weth.address,
-      20 // 0.2%
+      20 // 0.2%,
     )) as ShortOTokenActionWithSwap;
 
     await vault.connect(owner).setActions(
@@ -273,7 +282,7 @@ describe('Mainnet Fork Tests', function() {
       'deploy otokens that will be sold and set up counterparty',
       async () => {
         const shortOtokenStrikePrice = 500000000000;
-        const longOtokenStrikePrice = 1000000000000
+        const longOtokenStrikePrice = 1000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -332,8 +341,8 @@ describe('Mainnet Fork Tests', function() {
           to: counterpartyWallet.address,
           value: utils.parseEther('3000')
         });
-        await weth.connect(counterpartyWallet).deposit({ value: premium });
-        await weth.connect(counterpartyWallet).approve(action1.address, premium);
+        await weth.connect(counterpartyWallet).deposit({ value: utils.parseEther('2')});
+        await weth.connect(counterpartyWallet).approve(action1.address, utils.parseEther('2'));
       }
     );
     it('p1 deposits', async () => {
@@ -394,13 +403,19 @@ describe('Mainnet Fork Tests', function() {
       );
     });
 
+    it('owner provides wrong strikes', async () => {
+      expect(await action1.state()).to.be.equal(ActionState.Idle);
+      await expect(action1.commitSpread(longOtoken.address, shortOtoken.address)).to.be.revertedWith('Lower Strike higher than Higher Strike');
+      expect(await action1.state()).to.be.equal(ActionState.Idle);
+    });
+
     it('owner commits to the option', async () => {
       expect(await action1.state()).to.be.equal(ActionState.Idle);
       await action1.commitSpread(shortOtoken.address, longOtoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    it('owner mints options with sdeCRV as collateral and sells them', async () => {
+    it('owner mints call credit spread with sdeCRV as margin collateral and sells them', async () => {    
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
@@ -418,10 +433,27 @@ describe('Mainnet Fork Tests', function() {
       const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
-      const sellAmount = (collateralAmount.add(collateralAmount)).div(10000000000).toString(); 
-      const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
+      
+      const longStrikePrice = await longOtoken.strikePrice();
+      const shortStrikePrice = await shortOtoken.strikePrice();
+      console.log("---START---")
+      console.log('weth start:', (await weth.balanceOf(action1.address)).toString());
 
-      const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddess);
+      const sdcrvAmount = collateralAmount;
+      console.log('sdcrv start: ', sdcrvAmount.toString() );
+      // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
+      
+      console.log('LS:', longStrikePrice.toString(), 'SS:', shortStrikePrice.toString());
+      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
+      const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
+      console.log('collateralRequiredPerOption:', collateralRequiredPerOption.toString());
+      
+      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption).toString();
+      console.log('Amount of Options to mint', sellAmount);
+
+      const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
+
+      const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       const order = await getOrder(
         action1.address,
@@ -439,29 +471,56 @@ describe('Mainnet Fork Tests', function() {
         'collateral should not be locked'
       ).to.be.true;
 
+      await controller.connect(counterpartyWallet).setOperator(action1.address, true);
+      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+      //await except(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address)).to.be.reverted()
+      console.log("Counterparty Address:",counterpartyWallet.address);
+      console.log('weth premium asked:',premium.toString());
+      console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
+      
+      console.log("---Flash Loan Called & Premium Paid---")
       await action1.flashMintAndSellOToken(sellAmount, premium, counterpartyWallet.address);
+      console.log("Counterparty WETH after FL called:",(await weth.balanceOf(counterpartyWallet.address)).toString());
+      console.log('weth after FL called:', (await weth.balanceOf(action1.address)).toString());
+      console.log('sdcrv after FL called: ', ((await stakeDaoLP.balanceOf(action1.address)).toString()));
 
-      // const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
+      const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
-      // // check sdeCRV balance in action and vault
+
+
+      // check sdeCRV balance in action and vault
       // expect(vaultSdecrvBalanceAfter).to.be.within(
       //   expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
       // );
+      
       // expect(
       //   (await vault.totalStakedaoAsset()).gte(expectedTotal),
       //   'incorrect accounting in vault'
       // ).to.be.true;
       // expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
       // expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
-      // expect(await weth.balanceOf(action1.address)).to.be.equal('0');
+
+      // checking that we pay fee from sdcrv wrapping and flashloan
+      expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
+
+      expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(5).div(100)   ),
+        'Fee paid on the transaction are higher than 5% of the premium' ).to.be.true;
+
+      // check correct amounts in MM vault
+      const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
+      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+
+      // check the otoken balance of the MM
+      // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
 
 
-      // // check the otoken balance of counterparty
+      // check the otoken balance of counterparty
       // expect(await shortOtoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
       //   sellAmount
       // );
 
-      // const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddess);
+      // const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       // // check sdecrv balance in opyn 
       // expect(marginPoolBalanceOfStakeDaoLPAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfStakeDaoLPBefore.add(collateralAmount));
