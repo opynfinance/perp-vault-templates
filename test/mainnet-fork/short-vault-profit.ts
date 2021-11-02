@@ -19,10 +19,7 @@ import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
 import Ethers from '@typechain/ethers-v5';
 
-//esilnt-ignore-next-line
 const {expectRevert} = require('@openzeppelin/test-helpers'); // eslint-disable-line
-//import {expectRevert} from '@openzeppelin/test-helpers';
-//const expectRevert = await import("@openzeppelin/test-helpers");
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -473,7 +470,6 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
       await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
-      //await except(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address)).to.be.reverted()
       console.log("Counterparty Address:",counterpartyWallet.address);
       console.log('weth premium asked:',premium.toString());
       console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
