@@ -440,7 +440,7 @@ describe('Mainnet Fork Tests', function() {
       // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
 
       const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
-      console.log('sellAmount', sellAmount);
+      console.log('sellAmount', sellAmount.toString() );
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
@@ -468,7 +468,7 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
 
-      netPremium = await stakeDaoLP.balanceOf(action1.address);
+      netPremium = (await stakeDaoLP.balanceOf(action1.address));
 
       console.log('netPremium', netPremium.toString())
 
@@ -546,7 +546,7 @@ describe('Mainnet Fork Tests', function() {
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
 
-      console.log('vaultTotalAfter', vaultTotalAfter)
+      console.log('vaultTotalAfter', vaultTotalAfter.toString())
 
       const stakedaoDeposited = vaultTotalAfter.sub(vaultTotalBefore);
       actualAmountInVault = await stakeDaoLP.balanceOf(vault.address);
@@ -568,28 +568,48 @@ describe('Mainnet Fork Tests', function() {
     it('p1 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
+      console.log('vaultTotalBefore', vaultTotalBefore.toString() )
+
       const vaultSdECRVBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+      console.log('vaultSdECRVBalanceBefore', vaultSdECRVBalanceBefore.toString() )
+
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
-      console.log('p1 withdraws sharesToWithdraw', sharesToWithdraw)
+      console.log('sharesBefore', sharesBefore.toString() )
+      console.log('sharesToWithdraw', sharesToWithdraw.toString() )
 
       // p1 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
+      console.log('denominator', denominator.toString() )
+
+      // const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const shareOfPremium = p1DepositAmount.mul(netPremium).div(denominator);
+      console.log('netPremium', netPremium.toString() )
+      
+      console.log('shareOfPremium', shareOfPremium.toString() )
+
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
+      console.log('amountToWithdraw', amountToWithdraw.toString() )
+
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
+
+      console.log('amountTransferredToP1', amountTransferredToP1.toString() )
+
       const balanceOfP1Before = await provider.getBalance(depositor1.address);
+      console.log('balanceOfP1Before', balanceOfP1Before.toString() )
 
       // fee calculations 
       const effectiveFee = fee.mul(95).div(100);
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
+      console.log('balanceOfFeeRecipientBefore', balanceOfFeeRecipientBefore.toString() )
 
 
       await vault
         .connect(depositor1)
         .withdrawETH(sharesToWithdraw, amountTransferredToP1);
+        // .withdrawETH(sharesToWithdraw, '0' );
 
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
@@ -613,6 +633,10 @@ describe('Mainnet Fork Tests', function() {
         vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).sub(1) as any,
         vaultSdECRVBalanceBefore.sub(sdeCRVWithdrawn).add(1) as any,
       );
+
+      console.log('balanceOfP1Before', balanceOfP1Before.toString() )
+      console.log('balanceOfP1After', balanceOfP1After.toString() )
+      console.log('amountTransferredToP1', amountTransferredToP1.toString() )
 
       // check p1 balance 
       expect(balanceOfP1After.gte((balanceOfP1Before.add(amountTransferredToP1))), 'incorrect ETH transferred to p1').to.be.true;

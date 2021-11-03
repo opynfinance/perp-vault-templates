@@ -247,6 +247,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     uint256 currentSdecrvBalance = _balance();
     uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
+
+    console.log('sdecrvToWithdraw: ', sdecrvToWithdraw, ' - currentSdecrvBalance: ', currentSdecrvBalance);
+    console.log('sdecrvToWithdraw <= currentSdecrvBalance', sdecrvToWithdraw <= currentSdecrvBalance);
+
     require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
 
     _burn(msg.sender, _share);
@@ -255,7 +259,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     IStakeDao sdecrv = IStakeDao(sdecrvAddress);
     sdecrv.withdraw(sdecrvToWithdraw);
     uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
+
+    console.log('withdrawETH ecrvBalance', ecrvBalance);
+    console.log('withdrawETH minEth', minEth);
+
     uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
+
+    console.log('withdrawETH ethReceived', ethReceived);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);

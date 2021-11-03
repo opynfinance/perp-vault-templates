@@ -269,7 +269,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         );
 
 
-    // TODO : do this before repyain flash loan to avoid multiple fee
+    // TODO : do this before repaying flash loan to avoid multiple fee
     _wethToSdEcrv();
 
   }
