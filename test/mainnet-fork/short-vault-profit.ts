@@ -233,7 +233,7 @@ describe('Mainnet Fork Tests', function() {
     await provider.send('hardhat_impersonateAccount', [ecrvWhale]);
     const signer = await ethers.provider.getSigner(ecrvWhale);
     const p1DepositAmount = utils.parseEther('10');
-    const p2DepositAmount = utils.parseEther('40');
+    const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     await ecrv.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await ecrv.connect(signer).transfer(depositor2.address, p2DepositAmount);
@@ -343,6 +343,7 @@ describe('Mainnet Fork Tests', function() {
         await weth.connect(counterpartyWallet).approve(action1.address, premium);
       }
     );
+
     it('p1 deposits', async () => {
       // there is no accurate way of estimating this, so just approximating for now
       const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
@@ -364,6 +365,9 @@ describe('Mainnet Fork Tests', function() {
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
+    
+      console.log('p1 deposits: vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
+    
     });
 
     it('p2 deposits', async () => {
@@ -390,6 +394,8 @@ describe('Mainnet Fork Tests', function() {
       const stakedaoDeposited = vaultSdecrvBalance.sub(vaultSdecrvBalanceBefore);
       const shares = sharesBefore.div(vaultSdecrvBalanceBefore).mul(stakedaoDeposited)
       expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
+
+      console.log('p2 deposits: vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
     });
 
     it('tests getPrice in sdecrvPricer', async () => {
@@ -416,14 +422,22 @@ describe('Mainnet Fork Tests', function() {
 
       const vaultSdecrvBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
 
+
+      console.log('before rollover: vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
+
       await vault.rollOver([(100 - reserveFactor) * 100]);
+
+      console.log('after rollover: vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
 
 
       const expectedSdecrvBalanceInVault = vaultSdecrvBalanceBefore.mul(reserveFactor).div(100)
       let expectedSdecrvBalanceInAction = vaultSdecrvBalanceBefore.sub(expectedSdecrvBalanceInVault)
+      
       const collateralAmount = await stakeDaoLP.balanceOf(action1.address)
       const premiumInSdecrv = premium.mul(95).div(100);
-      // const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
+      // estimating fee for flash loan and wrapping ~10%
+      const netPremiumInSdecrv = premium.mul(90).div(100)
+      const expectedTotal = vaultSdecrvBalanceBefore.add(netPremiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       
@@ -468,6 +482,8 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
 
+      console.log('after flashMintAndSellOToken: vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
+
       // netPremium = (await stakeDaoLP.balanceOf(action1.address));
 
       // console.log('netPremium', netPremium.toString())
@@ -480,13 +496,16 @@ describe('Mainnet Fork Tests', function() {
       expect(vaultSdecrvBalanceAfter).to.be.within(
         expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
       );
+
+      console.log('vault.totalStakedaoAsset()', (await vault.totalStakedaoAsset()).toString() )
       
-      // expect(
-      //   (await vault.totalStakedaoAsset()).gte(expectedTotal),
-      //   'incorrect accounting in vault'
-      // ).to.be.true;
-      // expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
-      // expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
+      expect(
+        (await vault.totalStakedaoAsset() ).gte(expectedTotal),
+        'incorrect accounting in vault'
+      ).to.be.true;
+      
+      expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
+      expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(sellAmount.mul(1e10))
 
       // checking that we pay fee from sdcrv wrapping and flashloan
       // expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;

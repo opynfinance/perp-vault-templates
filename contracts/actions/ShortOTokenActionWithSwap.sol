@@ -268,6 +268,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             referralCode
         );
 
+    lockedAsset = lockedAsset.add(collateralNeeded);
+
 
     // TODO : do this before repaying flash loan to avoid multiple fee
     // convert the weth received as premium to sdeCRV
