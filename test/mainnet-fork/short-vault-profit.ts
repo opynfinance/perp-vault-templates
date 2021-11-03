@@ -256,7 +256,7 @@ describe('Mainnet Fork Tests', function() {
         .to.be.true;
     });
 
-    xit('should set fee reserve', async () => {
+    it('should set fee reserve', async () => {
       // 10% reserve
       await vault.connect(owner).setWithdrawReserve(1000);
       expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
@@ -265,16 +265,16 @@ describe('Mainnet Fork Tests', function() {
 
   describe('profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
-    const p2DepositAmount = utils.parseEther('40');
+    const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     const premium = utils.parseEther('2');
-    let netPremium = utils.parseEther('0');
+
     let actualAmountInVault;
     let shortOtoken: IOToken;
     let longOtoken: IOToken;
     let expiry: number;
 
-    const reserveFactor = 0;
+    const reserveFactor = 10;
 
     this.beforeAll(
       'deploy otokens that will be sold and set up counterparty',
@@ -423,7 +423,7 @@ describe('Mainnet Fork Tests', function() {
       let expectedSdecrvBalanceInAction = vaultSdecrvBalanceBefore.sub(expectedSdecrvBalanceInVault)
       const collateralAmount = await stakeDaoLP.balanceOf(action1.address)
       const premiumInSdecrv = premium.mul(95).div(100);
-      const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
+      // const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       
@@ -446,16 +446,16 @@ describe('Mainnet Fork Tests', function() {
 
       const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddress);
 
-      const order = await getOrder(
-        action1.address,
-        shortOtoken.address,
-        sellAmount.toString(),
-        counterpartyWallet.address,
-        weth.address,
-        premium.toString(),
-        swapAddress,
-        counterpartyWallet.privateKey
-      );
+      // const order = await getOrder(
+      //   action1.address,
+      //   shortOtoken.address,
+      //   sellAmount.toString(),
+      //   counterpartyWallet.address,
+      //   weth.address,
+      //   premium.toString(),
+      //   swapAddress,
+      //   counterpartyWallet.privateKey
+      // );
 
       expect(
         (await action1.lockedAsset()).eq('0'),
@@ -468,16 +468,18 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
 
-      netPremium = (await stakeDaoLP.balanceOf(action1.address));
+      // netPremium = (await stakeDaoLP.balanceOf(action1.address));
 
-      console.log('netPremium', netPremium.toString())
+      // console.log('netPremium', netPremium.toString())
 
-      // const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
+      const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
+
+      console.log('vaultSdecrvBalanceAfter', vaultSdecrvBalanceAfter.toString() );
 
       // check sdeCRV balance in action and vault
-      // expect(vaultSdecrvBalanceAfter).to.be.within(
-      //   expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
-      // );
+      expect(vaultSdecrvBalanceAfter).to.be.within(
+        expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
+      );
       
       // expect(
       //   (await vault.totalStakedaoAsset()).gte(expectedTotal),
@@ -489,8 +491,8 @@ describe('Mainnet Fork Tests', function() {
       // checking that we pay fee from sdcrv wrapping and flashloan
       // expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
 
-      // expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(5).div(100)   ),
-        // 'Fee paid on the transaction are higher than 5% of the premium' ).to.be.true;
+      expect( (premium.sub(await stakeDaoLP.balanceOf(action1.address)) ).lte( premium.mul(10).div(100)   ),
+        'Fee paid on the transaction are higher than 10% of the premium' ).to.be.true;
 
       // check correct amounts in MM vault
       const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
@@ -582,6 +584,9 @@ describe('Mainnet Fork Tests', function() {
       // p1 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
       console.log('denominator', denominator.toString() )
+
+      // premium estimanti  fees for flash loan ~10%
+      const netPremium = premium.mul(90).div(100)
 
       // const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const shareOfPremium = p1DepositAmount.mul(netPremium).div(denominator);
@@ -692,7 +697,7 @@ describe('Mainnet Fork Tests', function() {
 
       // p2 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
-      const shareOfPremium = p2DepositAmount.mul(netPremium).div(denominator);
+      const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p2DepositAmount.add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);

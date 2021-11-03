@@ -270,6 +270,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
 
     // TODO : do this before repaying flash loan to avoid multiple fee
+    // convert the weth received as premium to sdeCRV
     _wethToSdEcrv();
 
   }
