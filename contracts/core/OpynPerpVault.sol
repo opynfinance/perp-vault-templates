@@ -13,7 +13,7 @@ import { IAction } from '../interfaces/IAction.sol';
 import { ICurve } from '../interfaces/ICurve.sol';
 import { IStakeDao } from '../interfaces/IStakeDao.sol';
 
-import 'hardhat/console.sol';
+// import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -224,13 +224,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(totalWithDepositedAmount < cap, 'O7');
     uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
 
-    console.log('sdecrvDeposited', sdecrvDeposited, 'totalSdecrvBalanceBeforeDeposit', totalSdecrvBalanceBeforeDeposit);
-
     uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
-
-    console.log('share', share);
-    console.log('msg.sender', msg.sender);
-    console.log('msg.value', msg.value);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -248,9 +242,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 currentSdecrvBalance = _balance();
     uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
 
-    console.log('sdecrvToWithdraw: ', sdecrvToWithdraw, ' - currentSdecrvBalance: ', currentSdecrvBalance);
-    console.log('sdecrvToWithdraw <= currentSdecrvBalance', sdecrvToWithdraw <= currentSdecrvBalance);
-
     require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
 
     _burn(msg.sender, _share);
@@ -260,12 +251,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     sdecrv.withdraw(sdecrvToWithdraw);
     uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
 
-    console.log('withdrawETH ecrvBalance', ecrvBalance);
-    console.log('withdrawETH minEth', minEth);
-
     uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
-
-    console.log('withdrawETH ethReceived', ethReceived);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);
@@ -326,8 +312,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     for (uint256 i = 0; i < _allocationPercentages.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_allocationPercentages[i]);
       require(sumPercentage <= cacheBase, 'O14');
-
-      console.log('cacheBase', cacheBase);
 
       uint256 newAmount = cacheTotalAsset.mul(_allocationPercentages[i]).div(cacheBase);
 
@@ -412,10 +396,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
-
-    console.log('shareSupply', shareSupply);
-
-    console.log('_totalAssetAmount', _totalAssetAmount);
 
     // share amount
     return shareSupply == 0 ? _amount : _amount.mul(shareSupply).div(_totalAssetAmount);

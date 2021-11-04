@@ -18,7 +18,7 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
-import 'hardhat/console.sol';
+// import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -268,9 +268,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             referralCode
         );
 
-    lockedAsset = lockedAsset.add(collateralNeeded);
-
-
     // TODO : do this before repaying flash loan to avoid multiple fee
     // convert the weth received as premium to sdeCRV
     _wethToSdEcrv();
@@ -465,6 +462,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
+
+    lockedAsset = lockedAsset.add(requiredCollateral);
+
 
   } 
 
