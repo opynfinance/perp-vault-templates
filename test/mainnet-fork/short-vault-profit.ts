@@ -16,8 +16,7 @@ import {
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-import {getOrder} from '../utils/orders';
-import Ethers from '@typechain/ethers-v5';
+// import {getOrder} from '../utils/orders';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -128,8 +127,10 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
-
-    controller = (await ethers.getContractAt('IController', controllerAddress)) as IController;
+    controller = (await ethers.getContractAt(
+      'IController',
+      controllerAddress
+    )) as IController;
   });
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
