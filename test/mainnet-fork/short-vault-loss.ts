@@ -668,29 +668,12 @@ describe('Mainnet Fork Tests', function() {
       const longStrikePrice = await longOtoken.strikePrice();
       const shortStrikePrice = await shortOtoken.strikePrice();
 
-      // const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
-
-      console.log('sellAmount', sellAmount.toString() )
-      console.log('sdecrvToETHPrice', sdecrvToETHPrice.toString() )
 
       const collateralAmountDeducted =  sellAmount.mul(settlePrice)
                                         .mul(1e10)
                                         .div(sdecrvToETHPrice)
                                         .mul( shortStrikePrice )
                                         .div( settlePrice )
-
-      // const collateralAmountDeducted =  sellAmount.mul(settlePrice)
-      //                                   .mul(1e10)
-      //                                   .div(sdecrvToETHPrice)
-      //                                   .mul(settlePrice.sub(shortStrikePrice))
-      //                                   .div(settlePrice)
-
-      console.log( sellAmount.mul(1e10).toString() )
-      console.log( sellAmount.mul(1e10).div(sdecrvToETHPrice).toString() )
-      console.log( sellAmount.mul(1e10).div(sdecrvToETHPrice).mul(settlePrice.sub(shortStrikePrice)).toString() )
-                                        
-      console.log('collateralAmountDeducted', collateralAmountDeducted.toString() )
-      // console.log('collateralAmountDeducted', collateralAmountDeducted.toString() )
 
 
       const collateralAmountReturned = sdecrvControlledByActionBefore.sub(collateralAmountDeducted).sub(1);
@@ -805,36 +788,52 @@ describe('Mainnet Fork Tests', function() {
       expect(balanceOfP3After.gte((balanceOfP3Before.add(amountTransferredToP3))), 'incorrect ETH transferred to p3').to.be.true;
     });
 
-    it('counterparty redeems and gets sdecrv', async () => { 
+    it('counterparty settle and gets sdecrv', async () => { 
 
         const sdecrvPrice = await oracle.getExpiryPrice(stakeDaoLP.address, expiry);
         const sdecrvToETHPrice = sdecrvPrice[0]
         // options sold * 5000/ 10000 * 1/sdecrvConv = payout, scaling this up to 1e18. 
-        const payout = sellAmount.mul('1000000000000000000').mul('10000').div(sdecrvToETHPrice).div(2)
+        // const payout = sellAmount.mul('1000000000000000000').mul('10000').div(sdecrvToETHPrice).div(2)
+
+
+        const longStrikePrice = await longOtoken.strikePrice();
+        const shortStrikePrice = await shortOtoken.strikePrice();
+
+        const payout =  sellAmount.mul(sdecrvToETHPrice)
+                                        .mul(1e10)
+                                        .div(sdecrvToETHPrice)
+                                        .mul( shortStrikePrice )
+                                        .div( sdecrvToETHPrice )
+
+        console.log('payout', payout.toString() )
+
+
         const payoutExpected = payout.mul(9999).div(10000);
 
         const sdecrvBalanceBefore = await stakeDaoLP.balanceOf(counterpartyWallet.address);
         
-        // const actionArgs = [
-        //     {
-        //       actionType: ActionType.Redeem,
-        //       owner: ZERO_ADDR,
-        //       secondAddress: counterpartyWallet.address,
-        //       asset: otoken.address,
-        //       vaultId: '0',
-        //       amount: optionsSold,
-        //       index: '0',
-        //       data: ZERO_ADDR,
-        //     },
-        //   ]
+        const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
 
-        //   await controller.connect(counterpartyWallet).operate(actionArgs);
+        const actionArgs = [
+            {
+              actionType: ActionType.SettleVault,
+              owner: counterpartyWallet.address,
+              secondAddress: counterpartyWallet.address,
+              asset: shortOtoken.address,
+              vaultId: '1',
+              amount: sellAmount,
+              index: '0',
+              data: ZERO_ADDR,
+            },
+          ]
 
-        //   const sdecrvBalanceAfter = await stakeDaoLP.balanceOf(counterpartyWallet.address);
+          await controller.connect(counterpartyWallet).operate(actionArgs);
 
-        //   // TODO: off by a small amount, need to figure out how best to round. 
-        //   expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
-        //   expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;
+          const sdecrvBalanceAfter = await stakeDaoLP.balanceOf(counterpartyWallet.address);
+
+          // TODO: off by a small amount, need to figure out how best to round. 
+          expect(sdecrvBalanceBefore.add(payoutExpected).lte(sdecrvBalanceAfter)).to.be.true;
+          expect(sdecrvBalanceBefore.add(payout).gte(sdecrvBalanceAfter)).to.be.true;
     })
   });
 });

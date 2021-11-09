@@ -423,6 +423,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
+    
   } 
 
   function _depositAndWithdraw(uint256 _collateralAmount, uint256 _otokenAmount) internal { 
