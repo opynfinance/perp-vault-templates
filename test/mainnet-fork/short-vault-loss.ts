@@ -648,10 +648,6 @@ describe('Mainnet Fork Tests', function() {
 
       const settlePrice = BigNumber.from(expPrice)
 
-      console.log('settlePrice', settlePrice.toString() )
-
-      console.log(settlePrice.toString() )
-
       // set settlement price
       await wethPricer.setExpiryPriceInOracle(weth.address, expiry, settlePrice);
       await sdecrvPricer.setExpiryPriceInOracle(expiry);
@@ -804,9 +800,6 @@ describe('Mainnet Fork Tests', function() {
                                         .div(sdecrvToETHPrice)
                                         .mul( shortStrikePrice )
                                         .div( sdecrvToETHPrice )
-
-        console.log('payout', payout.toString() )
-
 
         const payoutExpected = payout.mul(9999).div(10000);
 

@@ -17,6 +17,8 @@ import {
 } from '../../typechain';
 import * as fs from 'fs';
 // import {getOrder} from '../utils/orders';
+import { BigNumber } from '@ethersproject/bignumber';
+
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -275,6 +277,8 @@ describe('Mainnet Fork Tests', function() {
     let longOtoken: IOToken;
     let expiry: number;
 
+    let sellAmount: BigNumber;
+
     const reserveFactor = 10;
 
     this.beforeAll(
@@ -443,7 +447,7 @@ describe('Mainnet Fork Tests', function() {
       const sdcrvAmount = collateralAmount;
       // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
 
-      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
+      sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
 
       const requiredCollateral = ((((longStrikePrice).sub(shortStrikePrice)).mul(1e10)).div(longStrikePrice)).mul(sellAmount);
 
