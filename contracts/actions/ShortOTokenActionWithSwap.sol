@@ -18,7 +18,7 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
- import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -236,6 +236,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
   function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
+    //0. Initial Logic Checks
+    //require(counterparty.add != address(0), "Invalid counterparty address");
+    
     // 1. flash borrow WETH
     address receiverAddress = address(this);
     address[] memory assets = new address[](1);

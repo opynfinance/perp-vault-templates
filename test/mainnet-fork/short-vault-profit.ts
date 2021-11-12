@@ -19,6 +19,8 @@ import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
 import Ethers from '@typechain/ethers-v5';
 
+const {expectRevert} = require('@openzeppelin/test-helpers'); // eslint-disable-line
+
 const mnemonic = fs.existsSync('.secret')
   ? fs
       .readFileSync('.secret')
@@ -85,6 +87,7 @@ describe('Mainnet Fork Tests', function() {
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const marginPoolAddress = '0x5934807cC0654d46755eBd2848840b616256C6Ef';
   const aaveLendingPoolAddres = '0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9';
+  
   /**
    *
    * Setup
@@ -128,7 +131,6 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
-
     controller = (await ethers.getContractAt('IController', controllerAddress)) as IController;
   });
 
@@ -336,8 +338,8 @@ describe('Mainnet Fork Tests', function() {
           to: counterpartyWallet.address,
           value: utils.parseEther('3000')
         });
-        await weth.connect(counterpartyWallet).deposit({ value: premium });
-        await weth.connect(counterpartyWallet).approve(action1.address, premium);
+        await weth.connect(counterpartyWallet).deposit({ value: utils.parseEther('2')});
+        await weth.connect(counterpartyWallet).approve(action1.address, utils.parseEther('2'));
       }
     );
     it('p1 deposits', async () => {
@@ -398,14 +400,19 @@ describe('Mainnet Fork Tests', function() {
       );
     });
 
+    it('owner provides wrong strikes', async () => {
+      expect(await action1.state()).to.be.equal(ActionState.Idle);
+      await expect(action1.commitSpread(longOtoken.address, shortOtoken.address)).to.be.revertedWith('Lower Strike higher than Higher Strike');
+      expect(await action1.state()).to.be.equal(ActionState.Idle);
+    });
+
     it('owner commits to the option', async () => {
       expect(await action1.state()).to.be.equal(ActionState.Idle);
       await action1.commitSpread(shortOtoken.address, longOtoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
-    it('owner mints call credit spread with sdeCRV as margin collateral and sells them', async () => {
-    
+    it('owner mints call credit spread with sdeCRV as margin collateral and sells them', async () => {    
       // increase time
       const minPeriod = await action1.MIN_COMMIT_PERIOD();
       await provider.send('evm_increaseTime', [minPeriod.toNumber()]); // increase time
@@ -426,18 +433,20 @@ describe('Mainnet Fork Tests', function() {
       
       const longStrikePrice = await longOtoken.strikePrice();
       const shortStrikePrice = await shortOtoken.strikePrice();
-      
-      console.log('longStrikePrice', longStrikePrice.toString(), 'shortStrikePrice', shortStrikePrice.toString());
-      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
-      const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
-      console.log('collateralRequiredPerOption', collateralRequiredPerOption.toString());
+      console.log("---START---")
+      console.log('weth start:', (await weth.balanceOf(action1.address)).toString());
 
       const sdcrvAmount = collateralAmount;
-      console.log('total sdcrv in action: ', sdcrvAmount.toString() );
+      console.log('sdcrv start: ', sdcrvAmount.toString() );
       // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
-
+      
+      console.log('LS:', longStrikePrice.toString(), 'SS:', shortStrikePrice.toString());
+      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
+      const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
+      console.log('collateralRequiredPerOption:', collateralRequiredPerOption.toString());
+      
       const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
-      console.log('sellAmount', sellAmount);
+      console.log('Amount of Options to mint', sellAmount);
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
@@ -459,11 +468,17 @@ describe('Mainnet Fork Tests', function() {
         'collateral should not be locked'
       ).to.be.true;
 
-      console.log(counterpartyWallet.address)
-
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
-
+      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+      console.log("Counterparty Address:",counterpartyWallet.address);
+      console.log('weth premium asked:',premium.toString());
+      console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
+      
+      console.log("---Flash Loan Called & Premium Paid---")
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+      console.log("Counterparty WETH after FL called:",(await weth.balanceOf(counterpartyWallet.address)).toString());
+      console.log('weth after FL called:', (await weth.balanceOf(action1.address)).toString());
+      console.log('sdcrv after FL called: ', ((await stakeDaoLP.balanceOf(action1.address)).toString()));
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
