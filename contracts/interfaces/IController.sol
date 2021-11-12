@@ -36,8 +36,6 @@ interface IController {
     uint256[] collateralAmounts;
   }
 
-  function calculator() external returns (address);
-
   function setOperator(address _operator, bool _isOperator) external ;
 
   function pool() external view returns (address);

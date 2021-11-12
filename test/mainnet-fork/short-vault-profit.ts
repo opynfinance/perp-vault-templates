@@ -445,7 +445,7 @@ describe('Mainnet Fork Tests', function() {
       const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
       console.log('collateralRequiredPerOption:', collateralRequiredPerOption.toString());
       
-      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption).toString();
+      const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
       console.log('Amount of Options to mint', sellAmount);
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
@@ -455,7 +455,7 @@ describe('Mainnet Fork Tests', function() {
       const order = await getOrder(
         action1.address,
         shortOtoken.address,
-        sellAmount,
+        sellAmount.toString(),
         counterpartyWallet.address,
         weth.address,
         premium.toString(),
@@ -475,7 +475,7 @@ describe('Mainnet Fork Tests', function() {
       console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
       
       console.log("---Flash Loan Called & Premium Paid---")
-      await action1.flashMintAndSellOToken(sellAmount, premium, counterpartyWallet.address);
+      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
       console.log("Counterparty WETH after FL called:",(await weth.balanceOf(counterpartyWallet.address)).toString());
       console.log('weth after FL called:', (await weth.balanceOf(action1.address)).toString());
       console.log('sdcrv after FL called: ', ((await stakeDaoLP.balanceOf(action1.address)).toString()));
@@ -506,6 +506,18 @@ describe('Mainnet Fork Tests', function() {
       const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+      expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
+      expect( (mmVault.shortAmounts[0]), 'MM does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
+
+      // check correct amounts in action vault
+      const actionVault =  await controller.getVault(action1.address, 1);
+      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(shortOtoken.address);
+      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(longOtoken.address);
+      expect( (actionVault.longAmounts[0]), 'Action does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
+      expect( (actionVault.shortAmounts[0]), 'Action does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
+      expect( (actionVault.collateralAssets[0]), 'Action does not have the right collateral' ).to.be.equal(stakeDaoLP.address);
+      expect( (actionVault.collateralAmounts[0]), 'Action does not have the correct amount of required collateral' ).to.be.lte( collateralAmount );
+
 
       // check the otoken balance of the MM
       // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
