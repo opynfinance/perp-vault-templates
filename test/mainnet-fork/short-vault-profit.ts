@@ -19,6 +19,9 @@ import * as fs from 'fs';
 // import {getOrder} from '../utils/orders';
 import { BigNumber } from '@ethersproject/bignumber';
 
+//esilnt-ignore-next-line
+const {expectRevert} = require('@openzeppelin/test-helpers'); // eslint-disable-line
+
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -273,8 +276,8 @@ describe('Mainnet Fork Tests', function() {
     const premium = utils.parseEther('2');
 
     let actualAmountInVault;
-    let shortOtoken: IOToken;
-    let longOtoken: IOToken;
+    let lowerStrikeOtoken: IOToken;
+    let higherStrikeOtoken: IOToken;
     let expiry: number;
 
     let sellAmount: BigNumber;
@@ -284,8 +287,8 @@ describe('Mainnet Fork Tests', function() {
     this.beforeAll(
       'deploy otokens that will be sold and set up counterparty',
       async () => {
-        const shortOtokenStrikePrice = 500000000000;
-        const longOtokenStrikePrice = 1000000000000;
+        const lowerStrikeOtokenStrikePrice = 500000000000;
+        const higherStrikeOtokenStrikePrice = 1000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -295,7 +298,7 @@ describe('Mainnet Fork Tests', function() {
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          shortOtokenStrikePrice,
+          lowerStrikeOtokenStrikePrice,
           expiry,
           false
         );
@@ -304,37 +307,37 @@ describe('Mainnet Fork Tests', function() {
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          longOtokenStrikePrice,
+          higherStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        const shortOtokenAddress = await otokenFactory.getOtoken(
+        const lowerStrikeOtokenAddress = await otokenFactory.getOtoken(
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          shortOtokenStrikePrice,
+          lowerStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        shortOtoken = (await ethers.getContractAt(
+        lowerStrikeOtoken = (await ethers.getContractAt(
           'IOToken',
-          shortOtokenAddress
+          lowerStrikeOtokenAddress
         )) as IOToken;
 
-        const longOtokenAddress = await otokenFactory.getOtoken(
+        const higherStrikeOtokenAddress = await otokenFactory.getOtoken(
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          longOtokenStrikePrice,
+          higherStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        longOtoken = (await ethers.getContractAt(
+        higherStrikeOtoken = (await ethers.getContractAt(
           'IOToken',
-          longOtokenAddress
+          higherStrikeOtokenAddress
         )) as IOToken;
 
 
@@ -411,7 +414,7 @@ describe('Mainnet Fork Tests', function() {
 
     it('owner commits to the option', async () => {
       expect(await action1.state()).to.be.equal(ActionState.Idle);
-      await action1.commitSpread(shortOtoken.address, longOtoken.address);
+      await action1.commitSpread(lowerStrikeOtoken.address, higherStrikeOtoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
@@ -438,8 +441,8 @@ describe('Mainnet Fork Tests', function() {
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       
-      const longStrikePrice = await longOtoken.strikePrice();
-      const shortStrikePrice = await shortOtoken.strikePrice();
+      const longStrikePrice = await higherStrikeOtoken.strikePrice();
+      const shortStrikePrice = await lowerStrikeOtoken.strikePrice();
       
       // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
       const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
@@ -457,7 +460,7 @@ describe('Mainnet Fork Tests', function() {
 
       // const order = await getOrder(
       //   action1.address,
-      //   shortOtoken.address,
+      //   lowerStrikeOtoken.address,
       //   sellAmount.toString(),
       //   counterpartyWallet.address,
       //   weth.address,
@@ -473,6 +476,13 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
+      const lowPremium = utils.parseEther('0.1');
+
+      // testing revert with premium === 0
+      await expectRevert.unspecified(
+        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
+      )
+      
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
@@ -499,29 +509,19 @@ describe('Mainnet Fork Tests', function() {
 
       // check correct amounts in MM vault
       const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
-      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
-      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
+      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
       expect( (mmVault.shortAmounts[0]), 'MM does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
 
       // check correct amounts in action vault
       const actionVault =  await controller.getVault(action1.address, 1);
-      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(shortOtoken.address);
-      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(longOtoken.address);
+      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(lowerStrikeOtoken.address);
+      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (actionVault.longAmounts[0]), 'Action does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
       expect( (actionVault.shortAmounts[0]), 'Action does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
       expect( (actionVault.collateralAssets[0]), 'Action does not have the right collateral' ).to.be.equal(stakeDaoLP.address);
       expect( (actionVault.collateralAmounts[0]), 'Action does not have the correct amount of required collateral' ).to.be.lte( collateralAmount );
-
-
-      // check the otoken balance of the MM
-      // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
-
-
-      // check the otoken balance of counterparty
-      // expect(await shortOtoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
-      //   sellAmount
-      // );
 
       const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 

@@ -18,7 +18,7 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
-// import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -207,23 +207,16 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
         // 4. deposit the new options and withdraw collateral
         _depositAndWithdraw( otokensToSell.mul(1e10), otokensToSell );
-        
-        // 5. transfer in weth
-        // TODO: this already happened, should this move here? 
-        // 6. unwrap sdTokens to weth
-        _sdecrvToWeth();
+
         // 7. pay back borrowed amount 
-
-        // At the end of your logic above, this contract owes
-        // the flashloaned amounts + premiums.
-        // Therefore ensure your contract has enough to repay
-        // these amounts.
-
         // Approve the LendingPool contract allowance to *pull* the owed amount
         for (uint i = 0; i < assets.length; i++) {
             uint amountOwing = amounts[i].add(premiums[i]);
             IERC20(assets[i]).approve(address(lendingPool), amountOwing);
         }
+
+        // 6. unwrap sdTokens to weth to repay fees and flashloan
+        _sdecrvToWeth();
 
         return true;
     }
@@ -268,8 +261,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             referralCode
         );
 
-    // TODO : do this before repaying flash loan to avoid multiple fee
-    // convert the weth received as premium to sdeCRV
+    // convert the weth left in contract as premium to sdeCRV
     _wethToSdEcrv();
 
   }
