@@ -196,7 +196,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     //0. Initial Logic Checks
     //require(counterparty.add != address(0), "Invalid counterparty address");
     
-    // 1. flash borrow WETH
+    // flash borrow WETH
     address receiverAddress = address(this);
     address[] memory assets = new address[](1);
     assets[0] = address(weth);
@@ -204,6 +204,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256 collateralNeeded = optionsToSell.mul(1e10);
     uint256 amountSdEcrvInAction = stakedao.balanceOf(address(this));
     
+    // sdcrv needed
     uint256 amountToFlashBorrow = collateralNeeded.sub(amountSdEcrvInAction);
     amounts[0] = amountToFlashBorrow; 
     uint256[] memory modes = new uint256[](1);
@@ -212,12 +213,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     bytes memory params = abi.encode(optionsToSell, counterparty);
 
-    
     uint16 referralCode = 0;
     
-    // 2. transfer weth in
+    // transfer premium weth in
     weth.transferFrom(counterparty, address(this), premium);
-    
+
+    // flash loan
     lendingPool.flashLoan(
             receiverAddress,
             assets,
