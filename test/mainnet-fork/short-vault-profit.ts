@@ -448,35 +448,16 @@ describe('Mainnet Fork Tests', function() {
       
       const longStrikePrice = await higherStrikeOtoken.strikePrice();
       const shortStrikePrice = await lowerStrikeOtoken.strikePrice();
-      console.log("---START---")
-      console.log('weth start:', (await weth.balanceOf(action1.address)).toString());
 
       const sdcrvAmount = collateralAmount;
-      console.log('sdcrv start: ', sdcrvAmount.toString() );
-      // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
-      
-      console.log('LS:', longStrikePrice.toString(), 'SS:', shortStrikePrice.toString());
-      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
+
       const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
-      console.log('collateralRequiredPerOption:', collateralRequiredPerOption.toString());
       
       const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
-      console.log('Amount of Options to mint', sellAmount);
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddress);
-
-      // const order = await getOrder(
-      //   action1.address,
-      //   lowerStrikeOtoken.address,
-      //   sellAmount.toString(),
-      //   counterpartyWallet.address,
-      //   weth.address,
-      //   premium.toString(),
-      //   swapAddress,
-      //   counterpartyWallet.privateKey
-      // );
 
       expect(
         (await action1.lockedAsset()).eq('0'),
@@ -493,15 +474,8 @@ describe('Mainnet Fork Tests', function() {
       )
       
       await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
-      console.log("Counterparty Address:",counterpartyWallet.address);
-      console.log('weth premium asked:',premium.toString());
-      console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
-      
-      console.log("---Flash Loan Called & Premium Paid---")
+
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
-      console.log("Counterparty WETH after FL called:",(await weth.balanceOf(counterpartyWallet.address)).toString());
-      console.log('weth after FL called:', (await weth.balanceOf(action1.address)).toString());
-      console.log('sdcrv after FL called: ', ((await stakeDaoLP.balanceOf(action1.address)).toString()));
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
