@@ -18,8 +18,6 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
-import 'hardhat/console.sol';
-
 /**
  * Error Codes
  * S1: msg.sender must be the vault
