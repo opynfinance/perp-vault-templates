@@ -142,37 +142,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     rolloverTime = block.timestamp;
   }
 
-  // /**
-  //  * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
-  //  * by filling an order on AirSwap.
-  //  * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
-  //  */
-  // function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner {
-  //   onlyActivated();
-  //   require(_order.sender.wallet == address(this), 'S3');
-  //   require(_order.sender.token == currentSpread.shortOtoken, 'S4');
-  //   require(_order.signer.token == address(weth), 'S5');
-  //   require(_order.sender.amount == _otokenAmount, 'S6');
-  //   require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
-
-  //   // buy long otokens
-
-  //   // mint options
-  //   _mintOTokens(_collateralAmount, _otokenAmount);
-
-  //   lockedAsset = lockedAsset.add(_collateralAmount);
-
-  //   IERC20(currentSpread.shortOtoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
-
-  //   // sell options on airswap for weth
-  //   // _fillAirswapOrder(_order);
-
-  //   // convert the weth received as premium to sdeCRV
-  //   // _wethToSdEcrv();
-
-  //   emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
-  // }
-
   function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -186,10 +155,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     {
 
       require(amounts.length == 1, "too many assets");
-        //
-        // This contract now has the funds requested.
-        // Your logic goes here.
-        //        
+  
         (uint256 otokensToSell, address counterparty) = abi.decode(params, (uint256, address));
         
         // 1. convert weth to sdecrv
@@ -206,7 +172,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         // 4. deposit the new options and withdraw collateral
         _depositAndWithdraw( otokensToSell.mul(1e10), otokensToSell );
 
-        // 7. pay back borrowed amount 
+        // 5. pay back borrowed amount 
         // Approve the LendingPool contract allowance to *pull* the owed amount
         for (uint i = 0; i < assets.length; i++) {
             uint amountOwing = amounts[i].add(premiums[i]);
