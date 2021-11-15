@@ -17,6 +17,7 @@
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.js",
     "lint": "eslint . --ext .ts",
+    "lint-fix": "eslint --fix",
     "prepare": "husky install",
     "test:coverage": "COVERAGE=true FORK=true hardhat coverage",
     "test:profit": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/short-vault-profit.ts",

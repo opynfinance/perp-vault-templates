@@ -9,6 +9,8 @@ import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import { AirswapBase } from './AirswapBase.sol';
 import { IWhitelist } from '../interfaces/IWhitelist.sol';
 import { SwapTypes } from '../libraries/SwapTypes.sol';
+import { IOToken } from '../interfaces/IOToken.sol';
+import 'hardhat/console.sol';
 
 /**
  * Error Codes
@@ -76,7 +78,7 @@ contract RollOverBase is Ownable {
     require(state != ActionState.Activated, "R3");
     // _checkOToken(_nextSpread);
     nextSpread = Spread(_shortOtoken, _longOtoken);
-
+    require(IOToken(_shortOtoken).strikePrice() < IOToken(_longOtoken).strikePrice(),"Lower Strike higher than Higher Strike");
     state = ActionState.Committed;
     
     commitStateStart = block.timestamp;
