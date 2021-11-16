@@ -16,9 +16,10 @@ import {
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-import {getOrder} from '../utils/orders';
-import Ethers from '@typechain/ethers-v5';
+// import {getOrder} from '../utils/orders';
+import { BigNumber } from '@ethersproject/bignumber';
 
+//esilnt-ignore-next-line
 const {expectRevert} = require('@openzeppelin/test-helpers'); // eslint-disable-line
 
 const mnemonic = fs.existsSync('.secret')
@@ -131,7 +132,10 @@ describe('Mainnet Fork Tests', function() {
       otokenFactoryAddress
     )) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
-    controller = (await ethers.getContractAt('IController', controllerAddress)) as IController;
+    controller = (await ethers.getContractAt(
+      'IController',
+      controllerAddress
+    )) as IController;
   });
 
   this.beforeAll('Deploy vault and sell ETH calls action', async () => {
@@ -235,7 +239,7 @@ describe('Mainnet Fork Tests', function() {
     await provider.send('hardhat_impersonateAccount', [ecrvWhale]);
     const signer = await ethers.provider.getSigner(ecrvWhale);
     const p1DepositAmount = utils.parseEther('10');
-    const p2DepositAmount = utils.parseEther('40');
+    const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     await ecrv.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await ecrv.connect(signer).transfer(depositor2.address, p2DepositAmount);
@@ -258,7 +262,7 @@ describe('Mainnet Fork Tests', function() {
         .to.be.true;
     });
 
-    xit('should set fee reserve', async () => {
+    it('should set fee reserve', async () => {
       // 10% reserve
       await vault.connect(owner).setWithdrawReserve(1000);
       expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
@@ -267,19 +271,24 @@ describe('Mainnet Fork Tests', function() {
 
   describe('profitable scenario', async () => {
     const p1DepositAmount = utils.parseEther('10');
-    const p2DepositAmount = utils.parseEther('40');
+    const p2DepositAmount = utils.parseEther('70');
     const p3DepositAmount = utils.parseEther('20');
     const premium = utils.parseEther('2');
+
     let actualAmountInVault;
-    let shortOtoken: IOToken;
-    let longOtoken: IOToken;
+    let lowerStrikeOtoken: IOToken;
+    let higherStrikeOtoken: IOToken;
     let expiry: number;
-    const reserveFactor = 0;
+
+    let sellAmount: BigNumber;
+
+    const reserveFactor = 10;
+
     this.beforeAll(
       'deploy otokens that will be sold and set up counterparty',
       async () => {
-        const shortOtokenStrikePrice = 500000000000;
-        const longOtokenStrikePrice = 1000000000000;
+        const lowerStrikeOtokenStrikePrice = 500000000000;
+        const higherStrikeOtokenStrikePrice = 1000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -289,7 +298,7 @@ describe('Mainnet Fork Tests', function() {
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          shortOtokenStrikePrice,
+          lowerStrikeOtokenStrikePrice,
           expiry,
           false
         );
@@ -298,37 +307,37 @@ describe('Mainnet Fork Tests', function() {
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          longOtokenStrikePrice,
+          higherStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        const shortOtokenAddress = await otokenFactory.getOtoken(
+        const lowerStrikeOtokenAddress = await otokenFactory.getOtoken(
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          shortOtokenStrikePrice,
+          lowerStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        shortOtoken = (await ethers.getContractAt(
+        lowerStrikeOtoken = (await ethers.getContractAt(
           'IOToken',
-          shortOtokenAddress
+          lowerStrikeOtokenAddress
         )) as IOToken;
 
-        const longOtokenAddress = await otokenFactory.getOtoken(
+        const higherStrikeOtokenAddress = await otokenFactory.getOtoken(
           weth.address,
           usdc.address,
           stakeDaoLP.address,
-          longOtokenStrikePrice,
+          higherStrikeOtokenStrikePrice,
           expiry,
           false
         );
 
-        longOtoken = (await ethers.getContractAt(
+        higherStrikeOtoken = (await ethers.getContractAt(
           'IOToken',
-          longOtokenAddress
+          higherStrikeOtokenAddress
         )) as IOToken;
 
 
@@ -342,6 +351,7 @@ describe('Mainnet Fork Tests', function() {
         await weth.connect(counterpartyWallet).approve(action1.address, utils.parseEther('2'));
       }
     );
+
     it('p1 deposits', async () => {
       // there is no accurate way of estimating this, so just approximating for now
       const expectedSdecrvInVault = p1DepositAmount.mul(95).div(100);
@@ -363,6 +373,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor1.address)), 'incorrcect amount of shares minted').to.be.equal(totalSharesMinted)
+        
     });
 
     it('p2 deposits', async () => {
@@ -389,6 +400,7 @@ describe('Mainnet Fork Tests', function() {
       const stakedaoDeposited = vaultSdecrvBalance.sub(vaultSdecrvBalanceBefore);
       const shares = sharesBefore.div(vaultSdecrvBalanceBefore).mul(stakedaoDeposited)
       expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted' ).to.be.equal(shares)
+
     });
 
     it('tests getPrice in sdecrvPricer', async () => {
@@ -402,13 +414,13 @@ describe('Mainnet Fork Tests', function() {
 
     it('owner provides wrong strikes', async () => {
       expect(await action1.state()).to.be.equal(ActionState.Idle);
-      await expect(action1.commitSpread(longOtoken.address, shortOtoken.address)).to.be.revertedWith('Lower Strike higher than Higher Strike');
+      await expect(action1.commitSpread(higherStrikeOtoken.address, lowerStrikeOtoken.address)).to.be.revertedWith('Lower Strike higher than Higher Strike');
       expect(await action1.state()).to.be.equal(ActionState.Idle);
     });
 
     it('owner commits to the option', async () => {
       expect(await action1.state()).to.be.equal(ActionState.Idle);
-      await action1.commitSpread(shortOtoken.address, longOtoken.address);
+      await action1.commitSpread(lowerStrikeOtoken.address, higherStrikeOtoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
     });
 
@@ -422,46 +434,30 @@ describe('Mainnet Fork Tests', function() {
 
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
-
       const expectedSdecrvBalanceInVault = vaultSdecrvBalanceBefore.mul(reserveFactor).div(100)
       let expectedSdecrvBalanceInAction = vaultSdecrvBalanceBefore.sub(expectedSdecrvBalanceInVault)
+      
       const collateralAmount = await stakeDaoLP.balanceOf(action1.address)
+
       const premiumInSdecrv = premium.mul(95).div(100);
-      const expectedTotal = vaultSdecrvBalanceBefore.add(premiumInSdecrv);
+      // estimating fee for flash loan and wrapping ~10%
+      const netPremiumInSdecrv = premium.mul(90).div(100)
+      const expectedTotal = vaultSdecrvBalanceBefore.add(netPremiumInSdecrv);
       expectedSdecrvBalanceInAction = expectedSdecrvBalanceInVault.add(premiumInSdecrv);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       
-      const longStrikePrice = await longOtoken.strikePrice();
-      const shortStrikePrice = await shortOtoken.strikePrice();
-      console.log("---START---")
-      console.log('weth start:', (await weth.balanceOf(action1.address)).toString());
+      const longStrikePrice = await higherStrikeOtoken.strikePrice();
+      const shortStrikePrice = await lowerStrikeOtoken.strikePrice();
 
       const sdcrvAmount = collateralAmount;
-      console.log('sdcrv start: ', sdcrvAmount.toString() );
-      // const sellAmount = (collateralAmount.add(collateralAmount)).div(1e10).toString(); 
-      
-      console.log('LS:', longStrikePrice.toString(), 'SS:', shortStrikePrice.toString());
-      // // ((((longStrike).sub(shortStrike)).mul(1e10)).div(longStrike))
+
       const collateralRequiredPerOption = (longStrikePrice.sub(shortStrikePrice).mul(1e10).div(longStrikePrice));
-      console.log('collateralRequiredPerOption:', collateralRequiredPerOption.toString());
       
       const sellAmount = (sdcrvAmount).div(collateralRequiredPerOption);
-      console.log('Amount of Options to mint', sellAmount);
 
       const marginPoolSdecrvBalanceAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       const marginPoolBalanceOfStakeDaoLPBefore = await stakeDaoLP.balanceOf(marginPoolAddress);
-
-      const order = await getOrder(
-        action1.address,
-        shortOtoken.address,
-        sellAmount.toString(),
-        counterpartyWallet.address,
-        weth.address,
-        premium.toString(),
-        swapAddress,
-        counterpartyWallet.privateKey
-      );
 
       expect(
         (await action1.lockedAsset()).eq('0'),
@@ -469,74 +465,67 @@ describe('Mainnet Fork Tests', function() {
       ).to.be.true;
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
-      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
-      console.log("Counterparty Address:",counterpartyWallet.address);
-      console.log('weth premium asked:',premium.toString());
-      console.log("Counterparty WETH:",(await weth.balanceOf(counterpartyWallet.address)).toString());
+
+      const lowPremium = utils.parseEther('0.1');
+
+      // testing revert with premium === 0
+      await expectRevert.unspecified(
+        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
+      )
       
-      console.log("---Flash Loan Called & Premium Paid---")
+      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+
       await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
-      console.log("Counterparty WETH after FL called:",(await weth.balanceOf(counterpartyWallet.address)).toString());
-      console.log('weth after FL called:', (await weth.balanceOf(action1.address)).toString());
-      console.log('sdcrv after FL called: ', ((await stakeDaoLP.balanceOf(action1.address)).toString()));
 
       const vaultSdecrvBalanceAfter = await stakeDaoLP.balanceOf(vault.address);
 
-
-
       // check sdeCRV balance in action and vault
-      // expect(vaultSdecrvBalanceAfter).to.be.within(
-      //   expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
-      // );
+      expect(vaultSdecrvBalanceAfter).to.be.within(
+        expectedSdecrvBalanceInVault.sub(1) as any, expectedSdecrvBalanceInVault.add(1) as any, "incorrect balance in vault"
+      );
       
-      // expect(
-      //   (await vault.totalStakedaoAsset()).gte(expectedTotal),
-      //   'incorrect accounting in vault'
-      // ).to.be.true;
-      // expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
-      // expect((await action1.lockedAsset()), 'incorrect accounting in action').to.be.equal(collateralAmount)
-
+      expect(
+        (await vault.totalStakedaoAsset() ).gte(expectedTotal),
+        'incorrect accounting in vault'
+      ).to.be.true;
+      
+      expect(((await stakeDaoLP.balanceOf(action1.address)).gte(expectedSdecrvBalanceInAction), 'incorrect sdecrv balance in action'))
+      
       // checking that we pay fee from sdcrv wrapping and flashloan
-      expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
+      // expect((await weth.balanceOf(action1.address)).lte(premium), 'Final WETH amount incorrect').to.be.true;
 
-      expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(5).div(100)   ),
-        'Fee paid on the transaction are higher than 5% of the premium' ).to.be.true;
+      expect( (premium.sub(await stakeDaoLP.balanceOf(action1.address)) ).lte( premium.mul(10).div(100)   ),
+        'Fee paid on the transaction are higher than 10% of the premium' ).to.be.true;
 
       // check correct amounts in MM vault
       const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
-      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(shortOtoken.address);
-      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(longOtoken.address);
+      expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
+      expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
       expect( (mmVault.shortAmounts[0]), 'MM does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
 
       // check correct amounts in action vault
       const actionVault =  await controller.getVault(action1.address, 1);
-      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(shortOtoken.address);
-      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(longOtoken.address);
+      expect( (actionVault.shortOtokens[0]), 'Action does not have the correct short otoken' ).to.be.equal(lowerStrikeOtoken.address);
+      expect( (actionVault.longOtokens[0]), 'Action does not have the correct long otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (actionVault.longAmounts[0]), 'Action does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
       expect( (actionVault.shortAmounts[0]), 'Action does not have the correct amount for short otoken' ).to.be.equal(sellAmount);
       expect( (actionVault.collateralAssets[0]), 'Action does not have the right collateral' ).to.be.equal(stakeDaoLP.address);
       expect( (actionVault.collateralAmounts[0]), 'Action does not have the correct amount of required collateral' ).to.be.lte( collateralAmount );
 
-
-      // check the otoken balance of the MM
-      // expect( (await longOtoken.balanceOf(action1.address)), 'Mismatch of longOtokens' ).to.be.equal(sellAmount);
-
-
-      // check the otoken balance of counterparty
-      // expect(await shortOtoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(
-      //   sellAmount
-      // );
-
-      // const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
+      const marginPoolBalanceOfStakeDaoLPAfter = await stakeDaoLP.balanceOf(marginPoolAddress);
 
       // // check sdecrv balance in opyn 
-      // expect(marginPoolBalanceOfStakeDaoLPAfter, 'incorrect balance in Opyn').to.be.equal(marginPoolBalanceOfStakeDaoLPBefore.add(collateralAmount));
+      expect(marginPoolBalanceOfStakeDaoLPAfter, 'incorrect balance in Opyn').to.be.lte(
+        marginPoolBalanceOfStakeDaoLPBefore.add(collateralAmount)
+      );
     });
 
-    xit('p3 deposits', async () => {
+    it('p3 deposits', async () => {
+
       const effectiveP3deposit = p3DepositAmount.mul(95).div(100)
       const vaultTotalBefore = await vault.totalStakedaoAsset();
+      
       const expectedTotal = vaultTotalBefore.add(effectiveP3deposit);
       const sharesBefore = await vault.totalSupply();
       const actualAmountInVaultBefore = await stakeDaoLP.balanceOf(vault.address);
@@ -544,6 +533,7 @@ describe('Mainnet Fork Tests', function() {
       await vault.connect(depositor3).depositETH('0', {value: p3DepositAmount});
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
+
       const stakedaoDeposited = vaultTotalAfter.sub(vaultTotalBefore);
       actualAmountInVault = await stakeDaoLP.balanceOf(vault.address);
       // check the sdeCRV token balances
@@ -561,29 +551,37 @@ describe('Mainnet Fork Tests', function() {
       expect((await vault.balanceOf(depositor3.address))).to.be.equal(shares)
     });
 
-    xit('p1 withdraws', async () => {
+    it('p1 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
+
       const vaultSdECRVBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
+
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
       // p1 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
-      const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
+
+      // premium estimanti  fees for flash loan ~10%
+      const netPremium = premium.mul(90).div(100)
+
+      // const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
+      const shareOfPremium = p1DepositAmount.mul(netPremium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
+
       const fee = amountToWithdraw.mul(5).div(1000);
       const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
-      const balanceOfP1Before = await provider.getBalance(depositor1.address);
 
+      const balanceOfP1Before = await provider.getBalance(depositor1.address);
       // fee calculations 
       const effectiveFee = fee.mul(95).div(100);
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
 
-
       await vault
         .connect(depositor1)
         .withdrawETH(sharesToWithdraw, amountTransferredToP1);
+        // .withdrawETH(sharesToWithdraw, '0' );
 
       // vault balance variables 
       const sharesAfter = await vault.totalSupply();
@@ -617,13 +615,13 @@ describe('Mainnet Fork Tests', function() {
       ), 'incorrect fee paid out').to.be.true;
     });
 
-    xit('option expires', async () => {
+    it('option expires', async () => {
       // increase time
       await provider.send('evm_setNextBlockTimestamp', [expiry + day]);
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '100000000000');
+      await wethPricer.setExpiryPriceInOracle(weth.address, expiry, '400000000000');
       await sdecrvPricer.setExpiryPriceInOracle(expiry);
 
       // increase time
@@ -636,24 +634,28 @@ describe('Mainnet Fork Tests', function() {
       await vault.closePositions();
 
       const sdecrvBalanceInVaultAfter = await stakeDaoLP.balanceOf(vault.address);
+
       const sdecrvBalanceInActionAfter = await stakeDaoLP.balanceOf(action1.address);
       const sdecrvControlledByActionAfter = await action1.currentValue();
       const vaultTotal = await vault.totalStakedaoAsset();
 
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(sdecrvBalanceInVaultAfter);
-      expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault').to.be.equal(sdecrvBalanceInVaultBefore.add(sdecrvControlledByActionBefore));
+      
+      expect(sdecrvBalanceInVaultAfter, 'incorrect balances in vault')
+      .to.be.equal(sdecrvBalanceInVaultBefore.add(sdecrvControlledByActionBefore));
 
       // check action balances
       expect(
         (await action1.lockedAsset()).eq('0'),
         'all collateral should be unlocked'
       ).to.be.true;
+
       expect(sdecrvBalanceInActionAfter, 'no sdecrv should be left in action').to.be.equal('0');
       expect(sdecrvControlledByActionAfter, 'no sdecrv should be controlled by action').to.be.equal('0');
     });
 
-    xit('p2 withdraws', async () => {
+    it('p2 withdraws', async () => {
       // vault balance calculations
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const vaultSdECRVBalanceBefore = await stakeDaoLP.balanceOf(vault.address);
@@ -710,7 +712,7 @@ describe('Mainnet Fork Tests', function() {
       ), 'incorrect fee paid out').to.be.true;
     });
 
-    xit('p3 withdraws', async () => {
+    it('p3 withdraws', async () => {
       // balance calculations 
       const amountToWithdraw = p3DepositAmount;
       const fee = amountToWithdraw.mul(5).div(1000);

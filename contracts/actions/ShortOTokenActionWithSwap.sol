@@ -18,8 +18,6 @@ import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 
-import 'hardhat/console.sol';
-
 /**
  * Error Codes
  * S1: msg.sender must be the vault
@@ -144,37 +142,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     rolloverTime = block.timestamp;
   }
 
-  // /**
-  //  * @dev owner only function to mint options with "ecrv" and sell otokens in this contract 
-  //  * by filling an order on AirSwap.
-  //  * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
-  //  */
-  // function mintAndSellOToken(uint256 _collateralAmount, uint256 _otokenAmount, SwapTypes.Order memory _order) external onlyOwner {
-  //   onlyActivated();
-  //   require(_order.sender.wallet == address(this), 'S3');
-  //   require(_order.sender.token == currentSpread.shortOtoken, 'S4');
-  //   require(_order.signer.token == address(weth), 'S5');
-  //   require(_order.sender.amount == _otokenAmount, 'S6');
-  //   require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= _order.signer.amount, 'S7');
-
-  //   // buy long otokens
-
-  //   // mint options
-  //   _mintOTokens(_collateralAmount, _otokenAmount);
-
-  //   lockedAsset = lockedAsset.add(_collateralAmount);
-
-  //   IERC20(currentSpread.shortOtoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
-
-  //   // sell options on airswap for weth
-  //   // _fillAirswapOrder(_order);
-
-  //   // convert the weth received as premium to sdeCRV
-  //   // _wethToSdEcrv();
-
-  //   emit MintAndSellOToken(_collateralAmount, _otokenAmount, _order.signer.amount);
-  // }
-
   function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -188,10 +155,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     {
 
       require(amounts.length == 1, "too many assets");
-        //
-        // This contract now has the funds requested.
-        // Your logic goes here.
-        //        
+  
         (uint256 otokensToSell, address counterparty) = abi.decode(params, (uint256, address));
         
         // 1. convert weth to sdecrv
@@ -207,23 +171,16 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
         // 4. deposit the new options and withdraw collateral
         _depositAndWithdraw( otokensToSell.mul(1e10), otokensToSell );
-        
-        // 5. transfer in weth
-        // TODO: this already happened, should this move here? 
-        // 6. unwrap sdTokens to weth
-        _sdecrvToWeth();
-        // 7. pay back borrowed amount 
 
-        // At the end of your logic above, this contract owes
-        // the flashloaned amounts + premiums.
-        // Therefore ensure your contract has enough to repay
-        // these amounts.
-
+        // 5. pay back borrowed amount 
         // Approve the LendingPool contract allowance to *pull* the owed amount
         for (uint i = 0; i < assets.length; i++) {
             uint amountOwing = amounts[i].add(premiums[i]);
             IERC20(assets[i]).approve(address(lendingPool), amountOwing);
         }
+
+        // 6. unwrap sdTokens to weth to repay fees and flashloan
+        _sdecrvToWeth();
 
         return true;
     }
@@ -239,7 +196,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     //0. Initial Logic Checks
     //require(counterparty.add != address(0), "Invalid counterparty address");
     
-    // 1. flash borrow WETH
+    // flash borrow WETH
     address receiverAddress = address(this);
     address[] memory assets = new address[](1);
     assets[0] = address(weth);
@@ -247,6 +204,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     uint256 collateralNeeded = optionsToSell.mul(1e10);
     uint256 amountSdEcrvInAction = stakedao.balanceOf(address(this));
     
+    // sdcrv needed
     uint256 amountToFlashBorrow = collateralNeeded.sub(amountSdEcrvInAction);
     amounts[0] = amountToFlashBorrow; 
     uint256[] memory modes = new uint256[](1);
@@ -255,12 +213,12 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     bytes memory params = abi.encode(optionsToSell, counterparty);
 
-    
     uint16 referralCode = 0;
     
-    // 2. transfer weth in
+    // transfer premium weth in
     weth.transferFrom(counterparty, address(this), premium);
-    
+
+    // flash loan
     lendingPool.flashLoan(
             receiverAddress,
             assets,
@@ -270,6 +228,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             params,
             referralCode
         );
+
+    // convert the weth left in contract as premium to sdeCRV
+    _wethToSdEcrv();
 
   }
 
@@ -422,6 +383,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
+    
   } 
 
   function _depositAndWithdraw(uint256 _collateralAmount, uint256 _otokenAmount) internal { 
@@ -461,6 +423,9 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
+
+    lockedAsset = lockedAsset.add(requiredCollateral);
+
 
   } 
 

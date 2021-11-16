@@ -221,6 +221,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 totalWithDepositedAmount = totalStakedaoAsset();
     require(totalWithDepositedAmount < cap, 'O7');
     uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
+
     uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
 
     emit Deposit(msg.sender, msg.value, share);
@@ -238,6 +239,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     uint256 currentSdecrvBalance = _balance();
     uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
+
     require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
 
     _burn(msg.sender, _share);
@@ -246,6 +248,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     IStakeDao sdecrv = IStakeDao(sdecrvAddress);
     sdecrv.withdraw(sdecrvToWithdraw);
     uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
+
     uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
 
     // calculate fees
