@@ -9,9 +9,9 @@ import { SafeMath } from '@openzeppelin/contracts/math/SafeMath.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
+import { IWETH } from '../interfaces/IWETH.sol';
+
 import { IAction } from '../interfaces/IAction.sol';
-import { ICurve } from '../interfaces/ICurve.sol';
-import { IStakeDao } from '../interfaces/IStakeDao.sol';
 
 /**
  * Error Codes
@@ -39,11 +39,7 @@ import { IStakeDao } from '../interfaces/IStakeDao.sol';
 /** 
  * @title OpynPerpVault
  * @author Opyn Team
- * @dev implementation of the Opyn Perp Vault contract that works with stakedao's ETH strategy. 
- * Note that this implementation is meant to only specifically work for the stakedao ETH strategy and is not 
- * a generalized contract. Stakedao's ETH strategy currently accepts curvePool LP tokens called ecrv from the 
- * sETH-ETH curvePool pool. This strategy allows users to convert their ETH into yield earning sdecrv tokens
- * and use the sdecrv tokens as collateral to sell ETH call options on Opyn. 
+ * @dev implementation of the Opyn Perp Vault contract 
  */
 
 contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
@@ -62,22 +58,19 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev address to which all fees are sent
   address public feeRecipient;
 
-  /// @dev stake dao sdecrvAddress
-  address public sdecrvAddress;
-
   uint256 public constant BASE = 10000; // 100%
 
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public cap = 1000 ether;
+
+  /// @dev stake asset address
+  address public asset;
 
   /// @dev withdrawal fee percentage. 50 being 0.5%
   uint256 public withdrawalFeePercentage = 50;
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
-
-  /// @dev curvePool ETH/sETH stableswap 
-  ICurve public curvePool;
 
   VaultState public state;
   VaultState public stateBeforePause;
@@ -119,15 +112,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    *====================*/
 
   constructor (
-    address _sdecrvAddress,
-    address _curvePool,
+    address _asset,
+    // address _curvePool,
     address _feeRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
     ) ERC20(_tokenName, _tokenSymbol) {
-    sdecrvAddress = _sdecrvAddress;
+    asset = _asset;
     feeRecipient = _feeRecipient;
-    curvePool = ICurve(_curvePool);
     state = VaultState.Unlocked;
   }
 
@@ -157,9 +149,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    }
 
   /**
-   * @notice total sdecrv controlled by this vault
+   * @notice total asset controlled by this vault
    */
-  function totalStakedaoAsset() public view returns (uint256) {
+  function totalAsset() public view returns (uint256) {
     uint256 debt = 0;
     uint256 length = actions.length;
 
@@ -170,14 +162,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _balance().add(debt);
   }
 
-  /**
-   * total eth value of the sdecrv controlled by this vault
-   */
-  function totalETHControlled() external view returns (uint256) { 
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-    // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
-    return totalStakedaoAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
-  }
+  // /**
+  //  * total eth value of the sdecrv controlled by this vault
+  //  */
+  // function totalETHControlled() external view returns (uint256) { 
+  //   IStakeDao sdecrv = IStakeDao(sdecrvAddress);
+  //   // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
+  //   return totalAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+  // }
 
   /**
    * @dev return how many sdecrv you can get if you burn the number of shares, after charging the fee.
@@ -190,39 +182,22 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /**
    * @notice Deposits ETH into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
-   * @param minEcrv minimum amount of ecrv to get out from adding liquidity. 
    */
-  function depositETH(uint256 minEcrv) external payable nonReentrant {
+  function depositETH() external payable nonReentrant {
     notEmergency();
     actionsInitialized();
-    require(msg.value > 0, 'O6');
+    
+    uint256 _amount = msg.value;
+    require(_amount > 0, 'O6');
 
-    // the sdecrv is already deposited into the contract at this point, need to substract it from total
-    uint256[2] memory amounts;
-    amounts[0] = msg.value;
-    amounts[1] = 0; // not depositing any seth
-
-    // deposit ETH to curvePool
-    curvePool.add_liquidity{value:msg.value}(amounts, minEcrv);
-
-    // keep track of balance before
-    uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
-
-    // deposit ecrv to stakedao
-    address cacheSdecrvAddress = sdecrvAddress;
-    IStakeDao sdecrv = IStakeDao(cacheSdecrvAddress);
-    IERC20 ecrv = sdecrv.token();
-    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
-
-    ecrv.safeIncreaseAllowance(cacheSdecrvAddress, ecrvToDeposit);
-    sdecrv.deposit(ecrvToDeposit);
+    IWETH(asset).deposit{ value: msg.value }();
 
     // mint shares and emit event 
-    uint256 totalWithDepositedAmount = totalStakedaoAsset();
+    uint256 totalWithDepositedAmount = totalAsset();
     require(totalWithDepositedAmount < cap, 'O7');
-    uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
+    uint256 totalBalanceBeforeDeposit = totalWithDepositedAmount.sub(_amount);
 
-    uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
+    uint256 share = _getSharesByDepositAmount(_amount, totalBalanceBeforeDeposit);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -234,36 +209,39 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev burns shares, withdraws ecrv from stakdao, withdraws ETH from curvePool
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawETH(uint256 _share, uint256 minEth) external nonReentrant {
+  function withdrawETH(uint256 _share) external nonReentrant {
     notEmergency();
     actionsInitialized();
-    uint256 currentSdecrvBalance = _balance();
-    uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
+    uint256 currentBalance = _balance();
+    uint256 assetToWithdraw = _getWithdrawAmountByShares(_share);
 
-    require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
+    require(assetToWithdraw <= currentBalance, 'O8');
 
     _burn(msg.sender, _share);
 
-    // withdraw from stakedao and curvePool
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-    sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
-
-    uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
-
     // calculate fees
-    uint256 fee = _getWithdrawFee(ethReceived);
-    uint256 ethOwedToUser = ethReceived.sub(fee);
+    uint256 fee = _getWithdrawFee(assetToWithdraw);
+    uint256 ethOwedToUser = assetToWithdraw.sub(fee);
+
+    IWETH(asset).withdraw(assetToWithdraw);
 
     // send fee to recipient 
     (bool success1, ) = feeRecipient.call{ value: fee }('');
     require(success1, 'O9');
+
 
     // send ETH to user
     (bool success2, ) = msg.sender.call{ value: ethOwedToUser }('');
     require(success2, 'O10');
 
     emit Withdraw(msg.sender, ethOwedToUser, fee, _share);
+  }
+
+  /**
+  * @notice fallback function which disallows ETH to be sent to this contract without data except when unwrapping WETH
+  */
+  fallback() external payable {
+      require(msg.sender == address(asset), "PayableProxyController: Cannot receive ETH");
   }
 
   /**
@@ -275,7 +253,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Locked, "O11");
     state = VaultState.Unlocked;
 
-    address cacheAddress = sdecrvAddress;
+    address cacheAddress = asset;
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
@@ -299,11 +277,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Unlocked, "O13");
     state = VaultState.Locked;
 
-    address cacheAddress = sdecrvAddress;
+    address cacheAddress = asset;
     address[] memory cacheActions = actions;
 
     uint256 cacheBase = BASE;
-    uint256 cacheTotalAsset = totalStakedaoAsset();
+    uint256 cacheTotalAsset = totalAsset();
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage = withdrawReserve;
 
@@ -373,7 +351,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @param _amount amount of token depositing
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
-    return _getSharesByDepositAmount(_amount, totalStakedaoAsset());
+    return _getSharesByDepositAmount(_amount, totalAsset());
   }
 
   /*=====================
@@ -384,7 +362,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev returns remaining sdecrv balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(sdecrvAddress).balanceOf(address(this));
+    return IERC20(asset).balanceOf(address(this));
   }
 
   /**
@@ -404,7 +382,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     // withdrawal amount
-    return _share.mul(totalStakedaoAsset()).div(totalSupply());
+    return _share.mul(totalAsset()).div(totalSupply());
   }
 
   /**
@@ -414,10 +392,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
 
-  /**
-    * @notice the receive ether function is called whenever the call data is empty
-    */
-  receive() external payable {
-    require(msg.sender == address(curvePool), "O19");
-  }
+  // /**
+  //   * @notice the receive ether function is called whenever the call data is empty
+  //   */
+  // receive() external payable {
+  //   require(msg.sender == address(curvePool), "O19");
+  // }
 }
