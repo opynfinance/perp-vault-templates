@@ -82,9 +82,6 @@ describe('Mainnet Fork Tests', function() {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
-  
-  
-  
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const marginPoolAddress = '0x5934807cC0654d46755eBd2848840b616256C6Ef';
   const aaveLendingPoolAddres = '0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9';
