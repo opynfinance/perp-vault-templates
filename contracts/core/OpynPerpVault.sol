@@ -162,14 +162,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _balance().add(debt);
   }
 
-  // /**
-  //  * total eth value of the sdecrv controlled by this vault
-  //  */
-  // function totalETHControlled() external view returns (uint256) { 
-  //   IStakeDao sdecrv = IStakeDao(sdecrvAddress);
-  //   // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
-  //   return totalAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
-  // }
 
   /**
    * @dev return how many sdecrv you can get if you burn the number of shares, after charging the fee.
