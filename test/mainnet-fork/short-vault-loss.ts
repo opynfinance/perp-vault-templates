@@ -154,7 +154,6 @@ describe('Mainnet Fork Tests', function() {
     );
     action1 = (await ShortActionContract.deploy(
       vault.address,
-      // wethAddress,
       swapAddress,
       whitelistAddress,
       controllerAddress,
