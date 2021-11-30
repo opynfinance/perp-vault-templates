@@ -383,10 +383,4 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
 
-  // /**
-  //   * @notice the receive ether function is called whenever the call data is empty
-  //   */
-  // receive() external payable {
-  //   require(msg.sender == address(curvePool), "O19");
-  // }
 }
