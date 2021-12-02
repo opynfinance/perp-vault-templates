@@ -207,15 +207,6 @@ describe('Mainnet Fork Tests', function() {
     });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
-    await whitelist.connect(signer).whitelistCollateral(wethAddress);
-    await whitelist
-      .connect(signer)
-      .whitelistProduct(
-        weth.address,
-        usdc.address,
-        wethAddress,
-        false
-      );
     await provider.send('evm_mine', []);
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
@@ -320,8 +311,7 @@ describe('Mainnet Fork Tests', function() {
     );
 
     it('p1 deposits', async () => {
-      // there is no accurate way of estimating this, so just approximating for now
-      const expectedwethInVault = p1DepositAmount.mul(95).div(100);
+      const expectedwethInVault = p1DepositAmount;
 
       await vault.connect(depositor1).depositETH({value: p1DepositAmount});
 
@@ -331,7 +321,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check the weth token balances
       expect(
-        (vaultTotal).gte(expectedwethInVault),
+        (vaultTotal).eq(expectedwethInVault),
         'internal accounting is incorrect'
       ).to.be.true;
       expect(vaultwethBalance).to.be.equal(
@@ -344,8 +334,7 @@ describe('Mainnet Fork Tests', function() {
     });
 
     it('p2 deposits', async () => {
-      // there is no accurate way of estimating this, so just approximating for now
-      const expectedwethInVault = p1DepositAmount.mul(95).div(100);
+      const expectedwethInVault = p1DepositAmount.add(p2DepositAmount);
       const sharesBefore = await vault.totalSupply();
       const vaultwethBalanceBefore = await weth.balanceOf(vault.address);
 
@@ -356,7 +345,7 @@ describe('Mainnet Fork Tests', function() {
       // check the weth token balances
       // there is no accurate way of estimating this, so just approximating for now
       expect(
-        (vaultTotal).gte(expectedwethInVault),
+        (vaultTotal).eq(expectedwethInVault),
         'internal accounting is incorrect'
       ).to.be.true;
       expect(vaultTotal).to.be.equal(
@@ -400,11 +389,10 @@ describe('Mainnet Fork Tests', function() {
       
       const collateralAmount = await weth.balanceOf(action1.address)
 
-      const premiumInweth = premium.mul(95).div(100);
-      // estimating fee for flash loan and wrapping ~10%
-      const netPremiumInweth = premium.mul(90).div(100)
+      // estimating fee for flash loan ~5%
+      const netPremiumInweth = premium.mul(95).div(100);
       const expectedTotal = vaultwethBalanceBefore.add(netPremiumInweth);
-      expectedwethBalanceInAction = expectedwethBalanceInVault.add(premiumInweth);
+      expectedwethBalanceInAction = expectedwethBalanceInVault.add(premium);
       // const sellAmount = (collateralAmount.div(10000000000)).toString(); 
       
       const longStrikePrice = await higherStrikeOtoken.strikePrice();
@@ -481,10 +469,9 @@ describe('Mainnet Fork Tests', function() {
 
     it('p3 deposits', async () => {
 
-      const effectiveP3deposit = p3DepositAmount.mul(95).div(100)
       const vaultTotalBefore = await vault.totalAsset();
       
-      const expectedTotal = vaultTotalBefore.add(effectiveP3deposit);
+      const expectedTotal = vaultTotalBefore.add(p3DepositAmount);
       const sharesBefore = await vault.totalSupply();
       const actualAmountInVaultBefore = await weth.balanceOf(vault.address);
 
@@ -521,19 +508,18 @@ describe('Mainnet Fork Tests', function() {
       // p1 balance calculations 
       const denominator = p1DepositAmount.add(p2DepositAmount);
 
-      // premium estimanti  fees for flash loan ~10%
-      const netPremium = premium.mul(90).div(100)
+      // premium estimated fees for flash loan ~5%
+      const netPremium = premium.mul(95).div(100);
 
       // const shareOfPremium = p1DepositAmount.mul(premium).div(denominator);
       const shareOfPremium = p1DepositAmount.mul(netPremium).div(denominator);
       const amountToWithdraw = p1DepositAmount.add(shareOfPremium);
 
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP1 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const amountTransferredToP1 = amountToWithdraw.sub(fee);
 
       const balanceOfP1Before = await provider.getBalance(depositor1.address);
-      // fee calculations 
-      const effectiveFee = fee.mul(95).div(100);
+
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
 
       await vault
@@ -569,7 +555,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
+        balanceOfFeeRecipientBefore.add(fee)
       ), 'incorrect fee paid out').to.be.true;
     });
 
@@ -644,11 +630,9 @@ describe('Mainnet Fork Tests', function() {
       const shareOfPremium = p2DepositAmount.mul(premium).div(denominator);
       const amountToWithdraw = p2DepositAmount.mul(35).div(90).add(shareOfPremium);
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP2 = amountToWithdraw.sub(fee).mul(95).div(100);
+      const amountTransferredToP2 = amountToWithdraw.sub(fee);
       const balanceOfP2Before = await provider.getBalance(depositor2.address);
 
-      // fee calculations 
-      const effectiveFee = fee.mul(95).div(100);
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
 
 
@@ -682,7 +666,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
+        balanceOfFeeRecipientBefore.add(fee)
       ), 'incorrect fee paid out').to.be.true;
     });
 
@@ -690,12 +674,10 @@ describe('Mainnet Fork Tests', function() {
       // balance calculations 
       const amountToWithdraw = p3DepositAmount.mul(35).div(90);
       const fee = amountToWithdraw.mul(5).div(1000);
-      const amountTransferredToP3 = amountToWithdraw.div(2).sub(fee).mul(95).div(100);
+      const amountTransferredToP3 = amountToWithdraw.div(2).sub(fee);
       const balanceOfP3Before = await provider.getBalance(depositor3.address);
 
-      // fee calculations
       const balanceOfFeeRecipientBefore = await provider.getBalance(feeRecipient.address);
-      const effectiveFee = fee.mul(95).div(100)
 
       await vault
         .connect(depositor3)
@@ -714,7 +696,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(balanceOfFeeRecipientAfter.gte(
-        balanceOfFeeRecipientBefore.add(effectiveFee)
+        balanceOfFeeRecipientBefore.add(fee)
       ), 'incorrect fee paid out').to.be.true;
 
       // check p3 balance 

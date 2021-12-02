@@ -187,11 +187,11 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     address[] memory assets = new address[](1);
     assets[0] = address(weth);
     uint256[] memory amounts = new uint256[](1);
-    uint256 collateralNeeded = optionsToSell.mul(1e10);
+    uint256 wethNeeded = optionsToSell.mul(1e10);
     uint256 collateralInAction = weth.balanceOf(address(this));
     
     // sdcrv needed
-    uint256 amountToFlashBorrow = collateralNeeded.sub(collateralInAction);
+    uint256 amountToFlashBorrow = wethNeeded.sub(collateralInAction);
     amounts[0] = amountToFlashBorrow; 
     uint256[] memory modes = new uint256[](1);
     modes[0] = 0;
