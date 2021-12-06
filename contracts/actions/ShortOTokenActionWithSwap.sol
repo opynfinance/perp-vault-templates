@@ -13,9 +13,12 @@ import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IWETH } from '../interfaces/IWETH.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
-import { AirswapBase } from '../utils/AirswapBase.sol';
+// import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
+import { ISwap } from "../interfaces/ISwap.sol";
+
+import "hardhat/console.sol";
 
 /**
  * Error Codes
@@ -36,7 +39,7 @@ import { ILendingPool } from '../interfaces/ILendingPool.sol';
  * @author Opyn Team
  */
 
-contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
+contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -56,11 +59,49 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IWETH weth;
   ILendingPool lendingPool;
 
+  mapping(address => mapping(uint256 => uint256)) internal _nonceGroups;
+
+  mapping(address => address) public authorized;
+
+  bytes32 public constant DOMAIN_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "EIP712Domain(",
+        "string name,",
+        "string version,",
+        "uint256 chainId,",
+        "address verifyingContract",
+        ")"
+      )
+    );
+
+  bytes32 public constant ORDER_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Order(",
+        "uint256 nonce,",
+        "uint256 expiry,",
+        "address signerWallet,",
+        "address signerToken,",
+        "uint256 signerAmount,",
+        "uint256 protocolFee,",
+        "address senderWallet,",
+        "address senderToken,",
+        "uint256 senderAmount",
+        ")"
+      )
+    );
+
+  bytes32 public constant DOMAIN_NAME = keccak256("SWAP");
+  bytes32 public constant DOMAIN_VERSION = keccak256("3");
+  uint256 public immutable DOMAIN_CHAIN_ID;
+  bytes32 public immutable DOMAIN_SEPARATOR;
+
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
   constructor(
     address _vault,
-    address _swap,
+    // address _swap,
     address _opynWhitelist,
     address _controller,
     address _lendingPool,
@@ -71,6 +112,19 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     MIN_PROFITS = _min_profits;
     vault = _vault;
     weth = IWETH(_weth);
+
+    uint256 currentChainId = getChainId();
+    DOMAIN_CHAIN_ID = currentChainId;
+
+    DOMAIN_SEPARATOR = keccak256(
+      abi.encode(
+        DOMAIN_TYPEHASH,
+        DOMAIN_NAME,
+        DOMAIN_VERSION,
+        currentChainId,
+        this
+      )
+    );
 
     controller = IController(_controller);
 
@@ -84,7 +138,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // enable pool contract to pull weth from this contract to mint options.
     IERC20(_weth).safeApprove(controller.pool(), uint256(-1));
 
-    _initSwapContract(_swap);
+    // _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
 
     _openVault(_vaultType);
@@ -133,6 +187,182 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     rolloverTime = block.timestamp;
   }
 
+  /**
+   * @notice Authorize a signer
+   * @param signer address Wallet of the signer to authorize
+   * @dev Emits an Authorize event
+   */
+  function authorize(address signer) external {
+    require(signer != address(0), "SIGNER_INVALID");
+    authorized[msg.sender] = signer;
+    emit ISwap.Authorize(signer, msg.sender);
+  }
+
+  /**
+   * @notice Checks Order Expiry, Nonce, Signature
+   * @param nonce uint256 Unique and should be sequential
+   * @param expiry uint256 Expiry in seconds since 1 January 1970
+   * @param signerWallet address Wallet of the signer
+   * @param signerToken address ERC20 token transferred from the signer
+   * @param signerAmount uint256 Amount transferred from the signer
+   * @param senderToken address ERC20 token transferred from the sender
+   * @param senderAmount uint256 Amount transferred from the sender
+   * @param v uint8 "v" value of the ECDSA signature
+   * @param r bytes32 "r" value of the ECDSA signature
+   * @param s bytes32 "s" value of the ECDSA signature
+   */
+  function _checkValidOrder(
+    uint256 nonce,
+    uint256 expiry,
+    address signerWallet,
+    address signerToken,
+    uint256 signerAmount,
+    address senderToken,
+    uint256 senderAmount,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) internal {
+
+    // Ensure the expiry is not passed
+    require(expiry > block.timestamp, "EXPIRY_PASSED");
+
+    // console.log('_checkValidOrder nonce', nonce);
+    // console.log('_checkValidOrder expiry', expiry);
+    // console.log('_checkValidOrder signerWallet', signerWallet);
+    // console.log('_checkValidOrder signerToken', signerToken);
+    // console.log('_checkValidOrder signerAmount', signerAmount);
+    // console.log('_checkValidOrder senderToken', senderToken);
+    // console.log('_checkValidOrder senderAmount', senderAmount);
+    // console.log('_checkValidOrder v', v);
+    // console.log('_checkValidOrder r', r);
+    // console.log('_checkValidOrder s', s);
+
+    bytes32 hashed = _getOrderHash(
+      nonce,
+      expiry,
+      signerWallet,
+      signerToken,
+      signerAmount,
+      msg.sender,
+      senderToken,
+      senderAmount
+    );
+
+    console.log('msg.sender', msg.sender);
+
+    // Recover the signatory from the hash and signature
+    address signatory = _getSignatory(hashed, v, r, s);
+
+    // Ensure the signatory is not null
+    require(signatory != address(0), "SIGNATURE_INVALID");
+
+    // Ensure the nonce is not yet used and if not mark it used
+    require(_markNonceAsUsed(signatory, nonce), "NONCE_ALREADY_USED");
+
+    console.log('signerWallet SC', signerWallet);
+    console.log('signatory SC', signatory);
+    // Ensure the signatory is authorized by the signer wallet
+    if (signerWallet != signatory) {
+      require(authorized[signerWallet] == signatory, "UNAUTHORIZED");
+    }
+  }
+
+  /**
+   * @notice Hash order parameters
+   * @param nonce uint256
+   * @param expiry uint256
+   * @param signerWallet address
+   * @param signerToken address
+   * @param signerAmount uint256
+   * @param senderToken address
+   * @param senderAmount uint256
+   * @return bytes32
+   */
+  function _getOrderHash(
+    uint256 nonce,
+    uint256 expiry,
+    address signerWallet,
+    address signerToken,
+    uint256 signerAmount,
+    address senderWallet,
+    address senderToken,
+    uint256 senderAmount
+  ) internal view returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          ORDER_TYPEHASH,
+          nonce,
+          expiry,
+          signerWallet,
+          signerToken,
+          signerAmount,
+          '0',
+          senderWallet,
+          senderToken,
+          senderAmount
+        )
+      );
+  }
+
+  /**
+   * @notice Recover the signatory from a signature
+   * @param hash bytes32
+   * @param v uint8
+   * @param r bytes32
+   * @param s bytes32
+   */
+  function _getSignatory(
+    bytes32 hash,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) internal view returns (address) {
+    return
+      ecrecover(
+        keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hash)),
+        v,
+        r,
+        s
+      );
+  }
+
+  /**
+   * @notice Marks a nonce as used for the given signer
+   * @param signer address Address of the signer for which to mark the nonce as used
+   * @param nonce uint256 Nonce to be marked as used
+   * @return bool True if the nonce was not marked as used already
+   */
+  function _markNonceAsUsed(address signer, uint256 nonce)
+    internal
+    returns (bool)
+  {
+    uint256 groupKey = nonce / 256;
+    uint256 indexInGroup = nonce % 256;
+    uint256 group = _nonceGroups[signer][groupKey];
+
+    // If it is already used, return false
+    if ((group >> indexInGroup) & 1 == 1) {
+      return false;
+    }
+
+    _nonceGroups[signer][groupKey] = group | (uint256(1) << indexInGroup);
+
+    return true;
+  }
+
+  /**
+   * @notice Returns the current chainId using the chainid opcode
+   * @return id uint256 The chain id
+   */
+  function getChainId() public view returns (uint256 id) {
+    // no-inline-assembly
+    assembly {
+      id := chainid()
+    }
+  }
+
   function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -178,9 +408,93 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * Always only approve the amount of weth that you will be using for the transaction, never more. 
    * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
-  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
+  function flashMintAndSellOToken(
+      uint256 nonce,
+      uint256 expiry,
+      address counterparty,
+      address signerToken,
+      uint256 premium,
+      address senderToken,
+      uint256 optionsToSell,
+      uint8 v,
+      bytes32 r,
+      bytes32 s
+    ) external onlyOwner { 
     //0. Initial Logic Checks
-    //require(counterparty.add != address(0), "Invalid counterparty address");
+    // require(counterparty != address(0), "Invalid counterparty address");
+
+    console.log('_checkValidOrder nonce', nonce);
+    console.log('_checkValidOrder expiry', expiry);
+    console.log('_checkValidOrder signerWallet', counterparty);
+    console.log('_checkValidOrder signerToken', signerToken);
+    console.log('_checkValidOrder signerAmount', premium);
+    console.log('_checkValidOrder senderToken', senderToken);
+    console.log('_checkValidOrder senderAmount', optionsToSell);
+    console.log('_checkValidOrder v', v);
+    console.logBytes32(r);
+    console.logBytes32(s);
+
+    _checkValidOrder(
+      nonce,
+      expiry,
+      counterparty,
+      signerToken,
+      premium,
+      senderToken,
+      optionsToSell,
+      v,
+      r,
+      s
+    );
+    
+    // transfer premium weth in
+    weth.transferFrom(counterparty, address(this), premium);
+
+    _flashLoan( optionsToSell, counterparty );
+
+  }
+
+
+  // function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
+  //   //0. Initial Logic Checks
+  //   //require(counterparty.add != address(0), "Invalid counterparty address");
+
+  //   // flash borrow WETH
+  //   address receiverAddress = address(this);
+  //   address[] memory assets = new address[](1);
+  //   assets[0] = address(weth);
+  //   uint256[] memory amounts = new uint256[](1);
+  //   uint256 wethNeeded = optionsToSell.mul(1e10);
+  //   uint256 collateralInAction = weth.balanceOf(address(this));
+    
+  //   // sdcrv needed
+  //   uint256 amountToFlashBorrow = wethNeeded.sub(collateralInAction);
+  //   amounts[0] = amountToFlashBorrow; 
+  //   uint256[] memory modes = new uint256[](1);
+  //   modes[0] = 0;
+  //   address onBehalfOf = address(this);
+
+  //   bytes memory params = abi.encode(optionsToSell, counterparty);
+
+  //   uint16 referralCode = 0;
+    
+  //   // transfer premium weth in
+  //   weth.transferFrom(counterparty, address(this), premium);
+
+  //   // flash loan
+  //   lendingPool.flashLoan(
+  //           receiverAddress,
+  //           assets,
+  //           amounts,
+  //           modes,
+  //           onBehalfOf,
+  //           params,
+  //           referralCode
+  //       );
+
+  // }
+
+  function _flashLoan(uint256 optionsToSell, address counterparty ) internal {
 
     // flash borrow WETH
     address receiverAddress = address(this);
@@ -201,9 +515,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     uint16 referralCode = 0;
     
-    // transfer premium weth in
-    weth.transferFrom(counterparty, address(this), premium);
-
     // flash loan
     lendingPool.flashLoan(
             receiverAddress,
@@ -214,7 +525,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             params,
             referralCode
         );
-
   }
 
   /**

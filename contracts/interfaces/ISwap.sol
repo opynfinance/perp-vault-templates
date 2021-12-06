@@ -20,10 +20,18 @@ pragma experimental ABIEncoderV2;
 
 import {SwapTypes} from "../libraries/SwapTypes.sol";
 
+
 interface ISwap {
-    /**
-     * @notice Atomic Token Swap
-     * @param order Types.Order
-     */
-    function swap(SwapTypes.Order calldata order) external;
+    
+    event Authorize(address indexed signer, address indexed signerWallet);
+
+    event Revoke(address indexed signer, address indexed signerWallet);
+
+    
+    // /**
+    //  * @notice Atomic Token Swap
+    //  * @param order Types.Order
+    //  */
+    // function swap(SwapTypes.Order calldata order) external;
+
 }

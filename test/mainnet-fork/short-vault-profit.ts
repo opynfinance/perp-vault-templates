@@ -16,7 +16,7 @@ import {
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-// import {getOrder} from '../utils/orders';
+import {getOrder} from '../utils/orders';
 import { BigNumber } from '@ethersproject/bignumber';
 
 //esilnt-ignore-next-line
@@ -76,7 +76,7 @@ describe('Mainnet Fork Tests', function() {
   const day = 86400;
   const controllerAddress = '0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72';
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
-  const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
+  // const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
   const oracleAddress = '0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833';
   const opynOwner = '0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB';
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
@@ -147,7 +147,7 @@ describe('Mainnet Fork Tests', function() {
     action1 = (await ShortActionContract.deploy(
       vault.address,
       // wethAddress,
-      swapAddress,
+      // swapAddress,
       whitelistAddress,
       controllerAddress,
       aaveLendingPoolAddres,
@@ -431,14 +431,81 @@ describe('Mainnet Fork Tests', function() {
 
       const lowPremium = utils.parseEther('0.0000001');
 
-      // testing revert with premium === 0
-      await expectRevert.unspecified(
-        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
-      )
-      
-      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+      await action1.connect(counterpartyWallet).authorize(counterpartyWallet.address);
 
-      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+      console.log('test auth:', await action1.authorized(counterpartyWallet.address));
+
+      expect(await action1.authorized(counterpartyWallet.address)).to.equal(
+        counterpartyWallet.address
+      )
+
+      const order = await getOrder(
+        counterpartyWallet.address.toLowerCase(),
+        weth.address.toLowerCase(),
+        premium.toString(),
+        action1.address.toLowerCase(),
+        higherStrikeOtoken.address.toLowerCase(),
+        sellAmount.toString(),
+        counterpartyWallet.privateKey.toLowerCase(),
+        action1.address.toLowerCase()
+      );
+
+      console.log(order)
+
+      const nonce = order[0];
+      const expiry = order[1];
+      const counterparty = order[2];
+      const signerToken = order[3];
+      const senderAmount = order[4];
+      const senderToken = order[5];
+      const optionsToSell = order[6];
+      const v = order[7];
+      const r = order[8];
+      const s = order[9];
+
+      console.log(
+        nonce,
+        expiry,
+        counterparty,
+        signerToken,
+        senderAmount,
+        senderToken,
+        optionsToSell,
+        v,
+        r,
+        s
+      )
+
+
+      console.log('counterparty is:', counterparty)
+      console.log('counterpartyWallet.address is:', counterpartyWallet.address)
+      console.log('signerToken is:', signerToken)
+      console.log('senderToken is:', senderToken)
+
+      // TODO check low premium on approval testing revert with low premium
+      // await expectRevert.unspecified(
+      //   action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
+      // )
+      
+      // TODO
+      // await expectRevert.unspecified(
+      //   action1.flashMintAndSellOToken(sellAmount.toString(), (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address)
+      // )
+
+      await action1.flashMintAndSellOToken(
+        nonce,
+        expiry,
+        counterparty,
+        signerToken,
+        senderAmount,
+        senderToken,
+        optionsToSell,
+        v,
+        r,
+        s
+      );
+
+      // action1.flashMintAndSellOToken(optionsToSell.toString(), senderAmount, counterparty)
 
       const vaultWethBalanceAfter = await weth.balanceOf(vault.address);
 

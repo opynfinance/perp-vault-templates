@@ -18,12 +18,12 @@ contract AirswapBase {
     
   ISwap public airswap;
 
-  function _initSwapContract(address _airswap) internal {
-    require(_airswap != address(0), "A1");
-    airswap = ISwap(_airswap);
-  }
+  // function _initSwapContract(address _airswap) internal {
+  //   require(_airswap != address(0), "A1");
+  //   airswap = ISwap(_airswap);
+  // }
 
-  function _fillAirswapOrder(SwapTypes.Order memory _order) internal {
-    airswap.swap(_order);
-  }
+  // function _fillAirswapOrder(SwapTypes.Order memory _order) internal {
+  //   airswap.swap(_order);
+  // }
 }
