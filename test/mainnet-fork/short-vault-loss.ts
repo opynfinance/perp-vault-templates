@@ -457,8 +457,10 @@ describe('Mainnet Fork Tests', function() {
       expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(10).div(100)   ),
         'Fee paid on the transaction are higher than 10% of the premium' ).to.be.true;
 
+      const vaultCounter = await (await controller.getAccountVaultCounter(counterpartyWallet.address));
+
       // check correct amounts in MM vault
-      const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+      const mmVault =  await controller.getVault(counterpartyWallet.address, Number(vaultCounter.toString()));
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
@@ -738,7 +740,7 @@ describe('Mainnet Fork Tests', function() {
 
         const wethBalanceBefore = await weth.balanceOf(counterpartyWallet.address);
         
-        const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+        const mmVault =  await controller.getVault(counterpartyWallet.address, 2);
 
         const actionArgs = [
             {

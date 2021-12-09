@@ -265,8 +265,8 @@ describe('Mainnet Fork Tests', function() {
     this.beforeAll(
       'deploy otokens that will be sold and set up counterparty',
       async () => {
-        const lowerStrikeOtokenStrikePrice = 500000000000;
-        const higherStrikeOtokenStrikePrice = 1000000000000;
+        const lowerStrikeOtokenStrikePrice = 1000000000000;
+        const higherStrikeOtokenStrikePrice = 2000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -476,8 +476,13 @@ describe('Mainnet Fork Tests', function() {
       expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(10).div(100)   ),
         'Fee paid on the transaction are higher than 10% of the premium' ).to.be.true;
 
+      const vaultCounter = await (await controller.getAccountVaultCounter(counterpartyWallet.address));
+
+      console.log(vaultCounter.toString())
+
       // check correct amounts in MM vault
-      const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+      const mmVault =  await controller.getVault(counterpartyWallet.address, Number(vaultCounter.toString()));
+      console.log(mmVault)
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
