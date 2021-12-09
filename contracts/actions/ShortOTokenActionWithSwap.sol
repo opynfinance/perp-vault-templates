@@ -666,7 +666,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
    */
   function isValid(SwapTypes.Order memory order, bytes32 domainSeparator)
     internal
-    pure
+    view
     returns (bool)
   {
     if (order.signature.version == bytes1(0x01)) {      
