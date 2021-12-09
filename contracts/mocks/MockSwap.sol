@@ -12,7 +12,7 @@ contract MockSwap is ISwap {
     address sender = order.sender.wallet;
 
     // only try pulling token from sender
-    IERC20(order.sender.token).transferFrom(sender, address(this), order.sender.amount);
+    // IERC20(order.sender.token).transferFrom(sender, address(this), order.sender.amount);
 
     // todo: add send token to sender
   }

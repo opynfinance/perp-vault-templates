@@ -442,6 +442,7 @@ describe('Mainnet Fork Tests', function() {
 
       const order = await getOrder(
         action1.address,
+        // lowerStrikeOtoken.address,
         higherStrikeOtoken.address,
         sellAmount.toString(),
         counterpartyWallet.address,
@@ -453,6 +454,13 @@ describe('Mainnet Fork Tests', function() {
       );
 
       await action1.connect(owner).authorizeSender(action1.address);
+
+      // testing revert with premium === 0
+      await expectRevert.unspecified(
+        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address, order)
+      )
+      
+      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address, order))
 
       await action1.connect(owner).flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address, order);
 

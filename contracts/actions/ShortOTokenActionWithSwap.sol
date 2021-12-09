@@ -113,10 +113,30 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
         "uint256 amount,",
         "uint256 id",
         ")"
+        // "SenderParty(",
+        // "bytes4 kind,",
+        // "address wallet,",
+        // "address token,",
+        // "uint256 amount,",
+        // "uint256 id",
+        // ")"
       )
     );
 
     bytes32 internal constant PARTY_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Party(",
+        "bytes4 kind,",
+        "address wallet,",
+        "address token,",
+        "uint256 amount,",
+        "uint256 id",
+        ")"
+      )
+    );
+
+    bytes32 internal constant SENDER_PARTY_TYPEHASH =
     keccak256(
       abi.encodePacked(
         "Party(",
@@ -330,9 +350,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
         isSignerAuthorized(order.signer.wallet, order.signature.signatory),
         "SIGNER_UNAUTHORIZED"
       );
-
-      console.log('_domainSeparator');
-      console.logBytes32(_domainSeparator);
 
       // Ensure the signature is valid.
       require(isValid(order, _domainSeparator), "SIGNATURE_INVALID");
@@ -713,6 +730,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
     view
     returns (bytes32)
   {
+
     return
       keccak256(
         abi.encodePacked(
@@ -735,12 +753,13 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
               ),
               keccak256(
                 abi.encode(
-                  PARTY_TYPEHASH,
+                  SENDER_PARTY_TYPEHASH,
                   order.sender.kind,
                   order.sender.wallet,
                   order.sender.token,
                   order.sender.amount,
                   order.sender.id
+                  // order.sender.lowerToken
                 )
               ),
               keccak256(

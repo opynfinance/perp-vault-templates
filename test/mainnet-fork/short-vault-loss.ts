@@ -16,7 +16,7 @@ import {
 } from '../../typechain';
 import * as fs from 'fs';
 import { BigNumber } from '@ethersproject/bignumber';
-// import {getOrder} from '../utils/orders';
+import {getOrder} from '../utils/orders';
 
 const mnemonic = fs.existsSync('.secret')
   ? fs
@@ -419,7 +419,22 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
-      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+      const order = await getOrder(
+        action1.address,
+        // lowerStrikeOtoken.address,
+        higherStrikeOtoken.address,
+        sellAmount.toString(),
+        counterpartyWallet.address,
+        weth.address,
+        premium.toString(),
+        // swapAddress,
+        action1.address,
+        counterpartyWallet.privateKey
+      );
+
+      await action1.connect(owner).authorizeSender(action1.address);
+
+      await action1.connect(owner).flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address, order);
 
       const vaultwethBalanceAfter = await weth.balanceOf(vault.address);
 

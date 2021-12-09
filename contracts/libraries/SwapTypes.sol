@@ -28,18 +28,27 @@ library SwapTypes {
     struct Order {
         uint256 nonce; // Unique per order and should be sequential
         uint256 expiry; // Expiry in seconds since 1 January 1970
-        Party signer; // Party to the trade that sets terms
-        Party sender; // Party to the trade that accepts terms
-        Party affiliate; // Party compensated for facilitating (optional)
+        Signer signer; // Party to the trade that sets terms
+        Sender sender; // Party to the trade that accepts terms
+        Signer affiliate; // Party compensated for facilitating (optional)
         Signature signature; // Signature of the order
     }
 
-    struct Party {
+    struct Signer {
         bytes4 kind; // Interface ID of the token
         address wallet; // Wallet address of the party
         address token; // Contract address of the token
         uint256 amount; // Amount for ERC-20 or ERC-1155
         uint256 id; // ID for ERC-721 or ERC-1155
+    }
+
+    struct Sender {
+        bytes4 kind; // Interface ID of the token
+        address wallet; // Wallet address of the party
+        address token; // Contract address of the token
+        uint256 amount; // Amount for ERC-20 or ERC-1155
+        uint256 id; // ID for ERC-721 or ERC-1155
+        // address lowerToken; // Contract address of the token
     }
 
     struct Signature {
