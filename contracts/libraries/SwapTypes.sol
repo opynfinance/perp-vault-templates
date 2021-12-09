@@ -18,6 +18,9 @@
 pragma solidity ^0.7.2;
 pragma experimental ABIEncoderV2;
 
+import "hardhat/console.sol";
+
+
 /**
  * @title Types: Library of Swap Protocol Types and Hashes
  */
@@ -47,4 +50,5 @@ library SwapTypes {
         bytes32 r; // `r` value of an ECDSA signature
         bytes32 s; // `s` value of an ECDSA signature
     }
+
 }

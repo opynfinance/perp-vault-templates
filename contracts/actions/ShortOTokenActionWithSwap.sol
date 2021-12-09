@@ -16,6 +16,9 @@ import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
+import { ISwap } from '../interfaces/ISwap.sol';
+
+import "hardhat/console.sol";
 
 /**
  * Error Codes
@@ -36,7 +39,7 @@ import { ILendingPool } from '../interfaces/ILendingPool.sol';
  * @author Opyn Team
  */
 
-contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
+contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -55,6 +58,79 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IOracle public oracle;
   IWETH weth;
   ILendingPool lendingPool;
+
+  // Possible nonce statuses
+  bytes1 internal constant AVAILABLE = 0x00;
+  bytes1 internal constant UNAVAILABLE = 0x01;
+
+  
+  bytes32 public constant DOMAIN_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "EIP712Domain(",
+        "string name,",
+        "string version,",
+        "address verifyingContract",
+        ")"
+      )
+    );
+
+  bytes internal constant DOMAIN_NAME = "SWAP";
+  bytes internal constant DOMAIN_VERSION = "2";
+
+
+  // Unique domain identifier for use in signatures (EIP-712)
+  bytes32 private _domainSeparator;
+
+  // Mapping of sender address to a delegated sender address and bool
+  mapping(address => mapping(address => bool)) public senderAuthorizations;
+
+  // Mapping of signer address to a delegated signer and bool
+  mapping(address => mapping(address => bool)) public signerAuthorizations;
+
+  // Mapping of signers to nonces with value AVAILABLE (0x00) or UNAVAILABLE (0x01)
+  mapping(address => mapping(uint256 => bytes1)) public signerNonceStatus;
+
+  // Mapping of signer addresses to an optionally set minimum valid nonce
+  mapping(address => uint256) public signerMinimumNonce;
+
+  bytes internal constant EIP191_HEADER = "\x19\x01";
+
+  bytes32 internal constant ORDER_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Order(",
+        "uint256 nonce,",
+        "uint256 expiry,",
+        "Party signer,",
+        "Party sender,",
+        "Party affiliate",
+        ")",
+        "Party(",
+        "bytes4 kind,",
+        "address wallet,",
+        "address token,",
+        "uint256 amount,",
+        "uint256 id",
+        ")"
+      )
+    );
+
+    bytes32 internal constant PARTY_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Party(",
+        "bytes4 kind,",
+        "address wallet,",
+        "address token,",
+        "uint256 amount,",
+        "uint256 id",
+        ")"
+      )
+    );
+
+
+  
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -84,10 +160,22 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // enable pool contract to pull weth from this contract to mint options.
     IERC20(_weth).safeApprove(controller.pool(), uint256(-1));
 
-    _initSwapContract(_swap);
+    // _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
 
     _openVault(_vaultType);
+
+    _domainSeparator = keccak256(
+        abi.encode(
+          DOMAIN_TYPEHASH,
+          keccak256(DOMAIN_NAME),
+          keccak256(DOMAIN_VERSION),
+          address(this)
+        )
+      );
+
+    console.logBytes32(_domainSeparator);
+
   }
 
   function onlyVault() private view {
@@ -178,9 +266,87 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * Always only approve the amount of weth that you will be using for the transaction, never more. 
    * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
-  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
+  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty, SwapTypes.Order memory order) external onlyOwner { 
     //0. Initial Logic Checks
     //require(counterparty.add != address(0), "Invalid counterparty address");
+
+
+  // Ensure the order is not expired.
+    require(order.expiry > block.timestamp, "ORDER_EXPIRED");
+
+    // Ensure the nonce is AVAILABLE (0x00).
+    require(
+      signerNonceStatus[order.signer.wallet][order.nonce] == AVAILABLE,
+      "ORDER_TAKEN_OR_CANCELLED"
+    );
+
+    // Ensure the order nonce is above the minimum.
+    require(
+      order.nonce >= signerMinimumNonce[order.signer.wallet],
+      "NONCE_TOO_LOW"
+    );
+
+    // Mark the nonce UNAVAILABLE (0x01).
+    signerNonceStatus[order.signer.wallet][order.nonce] = UNAVAILABLE;
+
+    // Validate the sender side of the trade.
+    address finalSenderWallet;
+
+    if (order.sender.wallet == address(0)) {
+      /**
+       * Sender is not specified. The msg.sender of the transaction becomes
+       * the sender of the order.
+       */
+      finalSenderWallet = msg.sender;
+    } else {
+      /**
+       * Sender is specified. If the msg.sender is not the specified sender,
+       * this determines whether the msg.sender is an authorized sender.
+       */
+      require(
+        isSenderAuthorized(order.sender.wallet, address(this)),
+        "SENDER_UNAUTHORIZED"
+      );
+      // The msg.sender is authorized.
+      finalSenderWallet = order.sender.wallet;
+    }
+
+    // Validate the signer side of the trade.
+    if (order.signature.v == 0) {
+      /**
+       * Signature is not provided. The signer may have authorized the
+       * msg.sender to swap on its behalf, which does not require a signature.
+       */
+      require(
+        isSignerAuthorized(order.signer.wallet, msg.sender),
+        "SIGNER_UNAUTHORIZED"
+      );
+    } else {
+      /**
+       * The signature is provided. Determine whether the signer is
+       * authorized and if so validate the signature itself.
+       */
+      require(
+        isSignerAuthorized(order.signer.wallet, order.signature.signatory),
+        "SIGNER_UNAUTHORIZED"
+      );
+
+      console.log('_domainSeparator');
+      console.logBytes32(_domainSeparator);
+
+      // Ensure the signature is valid.
+      require(isValid(order, _domainSeparator), "SIGNATURE_INVALID");
+    }
+    
+    // transfer premium weth in
+    weth.transferFrom(counterparty, address(this), premium);
+
+
+    _flashLoan( optionsToSell, counterparty );
+
+  }
+
+  function _flashLoan(uint256 optionsToSell, address counterparty ) internal {
 
     // flash borrow WETH
     address receiverAddress = address(this);
@@ -201,9 +367,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     uint16 referralCode = 0;
     
-    // transfer premium weth in
-    weth.transferFrom(counterparty, address(this), premium);
-
     // flash loan
     lendingPool.flashLoan(
             receiverAddress,
@@ -214,7 +377,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             params,
             referralCode
         );
-
   }
 
   /**
@@ -448,5 +610,167 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // Checks that the token committed to expires within 15 days of commitment. 
     return (block.timestamp).add(15 days) >= expiry;
   }
+
+  /**
+   * @notice Determine whether a sender delegate is authorized
+   * @param authorizer address Address doing the authorization
+   * @param delegate address Address being authorized
+   * @return bool True if a delegate is authorized to send
+   */
+  function isSenderAuthorized(address authorizer, address delegate)
+    internal
+    view
+    returns (bool)
+  {
+
+    console.log(authorizer == delegate) ;
+    console.log(senderAuthorizations[authorizer][delegate]);
+
+    return ((authorizer == delegate) ||
+      senderAuthorizations[authorizer][delegate]);
+  }
+
+  /**
+   * @notice Determine whether a signer delegate is authorized
+   * @param authorizer address Address doing the authorization
+   * @param delegate address Address being authorized
+   * @return bool True if a delegate is authorized to sign
+   */
+  function isSignerAuthorized(address authorizer, address delegate)
+    internal
+    view
+    returns (bool)
+  {
+    return ((authorizer == delegate) ||
+      signerAuthorizations[authorizer][delegate]);
+  }
+
+  /**
+   * @notice Validate signature using an EIP-712 typed data hash
+   * @param order Types.Order Order to validate
+   * @param domainSeparator bytes32 Domain identifier used in signatures (EIP-712)
+   * @return bool True if order has a valid signature
+   */
+   // todo change view to pure
+  function isValid(SwapTypes.Order memory order, bytes32 domainSeparator)
+    internal
+    view
+    returns (bool)
+  {
+    console.log(order.signature.v);
+    console.logBytes32(order.signature.r);
+    console.logBytes32(order.signature.s);
+    console.log(order.signature.signatory);
+    console.log(
+      ecrecover(
+          hashOrder(order, domainSeparator),
+          order.signature.v,
+          order.signature.r,
+          order.signature.s
+        )
+    );
+    if (order.signature.version == bytes1(0x01)) {
+      console.log('we here bytes1(0x01)');
+      
+      return
+        order.signature.signatory ==
+        ecrecover(
+          hashOrder(order, domainSeparator),
+          order.signature.v,
+          order.signature.r,
+          order.signature.s
+        );
+    }
+    if (order.signature.version == bytes1(0x45)) {
+      console.log('we here bytes1(0x45)');
+      return
+        order.signature.signatory ==
+        ecrecover(
+          keccak256(
+            abi.encodePacked(
+              "\x19Ethereum Signed Message:\n32",
+              hashOrder(order, domainSeparator)
+            )
+          ),
+          order.signature.v,
+          order.signature.r,
+          order.signature.s
+        );
+    }
+    return false;
+    
+  }
+
+  /**
+   * @notice Hash an order into bytes32
+   * @dev EIP-191 header and domain separator included
+   * @param order Order The order to be hashed
+   * @param domainSeparator bytes32
+   * @return bytes32 A keccak256 abi.encodePacked value
+   */
+  function hashOrder(SwapTypes.Order memory order, bytes32 domainSeparator)
+    internal
+    view
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          EIP191_HEADER,
+          domainSeparator,
+          keccak256(
+            abi.encode(
+              ORDER_TYPEHASH,
+              order.nonce,
+              order.expiry,
+              keccak256(
+                abi.encode(
+                  PARTY_TYPEHASH,
+                  order.signer.kind,
+                  order.signer.wallet,
+                  order.signer.token,
+                  order.signer.amount,
+                  order.signer.id
+                )
+              ),
+              keccak256(
+                abi.encode(
+                  PARTY_TYPEHASH,
+                  order.sender.kind,
+                  order.sender.wallet,
+                  order.sender.token,
+                  order.sender.amount,
+                  order.sender.id
+                )
+              ),
+              keccak256(
+                abi.encode(
+                  PARTY_TYPEHASH,
+                  order.affiliate.kind,
+                  order.affiliate.wallet,
+                  order.affiliate.token,
+                  order.affiliate.amount,
+                  order.affiliate.id
+                )
+              )
+            )
+          )
+        )
+      );
+  }
+
+  /**
+   * @notice Authorize a delegated sender
+   * @dev Emits an AuthorizeSender event
+   * @param authorizedSender address Address to authorize
+   */
+  function authorizeSender(address authorizedSender) external {
+    require(msg.sender != authorizedSender, "SELF_AUTH_INVALID");
+    if (!senderAuthorizations[msg.sender][authorizedSender]) {
+      senderAuthorizations[msg.sender][authorizedSender] = true;
+      emit ISwap.AuthorizeSender(msg.sender, authorizedSender);
+    }
+  }
+
 
 }

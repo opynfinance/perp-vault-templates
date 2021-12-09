@@ -16,7 +16,7 @@ import {
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-// import {getOrder} from '../utils/orders';
+import {getOrder} from '../utils/orders';
 import { BigNumber } from '@ethersproject/bignumber';
 
 //esilnt-ignore-next-line
@@ -431,14 +431,30 @@ describe('Mainnet Fork Tests', function() {
 
       const lowPremium = utils.parseEther('0.0000001');
 
-      // testing revert with premium === 0
-      await expectRevert.unspecified(
-        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
-      )
+      // // testing revert with premium === 0
+      // await expectRevert.unspecified(
+      //   action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
+      // )
       
-      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+      // await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
 
-      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+      // await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+
+      const order = await getOrder(
+        action1.address,
+        higherStrikeOtoken.address,
+        sellAmount.toString(),
+        counterpartyWallet.address,
+        weth.address,
+        premium.toString(),
+        // swapAddress,
+        action1.address,
+        counterpartyWallet.privateKey
+      );
+
+      await action1.connect(owner).authorizeSender(action1.address);
+
+      await action1.connect(owner).flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address, order);
 
       const vaultWethBalanceAfter = await weth.balanceOf(vault.address);
 

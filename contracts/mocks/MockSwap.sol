@@ -8,7 +8,7 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 contract MockSwap is ISwap {
     
-  function swap(SwapTypes.Order calldata order) external override {
+  function swap(SwapTypes.Order calldata order) external {
     address sender = order.sender.wallet;
 
     // only try pulling token from sender
