@@ -13,7 +13,7 @@ import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IWETH } from '../interfaces/IWETH.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
-import { AirswapBase } from '../utils/AirswapBase.sol';
+// import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
 import { ISwap } from '../interfaces/ISwap.sol';
@@ -39,7 +39,7 @@ import "hardhat/console.sol";
  * @author Opyn Team
  */
 
-contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase {
+contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 

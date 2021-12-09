@@ -9,7 +9,6 @@ import {
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
-  StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
   MockPricer,
