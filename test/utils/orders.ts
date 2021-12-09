@@ -2,43 +2,9 @@ import { ethers } from 'hardhat';
 import * as sigUtil from 'eth-sig-util'
 import * as ethUtil from 'ethereumjs-util'
 
-// import { createOrder, signTypedDataOrder } from "@airswap/utils"
-
-// export const getOrder = async (
-//   sender: string,
-//   senderLowerToken: string,
-//   senderHigherToken: string,
-//   senderTokenAmount: string,
-//   signer: string,
-//   signerToken: string,
-//   signerTokenAmount: string | number,
-//   swapContract: string,
-//   privateKey: string,
-// ): Promise<any> => {
-//   const order = createOrder({
-//     expiry: Date.now().toString(),
-//     signer: {
-//       wallet: signer,
-//       token: signerToken,
-//       amount: signerTokenAmount,
-//     },
-//     sender: {
-//       wallet: sender,
-//       token: senderHigherToken,
-//       amount: senderTokenAmount,
-//       lowerToken: senderLowerToken,
-//     },
-//     affiliate: {
-//       wallet: ethers.constants.AddressZero,
-//     },
-//   });
-//   const signedOrder = await signTypedDataOrder(order, privateKey, swapContract);
-//   return signedOrder;
-// };
-
 export const getOrder = async (
   sender: string,
-  // senderLowerToken: string,
+  senderLowerToken: string,
   senderHigherToken: string,
   senderTokenAmount: string,
   signer: string,
@@ -58,7 +24,7 @@ export const getOrder = async (
       wallet: sender,
       token: senderHigherToken,
       amount: senderTokenAmount,
-      // lowerToken: senderLowerToken,
+      lowerToken: senderLowerToken,
     },
     affiliate: {
       wallet: ethers.constants.AddressZero,
@@ -142,7 +108,7 @@ const EIP712 = {
     { name: 'nonce', type: 'uint256' },
     { name: 'expiry', type: 'uint256' },
     { name: 'signer', type: 'Party' },
-    { name: 'sender', type: 'Party' },
+    { name: 'sender', type: 'SenderParty' },
     { name: 'affiliate', type: 'Party' },
   ],
   Party: [
@@ -152,14 +118,14 @@ const EIP712 = {
     { name: 'amount', type: 'uint256' },
     { name: 'id', type: 'uint256' },
   ],
-  // SenderParty: [
-  //   { name: 'kind', type: 'bytes4' },
-  //   { name: 'wallet', type: 'address' },
-  //   { name: 'token', type: 'address' },
-  //   { name: 'amount', type: 'uint256' },
-  //   { name: 'id', type: 'uint256' },
-    // { name: 'lowerToken', type: 'address' },
-  // ],
+  SenderParty: [
+    { name: 'kind', type: 'bytes4' },
+    { name: 'wallet', type: 'address' },
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'id', type: 'uint256' },
+    { name: 'lowerToken', type: 'address' },
+  ],
 }
 
 function createOrder({

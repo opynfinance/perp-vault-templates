@@ -421,13 +421,12 @@ describe('Mainnet Fork Tests', function() {
 
       const order = await getOrder(
         action1.address,
-        // lowerStrikeOtoken.address,
+        lowerStrikeOtoken.address,
         higherStrikeOtoken.address,
         sellAmount.toString(),
         counterpartyWallet.address,
         weth.address,
         premium.toString(),
-        // swapAddress,
         action1.address,
         counterpartyWallet.privateKey
       );

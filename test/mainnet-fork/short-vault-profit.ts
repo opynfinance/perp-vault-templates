@@ -431,24 +431,14 @@ describe('Mainnet Fork Tests', function() {
 
       const lowPremium = utils.parseEther('0.0000001');
 
-      // // testing revert with premium === 0
-      // await expectRevert.unspecified(
-      //   action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
-      // )
-      
-      // await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
-
-      // await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
-
       const order = await getOrder(
         action1.address,
-        // lowerStrikeOtoken.address,
+        lowerStrikeOtoken.address,
         higherStrikeOtoken.address,
         sellAmount.toString(),
         counterpartyWallet.address,
         weth.address,
         premium.toString(),
-        // swapAddress,
         action1.address,
         counterpartyWallet.privateKey
       );

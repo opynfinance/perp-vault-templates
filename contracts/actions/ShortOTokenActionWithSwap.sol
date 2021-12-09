@@ -103,7 +103,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
         "uint256 nonce,",
         "uint256 expiry,",
         "Party signer,",
-        "Party sender,",
+        "SenderParty sender,",
         "Party affiliate",
         ")",
         "Party(",
@@ -113,13 +113,14 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
         "uint256 amount,",
         "uint256 id",
         ")"
-        // "SenderParty(",
-        // "bytes4 kind,",
-        // "address wallet,",
-        // "address token,",
-        // "uint256 amount,",
-        // "uint256 id",
-        // ")"
+        "SenderParty(",
+        "bytes4 kind,",
+        "address wallet,",
+        "address token,",
+        "uint256 amount,",
+        "uint256 id,",
+        "address lowerToken",
+        ")"
       )
     );
 
@@ -139,12 +140,13 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
     bytes32 internal constant SENDER_PARTY_TYPEHASH =
     keccak256(
       abi.encodePacked(
-        "Party(",
+        "SenderParty(",
         "bytes4 kind,",
         "address wallet,",
         "address token,",
         "uint256 amount,",
-        "uint256 id",
+        "uint256 id,",
+        "address lowerToken",
         ")"
       )
     );
@@ -193,9 +195,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
           address(this)
         )
       );
-
-    console.logBytes32(_domainSeparator);
-
   }
 
   function onlyVault() private view {
@@ -640,9 +639,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
     returns (bool)
   {
 
-    console.log(authorizer == delegate) ;
-    console.log(senderAuthorizations[authorizer][delegate]);
-
     return ((authorizer == delegate) ||
       senderAuthorizations[authorizer][delegate]);
   }
@@ -668,27 +664,12 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
    * @param domainSeparator bytes32 Domain identifier used in signatures (EIP-712)
    * @return bool True if order has a valid signature
    */
-   // todo change view to pure
   function isValid(SwapTypes.Order memory order, bytes32 domainSeparator)
     internal
-    view
+    pure
     returns (bool)
   {
-    console.log(order.signature.v);
-    console.logBytes32(order.signature.r);
-    console.logBytes32(order.signature.s);
-    console.log(order.signature.signatory);
-    console.log(
-      ecrecover(
-          hashOrder(order, domainSeparator),
-          order.signature.v,
-          order.signature.r,
-          order.signature.s
-        )
-    );
-    if (order.signature.version == bytes1(0x01)) {
-      console.log('we here bytes1(0x01)');
-      
+    if (order.signature.version == bytes1(0x01)) {      
       return
         order.signature.signatory ==
         ecrecover(
@@ -699,7 +680,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
         );
     }
     if (order.signature.version == bytes1(0x45)) {
-      console.log('we here bytes1(0x45)');
       return
         order.signature.signatory ==
         ecrecover(
@@ -758,8 +738,8 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap, AirswapBase 
                   order.sender.wallet,
                   order.sender.token,
                   order.sender.amount,
-                  order.sender.id
-                  // order.sender.lowerToken
+                  order.sender.id,
+                  order.sender.lowerToken
                 )
               ),
               keccak256(
