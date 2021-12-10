@@ -478,11 +478,8 @@ describe('Mainnet Fork Tests', function() {
 
       const vaultCounter = await (await controller.getAccountVaultCounter(counterpartyWallet.address));
 
-      console.log(vaultCounter.toString())
-
       // check correct amounts in MM vault
       const mmVault =  await controller.getVault(counterpartyWallet.address, Number(vaultCounter.toString()));
-      console.log(mmVault)
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
