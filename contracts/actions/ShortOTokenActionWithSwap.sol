@@ -284,12 +284,13 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
    * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
   function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty, SwapTypes.Order memory order) external onlyOwner { 
-    //0. Initial Logic Checks
-    //require(counterparty.add != address(0), "Invalid counterparty address");
-
 
   // Ensure the order is not expired.
     require(order.expiry > block.timestamp, "ORDER_EXPIRED");
+
+  // Ensure the otokens are not expired.
+    require(order.expiry > IOToken(currentSpread.shortOtoken).expiryTimestamp(), "SHORT_OTOKEN_EXPIRED");
+    require(order.expiry >  IOToken(currentSpread.longOtoken).expiryTimestamp(), "LONG_OTOKEN_EXPIRED");
 
     // Ensure the nonce is AVAILABLE (0x00).
     require(
