@@ -181,7 +181,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     // enable pool contract to pull weth from this contract to mint options.
     IERC20(_weth).safeApprove(controller.pool(), uint256(-1));
 
-    // _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
 
     _openVault(_vaultType);
