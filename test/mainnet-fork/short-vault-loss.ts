@@ -431,7 +431,7 @@ describe('Mainnet Fork Tests', function() {
         counterpartyWallet.privateKey
       );
 
-      await action1.connect(owner).authorizeSender(action1.address);
+      // await action1.connect(owner).authorizeSender(action1.address);
 
       await action1.connect(owner).flashMintAndSellOToken(order);
 

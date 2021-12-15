@@ -428,8 +428,7 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
-      await action1.connect(owner).authorizeSender(action1.address);
-
+      // await action1.connect(owner).authorizeSender(action1.address);
 
       const lowPremium = utils.parseEther('0.0000001');
 

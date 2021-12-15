@@ -81,12 +81,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   // Unique domain identifier for use in signatures (EIP-712)
   bytes32 private _domainSeparator;
 
-  // Mapping of sender address to a delegated sender address and bool
-  mapping(address => mapping(address => bool)) public senderAuthorizations;
-
-  // Mapping of signer address to a delegated signer and bool
-  mapping(address => mapping(address => bool)) public signerAuthorizations;
-
   // Mapping of signers to nonces with value AVAILABLE (0x00) or UNAVAILABLE (0x01)
   mapping(address => mapping(uint256 => bytes1)) public signerNonceStatus;
 
@@ -311,33 +305,13 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
 
     require(order.sender.wallet == address(this), "SENDER_UNAUTHORIZED" );
 
-    // Validate the signer side of the trade.
-    if (order.signature.v == 0) {
-      /**
-       * Signature is not provided. The signer may have authorized the
-       * msg.sender to swap on its behalf, which does not require a signature.
-       */
-      require(
-        isSignerAuthorized(order.signer.wallet, msg.sender),
-        "SIGNER_UNAUTHORIZED"
-      );
-    } else {
-      /**
-       * The signature is provided. Determine whether the signer is
-       * authorized and if so validate the signature itself.
-       */
-      require(
-        isSignerAuthorized(order.signer.wallet, order.signature.signatory),
-        "SIGNER_UNAUTHORIZED"
-      );
+    require(order.signature.v !=0, "SIGNATURE_NOT_PROVIDED");
 
-      // Ensure the signature is valid.
-      require(isValid(order, _domainSeparator), "SIGNATURE_INVALID");
-    }
+    // Ensure the signature is valid.
+    require(isValid(order, _domainSeparator), "SIGNATURE_INVALID");
     
     // transfer premium weth in
     weth.transferFrom(order.signer.wallet, address(this), order.signer.amount);
-
 
     _flashLoan( order.sender.amount, order.signer.wallet );
 
@@ -609,21 +583,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   }
 
   /**
-   * @notice Determine whether a signer delegate is authorized
-   * @param authorizer address Address doing the authorization
-   * @param delegate address Address being authorized
-   * @return bool True if a delegate is authorized to sign
-   */
-  function isSignerAuthorized(address authorizer, address delegate)
-    internal
-    view
-    returns (bool)
-  {
-    return ((authorizer == delegate) ||
-      signerAuthorizations[authorizer][delegate]);
-  }
-
-  /**
    * @notice Validate signature using an EIP-712 typed data hash
    * @param order Types.Order Order to validate
    * @param domainSeparator bytes32 Domain identifier used in signatures (EIP-712)
@@ -721,19 +680,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
           )
         )
       );
-  }
-
-  /**
-   * @notice Authorize a delegated sender
-   * @dev Emits an AuthorizeSender event
-   * @param authorizedSender address Address to authorize
-   */
-  function authorizeSender(address authorizedSender) external {
-    require(msg.sender != authorizedSender, "SELF_AUTH_INVALID");
-    if (!senderAuthorizations[msg.sender][authorizedSender]) {
-      senderAuthorizations[msg.sender][authorizedSender] = true;
-      emit ISwap.AuthorizeSender(msg.sender, authorizedSender);
-    }
   }
 
 
