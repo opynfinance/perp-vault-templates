@@ -30,7 +30,6 @@ library SwapTypes {
         uint256 expiry; // Expiry in seconds since 1 January 1970
         Signer signer; // Party to the trade that sets terms
         Sender sender; // Party to the trade that accepts terms
-        Signer affiliate; // Party compensated for facilitating (optional)
         Signature signature; // Signature of the order
     }
 

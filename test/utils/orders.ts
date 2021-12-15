@@ -25,10 +25,7 @@ export const getOrder = async (
       lowerToken: senderLowerToken,
       higherToken: senderHigherToken,
       amount: senderTokenAmount,
-    },
-    affiliate: {
-      wallet: ethers.constants.AddressZero,
-    },
+    }
   });
   const signedOrder = await signTypedDataOrder(order, privateKey, swapContract);
   return signedOrder;
@@ -50,7 +47,6 @@ type UnsignedOrder = {
   expiry: string
   signer: OrderParty
   sender: SenderParty
-  affiliate: OrderParty
 }
 
 type Party = {
@@ -106,7 +102,6 @@ const EIP712 = {
     { name: 'expiry', type: 'uint256' },
     { name: 'signer', type: 'Party' },
     { name: 'sender', type: 'SenderParty' },
-    { name: 'affiliate', type: 'Party' },
   ],
   Party: [
     { name: 'wallet', type: 'address' },
@@ -126,14 +121,12 @@ function createOrder({
   nonce = Date.now(),
   signer = {},
   sender = {},
-  affiliate = {},
 }): UnsignedOrder {
   return lowerCaseAddresses({
     expiry: String(expiry),
     nonce: String(nonce),
     signer: { ...defaultParty, ...signer },
     sender: { ...defaultSenderParty, ...sender },
-    affiliate: { ...defaultParty, ...affiliate },
   })
 }
 

@@ -93,8 +93,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
         "uint256 nonce,",
         "uint256 expiry,",
         "Party signer,",
-        "SenderParty sender,",
-        "Party affiliate",
+        "SenderParty sender",
         ")",
         "Party(",
         "address wallet,",
@@ -649,14 +648,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
                   order.sender.lowerToken,
                   order.sender.higherToken,
                   order.sender.amount
-                )
-              ),
-              keccak256(
-                abi.encode(
-                  PARTY_TYPEHASH,
-                  order.affiliate.wallet,
-                  order.affiliate.token,
-                  order.affiliate.amount
                 )
               )
             )
