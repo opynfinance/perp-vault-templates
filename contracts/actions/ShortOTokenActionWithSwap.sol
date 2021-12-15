@@ -84,9 +84,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   // Mapping of signers to nonces with value AVAILABLE (0x00) or UNAVAILABLE (0x01)
   mapping(address => mapping(uint256 => bytes1)) public signerNonceStatus;
 
-  // Mapping of signer addresses to an optionally set minimum valid nonce
-  mapping(address => uint256) public signerMinimumNonce;
-
   bytes internal constant EIP191_HEADER = "\x19\x01";
 
   bytes32 internal constant ORDER_TYPEHASH =
@@ -285,7 +282,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
 
     // Ensure the order nonce is above the minimum.
     require(
-      order.nonce >= signerMinimumNonce[order.signer.wallet],
+      order.nonce >= 0,
       "NONCE_TOO_LOW"
     );
 
