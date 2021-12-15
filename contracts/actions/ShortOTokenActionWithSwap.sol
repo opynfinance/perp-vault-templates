@@ -106,9 +106,9 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
         ")"
         "SenderParty(",
         "address wallet,",
-        "address token,",
-        "uint256 amount,",
-        "address lowerToken",
+        "address lowerToken,",
+        "address higherToken,",
+        "uint256 amount",
         ")"
       )
     );
@@ -129,9 +129,9 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
       abi.encodePacked(
         "SenderParty(",
         "address wallet,",
-        "address token,",
-        "uint256 amount,",
-        "address lowerToken",
+        "address lowerToken,",
+        "address higherToken,",
+        "uint256 amount",
         ")"
       )
     );
@@ -649,9 +649,9 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
                 abi.encode(
                   SENDER_PARTY_TYPEHASH,
                   order.sender.wallet,
-                  order.sender.token,
-                  order.sender.amount,
-                  order.sender.lowerToken
+                  order.sender.lowerToken,
+                  order.sender.higherToken,
+                  order.sender.amount
                 )
               ),
               keccak256(

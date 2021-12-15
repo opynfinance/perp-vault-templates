@@ -42,9 +42,9 @@ library SwapTypes {
 
     struct Sender {
         address wallet; // Wallet address of the party
-        address token; // Contract address of the token
-        uint256 amount; // Amount for ERC-20 or ERC-1155
         address lowerToken; // Contract address of the token
+        address higherToken; // Contract address of the token
+        uint256 amount; // Amount for ERC-20 or ERC-1155
     }
 
     struct Signature {

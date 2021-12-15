@@ -22,9 +22,9 @@ export const getOrder = async (
     },
     sender: {
       wallet: sender,
-      token: senderHigherToken,
-      amount: senderTokenAmount,
       lowerToken: senderLowerToken,
+      higherToken: senderHigherToken,
+      amount: senderTokenAmount,
     },
     affiliate: {
       wallet: ethers.constants.AddressZero,
@@ -62,8 +62,11 @@ type OrderParty = Party & {
   wallet: string
 }
 
-type SenderParty = OrderParty & {
-  // lowerToken: string
+type SenderParty = {
+  lowerToken: string
+  higherToken: string
+  amount?: string
+  wallet: string
 }
 
 const defaultParty: OrderParty = {
@@ -73,8 +76,9 @@ const defaultParty: OrderParty = {
 }
 
 const defaultSenderParty: SenderParty = {
+  lowerToken: ADDRESS_ZERO,
+  higherToken: ADDRESS_ZERO,
   wallet: ADDRESS_ZERO,
-  token: ADDRESS_ZERO,
   amount: '0',
 }
 
@@ -111,9 +115,9 @@ const EIP712 = {
   ],
   SenderParty: [
     { name: 'wallet', type: 'address' },
-    { name: 'token', type: 'address' },
-    { name: 'amount', type: 'uint256' },
     { name: 'lowerToken', type: 'address' },
+    { name: 'higherToken', type: 'address' },
+    { name: 'amount', type: 'uint256' },
   ],
 }
 
