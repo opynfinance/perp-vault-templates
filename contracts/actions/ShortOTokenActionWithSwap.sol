@@ -309,24 +309,7 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     // Validate the sender side of the trade.
     address finalSenderWallet;
 
-    if (order.sender.wallet == address(0)) {
-      /**
-       * Sender is not specified. The msg.sender of the transaction becomes
-       * the sender of the order.
-       */
-      finalSenderWallet = msg.sender;
-    } else {
-      /**
-       * Sender is specified. If the msg.sender is not the specified sender,
-       * this determines whether the msg.sender is an authorized sender.
-       */
-      require(
-        isSenderAuthorized(order.sender.wallet, address(this)),
-        "SENDER_UNAUTHORIZED"
-      );
-      // The msg.sender is authorized.
-      finalSenderWallet = order.sender.wallet;
-    }
+    require(order.sender.wallet == address(this), "SENDER_UNAUTHORIZED" );
 
     // Validate the signer side of the trade.
     if (order.signature.v == 0) {
@@ -623,22 +606,6 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     // TODO: override with your filler code. 
     // Checks that the token committed to expires within 15 days of commitment. 
     return (block.timestamp).add(15 days) >= expiry;
-  }
-
-  /**
-   * @notice Determine whether a sender delegate is authorized
-   * @param authorizer address Address doing the authorization
-   * @param delegate address Address being authorized
-   * @return bool True if a delegate is authorized to send
-   */
-  function isSenderAuthorized(address authorizer, address delegate)
-    internal
-    view
-    returns (bool)
-  {
-
-    return ((authorizer == delegate) ||
-      senderAuthorizations[authorizer][delegate]);
   }
 
   /**
