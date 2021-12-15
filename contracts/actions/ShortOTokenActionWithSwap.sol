@@ -100,18 +100,14 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
         "Party affiliate",
         ")",
         "Party(",
-        "bytes4 kind,",
         "address wallet,",
         "address token,",
-        "uint256 amount,",
-        "uint256 id",
+        "uint256 amount",
         ")"
         "SenderParty(",
-        "bytes4 kind,",
         "address wallet,",
         "address token,",
         "uint256 amount,",
-        "uint256 id,",
         "address lowerToken",
         ")"
       )
@@ -121,11 +117,9 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     keccak256(
       abi.encodePacked(
         "Party(",
-        "bytes4 kind,",
         "address wallet,",
         "address token,",
-        "uint256 amount,",
-        "uint256 id",
+        "uint256 amount",
         ")"
       )
     );
@@ -134,11 +128,9 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     keccak256(
       abi.encodePacked(
         "SenderParty(",
-        "bytes4 kind,",
         "address wallet,",
         "address token,",
         "uint256 amount,",
-        "uint256 id,",
         "address lowerToken",
         ")"
       )
@@ -648,32 +640,26 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
               keccak256(
                 abi.encode(
                   PARTY_TYPEHASH,
-                  order.signer.kind,
                   order.signer.wallet,
                   order.signer.token,
-                  order.signer.amount,
-                  order.signer.id
+                  order.signer.amount
                 )
               ),
               keccak256(
                 abi.encode(
                   SENDER_PARTY_TYPEHASH,
-                  order.sender.kind,
                   order.sender.wallet,
                   order.sender.token,
                   order.sender.amount,
-                  order.sender.id,
                   order.sender.lowerToken
                 )
               ),
               keccak256(
                 abi.encode(
                   PARTY_TYPEHASH,
-                  order.affiliate.kind,
                   order.affiliate.wallet,
                   order.affiliate.token,
-                  order.affiliate.amount,
-                  order.affiliate.id
+                  order.affiliate.amount
                 )
               )
             )

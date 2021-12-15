@@ -54,9 +54,7 @@ type UnsignedOrder = {
 }
 
 type Party = {
-  kind: string
   token: string
-  id?: string
   amount?: string
 }
 
@@ -69,20 +67,15 @@ type SenderParty = OrderParty & {
 }
 
 const defaultParty: OrderParty = {
-  kind: '0x36372b07',
   wallet: ADDRESS_ZERO,
   token: ADDRESS_ZERO,
   amount: '0',
-  id: '0',
 }
 
 const defaultSenderParty: SenderParty = {
-  kind: '0x36372b07',
   wallet: ADDRESS_ZERO,
   token: ADDRESS_ZERO,
   amount: '0',
-  id: '0',
-  // lowerToken: ADDRESS_ZERO
 }
 
 type Signature = {
@@ -112,18 +105,14 @@ const EIP712 = {
     { name: 'affiliate', type: 'Party' },
   ],
   Party: [
-    { name: 'kind', type: 'bytes4' },
     { name: 'wallet', type: 'address' },
     { name: 'token', type: 'address' },
     { name: 'amount', type: 'uint256' },
-    { name: 'id', type: 'uint256' },
   ],
   SenderParty: [
-    { name: 'kind', type: 'bytes4' },
     { name: 'wallet', type: 'address' },
     { name: 'token', type: 'address' },
     { name: 'amount', type: 'uint256' },
-    { name: 'id', type: 'uint256' },
     { name: 'lowerToken', type: 'address' },
   ],
 }
