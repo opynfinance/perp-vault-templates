@@ -433,7 +433,7 @@ describe('Mainnet Fork Tests', function() {
 
       await action1.connect(owner).authorizeSender(action1.address);
 
-      await action1.connect(owner).flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address, order);
+      await action1.connect(owner).flashMintAndSellOToken(order);
 
       const vaultwethBalanceAfter = await weth.balanceOf(vault.address);
 

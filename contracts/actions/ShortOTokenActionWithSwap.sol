@@ -281,9 +281,8 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
    * Because it has operator permissions, use a separate account when transacting with this and 
    * limit the amount of money that is approved to be spent to margin pool. 
    * Always only approve the amount of weth that you will be using for the transaction, never more. 
-   * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
-  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty, SwapTypes.Order memory order) external onlyOwner { 
+  function flashMintAndSellOToken(SwapTypes.Order memory order) external onlyOwner { 
 
   // Ensure the order is not expired.
     require(order.expiry > block.timestamp, "ORDER_EXPIRED");
@@ -354,10 +353,10 @@ contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
     }
     
     // transfer premium weth in
-    weth.transferFrom(counterparty, address(this), premium);
+    weth.transferFrom(order.signer.wallet, address(this), order.signer.amount);
 
 
-    _flashLoan( optionsToSell, counterparty );
+    _flashLoan( order.sender.amount, order.signer.wallet );
 
   }
 

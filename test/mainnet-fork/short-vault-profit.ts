@@ -428,7 +428,28 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
+      await action1.connect(owner).authorizeSender(action1.address);
+
+
       const lowPremium = utils.parseEther('0.0000001');
+
+      const lowPremiumOrder = await getOrder(
+        action1.address,
+        lowerStrikeOtoken.address,
+        higherStrikeOtoken.address,
+        sellAmount.toString(),
+        counterpartyWallet.address,
+        weth.address,
+        lowPremium.toString(),
+        action1.address,
+        counterpartyWallet.privateKey
+      );
+
+
+      // testing revert with low premium === 0
+      await expectRevert.unspecified(
+        action1.flashMintAndSellOToken(lowPremiumOrder)
+      )
 
       const order = await getOrder(
         action1.address,
@@ -441,17 +462,9 @@ describe('Mainnet Fork Tests', function() {
         action1.address,
         counterpartyWallet.privateKey
       );
-
-      await action1.connect(owner).authorizeSender(action1.address);
-
-      // testing revert with premium === 0
-      await expectRevert.unspecified(
-        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address, order)
-      )
       
-      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address, order))
 
-      await action1.connect(owner).flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address, order);
+      await action1.connect(owner).flashMintAndSellOToken(order);
 
       const vaultWethBalanceAfter = await weth.balanceOf(vault.address);
 
