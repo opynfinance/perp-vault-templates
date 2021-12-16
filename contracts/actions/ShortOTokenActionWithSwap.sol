@@ -13,9 +13,11 @@ import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
 import { IWETH } from '../interfaces/IWETH.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
-import { AirswapBase } from '../utils/AirswapBase.sol';
 import { RollOverBase } from '../utils/RollOverBase.sol';
 import { ILendingPool } from '../interfaces/ILendingPool.sol';
+import { ISwap } from '../interfaces/ISwap.sol';
+
+import "hardhat/console.sol";
 
 /**
  * Error Codes
@@ -36,7 +38,7 @@ import { ILendingPool } from '../interfaces/ILendingPool.sol';
  * @author Opyn Team
  */
 
-contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
+contract ShortOTokenActionWithSwap is IAction, RollOverBase, ISwap {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
 
@@ -55,6 +57,83 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   IOracle public oracle;
   IWETH weth;
   ILendingPool lendingPool;
+
+  // Possible nonce statuses
+  bytes1 internal constant AVAILABLE = 0x00;
+  bytes1 internal constant UNAVAILABLE = 0x01;
+
+  
+  bytes32 public constant DOMAIN_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "EIP712Domain(",
+        "string name,",
+        "string version,",
+        "address verifyingContract",
+        ")"
+      )
+    );
+
+  bytes internal constant DOMAIN_NAME = "SWAP";
+  bytes internal constant DOMAIN_VERSION = "2";
+
+
+  // Unique domain identifier for use in signatures (EIP-712)
+  bytes32 private _domainSeparator;
+
+  // Mapping of signers to nonces with value AVAILABLE (0x00) or UNAVAILABLE (0x01)
+  mapping(address => mapping(uint256 => bytes1)) public signerNonceStatus;
+
+  bytes internal constant EIP191_HEADER = "\x19\x01";
+
+  bytes32 internal constant ORDER_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Order(",
+        "uint256 nonce,",
+        "uint256 expiry,",
+        "Party signer,",
+        "SenderParty sender",
+        ")",
+        "Party(",
+        "address wallet,",
+        "address token,",
+        "uint256 amount",
+        ")"
+        "SenderParty(",
+        "address wallet,",
+        "address lowerToken,",
+        "address higherToken,",
+        "uint256 amount",
+        ")"
+      )
+    );
+
+    bytes32 internal constant PARTY_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "Party(",
+        "address wallet,",
+        "address token,",
+        "uint256 amount",
+        ")"
+      )
+    );
+
+    bytes32 internal constant SENDER_PARTY_TYPEHASH =
+    keccak256(
+      abi.encodePacked(
+        "SenderParty(",
+        "address wallet,",
+        "address lowerToken,",
+        "address higherToken,",
+        "uint256 amount",
+        ")"
+      )
+    );
+
+
+  
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
@@ -84,10 +163,18 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // enable pool contract to pull weth from this contract to mint options.
     IERC20(_weth).safeApprove(controller.pool(), uint256(-1));
 
-    _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
 
     _openVault(_vaultType);
+
+    _domainSeparator = keccak256(
+        abi.encode(
+          DOMAIN_TYPEHASH,
+          keccak256(DOMAIN_NAME),
+          keccak256(DOMAIN_VERSION),
+          address(this)
+        )
+      );
   }
 
   function onlyVault() private view {
@@ -176,11 +263,49 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * Because it has operator permissions, use a separate account when transacting with this and 
    * limit the amount of money that is approved to be spent to margin pool. 
    * Always only approve the amount of weth that you will be using for the transaction, never more. 
-   * @param optionsToSell this is the amount of options to sell, which is the same as the collateral to deposit
    */
-  function flashMintAndSellOToken(uint256 optionsToSell, uint256 premium, address counterparty) external onlyOwner { 
-    //0. Initial Logic Checks
-    //require(counterparty.add != address(0), "Invalid counterparty address");
+  function flashMintAndSellOToken(SwapTypes.Order memory order) external onlyOwner { 
+
+  // Ensure the order is not expired.
+    require(order.expiry > block.timestamp, "ORDER_EXPIRED");
+
+  // Ensure the otokens are not expired.
+    require(order.expiry > IOToken(currentSpread.shortOtoken).expiryTimestamp(), "SHORT_OTOKEN_EXPIRED");
+    require(order.expiry >  IOToken(currentSpread.longOtoken).expiryTimestamp(), "LONG_OTOKEN_EXPIRED");
+
+    // Ensure the nonce is AVAILABLE (0x00).
+    require(
+      signerNonceStatus[order.signer.wallet][order.nonce] == AVAILABLE,
+      "ORDER_TAKEN_OR_CANCELLED"
+    );
+
+    // Ensure the order nonce is above the minimum.
+    require(
+      order.nonce >= 0,
+      "NONCE_TOO_LOW"
+    );
+
+    // Mark the nonce UNAVAILABLE (0x01).
+    signerNonceStatus[order.signer.wallet][order.nonce] = UNAVAILABLE;
+
+    // Validate the sender side of the trade.
+    address finalSenderWallet;
+
+    require(order.sender.wallet == address(this), "SENDER_UNAUTHORIZED" );
+
+    require(order.signature.v !=0, "SIGNATURE_NOT_PROVIDED");
+
+    // Ensure the signature is valid.
+    require(isValid(order, _domainSeparator), "SIGNATURE_INVALID");
+    
+    // transfer premium weth in
+    weth.transferFrom(order.signer.wallet, address(this), order.signer.amount);
+
+    _flashLoan( order.sender.amount, order.signer.wallet );
+
+  }
+
+  function _flashLoan(uint256 optionsToSell, address counterparty ) internal {
 
     // flash borrow WETH
     address receiverAddress = address(this);
@@ -201,9 +326,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     uint16 referralCode = 0;
     
-    // transfer premium weth in
-    weth.transferFrom(counterparty, address(this), premium);
-
     // flash loan
     lendingPool.flashLoan(
             receiverAddress,
@@ -214,7 +336,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
             params,
             referralCode
         );
-
   }
 
   /**
@@ -448,5 +569,92 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     // Checks that the token committed to expires within 15 days of commitment. 
     return (block.timestamp).add(15 days) >= expiry;
   }
+
+  /**
+   * @notice Validate signature using an EIP-712 typed data hash
+   * @param order Types.Order Order to validate
+   * @param domainSeparator bytes32 Domain identifier used in signatures (EIP-712)
+   * @return bool True if order has a valid signature
+   */
+  function isValid(SwapTypes.Order memory order, bytes32 domainSeparator)
+    internal
+    view
+    returns (bool)
+  {
+    if (order.signature.version == bytes1(0x01)) {      
+      return
+        order.signature.signatory ==
+        ecrecover(
+          hashOrder(order, domainSeparator),
+          order.signature.v,
+          order.signature.r,
+          order.signature.s
+        );
+    }
+    if (order.signature.version == bytes1(0x45)) {
+      return
+        order.signature.signatory ==
+        ecrecover(
+          keccak256(
+            abi.encodePacked(
+              "\x19Ethereum Signed Message:\n32",
+              hashOrder(order, domainSeparator)
+            )
+          ),
+          order.signature.v,
+          order.signature.r,
+          order.signature.s
+        );
+    }
+    return false;
+    
+  }
+
+  /**
+   * @notice Hash an order into bytes32
+   * @dev EIP-191 header and domain separator included
+   * @param order Order The order to be hashed
+   * @param domainSeparator bytes32
+   * @return bytes32 A keccak256 abi.encodePacked value
+   */
+  function hashOrder(SwapTypes.Order memory order, bytes32 domainSeparator)
+    internal
+    view
+    returns (bytes32)
+  {
+
+    return
+      keccak256(
+        abi.encodePacked(
+          EIP191_HEADER,
+          domainSeparator,
+          keccak256(
+            abi.encode(
+              ORDER_TYPEHASH,
+              order.nonce,
+              order.expiry,
+              keccak256(
+                abi.encode(
+                  PARTY_TYPEHASH,
+                  order.signer.wallet,
+                  order.signer.token,
+                  order.signer.amount
+                )
+              ),
+              keccak256(
+                abi.encode(
+                  SENDER_PARTY_TYPEHASH,
+                  order.sender.wallet,
+                  order.sender.lowerToken,
+                  order.sender.higherToken,
+                  order.sender.amount
+                )
+              )
+            )
+          )
+        )
+      );
+  }
+
 
 }

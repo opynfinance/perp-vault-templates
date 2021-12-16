@@ -9,14 +9,13 @@ import {
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
-  StakedaoEcrvPricer,
   IOracle,
   IWhitelist,
   MockPricer,
   IController
 } from '../../typechain';
 import * as fs from 'fs';
-// import {getOrder} from '../utils/orders';
+import {getOrder} from '../utils/orders';
 import { BigNumber } from '@ethersproject/bignumber';
 
 //esilnt-ignore-next-line
@@ -266,8 +265,8 @@ describe('Mainnet Fork Tests', function() {
     this.beforeAll(
       'deploy otokens that will be sold and set up counterparty',
       async () => {
-        const lowerStrikeOtokenStrikePrice = 500000000000;
-        const higherStrikeOtokenStrikePrice = 1000000000000;
+        const lowerStrikeOtokenStrikePrice = 1000000000000;
+        const higherStrikeOtokenStrikePrice = 2000000000000;
         const blockNumber = await provider.getBlockNumber();
         const block = await provider.getBlock(blockNumber);
         const currentTimestamp = block.timestamp;
@@ -429,16 +428,42 @@ describe('Mainnet Fork Tests', function() {
 
       await controller.connect(counterpartyWallet).setOperator(action1.address, true);
 
+      // await action1.connect(owner).authorizeSender(action1.address);
+
       const lowPremium = utils.parseEther('0.0000001');
 
-      // testing revert with premium === 0
-      await expectRevert.unspecified(
-        action1.flashMintAndSellOToken(sellAmount.toString(), lowPremium, counterpartyWallet.address)
-      )
-      
-      await expectRevert.unspecified(action1.flashMintAndSellOToken(sellAmount, (await weth.balanceOf(counterpartyWallet.address)).add(1), counterpartyWallet.address))
+      const lowPremiumOrder = await getOrder(
+        action1.address,
+        lowerStrikeOtoken.address,
+        higherStrikeOtoken.address,
+        sellAmount.toString(),
+        counterpartyWallet.address,
+        weth.address,
+        lowPremium.toString(),
+        action1.address,
+        counterpartyWallet.privateKey
+      );
 
-      await action1.flashMintAndSellOToken(sellAmount.toString(), premium, counterpartyWallet.address);
+
+      // testing revert with low premium === 0
+      await expectRevert.unspecified(
+        action1.flashMintAndSellOToken(lowPremiumOrder)
+      )
+
+      const order = await getOrder(
+        action1.address,
+        lowerStrikeOtoken.address,
+        higherStrikeOtoken.address,
+        sellAmount.toString(),
+        counterpartyWallet.address,
+        weth.address,
+        premium.toString(),
+        action1.address,
+        counterpartyWallet.privateKey
+      );
+      
+
+      await action1.connect(owner).flashMintAndSellOToken(order);
 
       const vaultWethBalanceAfter = await weth.balanceOf(vault.address);
 
@@ -463,8 +488,10 @@ describe('Mainnet Fork Tests', function() {
       expect( (premium.sub(await weth.balanceOf(action1.address)) ).lte( premium.mul(10).div(100)   ),
         'Fee paid on the transaction are higher than 10% of the premium' ).to.be.true;
 
+      const vaultCounter = await (await controller.getAccountVaultCounter(counterpartyWallet.address));
+
       // check correct amounts in MM vault
-      const mmVault =  await controller.getVault(counterpartyWallet.address, 1);
+      const mmVault =  await controller.getVault(counterpartyWallet.address, Number(vaultCounter.toString()));
       expect( (mmVault.longOtokens[0]), 'MM does not have the correct long otoken' ).to.be.equal(lowerStrikeOtoken.address);
       expect( (mmVault.shortOtokens[0]), 'MM does not have the correct short otoken' ).to.be.equal(higherStrikeOtoken.address);
       expect( (mmVault.longAmounts[0]), 'MM does not have the correct amount for long otoken' ).to.be.equal(sellAmount);
