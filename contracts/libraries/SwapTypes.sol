@@ -18,6 +18,9 @@
 pragma solidity ^0.7.2;
 pragma experimental ABIEncoderV2;
 
+import "hardhat/console.sol";
+
+
 /**
  * @title Types: Library of Swap Protocol Types and Hashes
  */
@@ -25,18 +28,22 @@ library SwapTypes {
     struct Order {
         uint256 nonce; // Unique per order and should be sequential
         uint256 expiry; // Expiry in seconds since 1 January 1970
-        Party signer; // Party to the trade that sets terms
-        Party sender; // Party to the trade that accepts terms
-        Party affiliate; // Party compensated for facilitating (optional)
+        Signer signer; // Party to the trade that sets terms
+        Sender sender; // Party to the trade that accepts terms
         Signature signature; // Signature of the order
     }
 
-    struct Party {
-        bytes4 kind; // Interface ID of the token
+    struct Signer {
         address wallet; // Wallet address of the party
         address token; // Contract address of the token
         uint256 amount; // Amount for ERC-20 or ERC-1155
-        uint256 id; // ID for ERC-721 or ERC-1155
+    }
+
+    struct Sender {
+        address wallet; // Wallet address of the party
+        address lowerToken; // Contract address of the token
+        address higherToken; // Contract address of the token
+        uint256 amount; // Amount for ERC-20 or ERC-1155
     }
 
     struct Signature {
@@ -47,4 +54,5 @@ library SwapTypes {
         bytes32 r; // `r` value of an ECDSA signature
         bytes32 s; // `s` value of an ECDSA signature
     }
+
 }
