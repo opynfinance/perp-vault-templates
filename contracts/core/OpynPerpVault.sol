@@ -192,7 +192,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function totalUnderlyingControlled() external view returns (uint256) { 
     // hard coded to 36 because crv LP token and sdToken are both 18 decimals. 
-    return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+     /* FOR AAVE IMPLEMENTATION, calls to Stake DAO protocols must be omitted.
+      * Consequently, all *underlying() functions are shadowed for simple ERC20 Token implementation.
+      */
+    // return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+    return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).div(BASE);
   }
 
   /**
@@ -213,6 +217,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     notEmergency();
     actionsInitialized();
     require(amount > 0, 'O6');
+    require(amount >= minCrvLPToken, 'O6O');
 
     // the sdToken is already deposited into the contract at this point, need to substract it from total
     uint256[3] memory amounts;
@@ -223,8 +228,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // deposit underlying to curvePool
     IERC20 underlyingToken = IERC20(underlying);
     underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
-    underlyingToken.approve(address(curvePool), amount);
-    curvePool.add_liquidity(amounts, minCrvLPToken);
+    /* This is an example of an *underlying function.
+     * curvePool calls are omitted to shadow Stake DAO curveLP implementation.
+     */
+    // underlyingToken.approve(address(curvePool), amount);
+    // curvePool.add_liquidity(amounts, minCrvLPToken);
+    underlyingToken.approve(address(sdTokenAddress), amount);
     _depositToStakedaoAndMint();
   }
 
@@ -249,12 +258,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
-
+    require(_share >= _minUnderlying, 'O6W');
     // withdraw from curve 
-    IERC20 underlyingToken = IERC20(underlying);
+    IERC20 underlyingToken = curveLPToken; // IERC20(underlying);
     uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
     uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
-    curvePool.remove_liquidity_one_coin(curveLPTokenBalance, 1, _minUnderlying);
+    // curvePool.remove_liquidity_one_coin(curveLPTokenBalance, 1, _minUnderlying);
     uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
     uint256 underlyingOwedToUser = underlyingBalanceAfter.sub(underlyingBalanceBefore);
 

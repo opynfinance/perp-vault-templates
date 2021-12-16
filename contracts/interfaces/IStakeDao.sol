@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-
-import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-
 pragma solidity ^0.7.2;
 pragma experimental ABIEncoderV2;
+
+import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 interface IStakeDao {
   function depositAll() external;

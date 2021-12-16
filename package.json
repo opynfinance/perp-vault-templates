@@ -24,11 +24,6 @@
     "test:integrations": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/unit-tests.ts",
     "test": "hardhat test --network hardhat ./test/unit-tests/*.ts"
   },
-  "lint-staged": {
-    "*.{js,ts}": [
-      "eslint --fix"
-    ]
-  },
   "dependencies": {
     "@airswap/utils": "^0.4.4",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
@@ -67,7 +62,6 @@
     "@typescript-eslint/eslint-plugin": "^4.29.1",
     "hardhat-contract-sizer": "^2.0.3",
     "hardhat-gas-reporter": "^1.0.4",
-    "husky": "^7.0.1",
-    "lint-staged": "^11.1.2"
+    "husky": "^7.0.1"
   }
 }
