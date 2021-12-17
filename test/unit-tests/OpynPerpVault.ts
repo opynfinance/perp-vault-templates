@@ -151,7 +151,7 @@ describe('OpynPerpVault Tests', function () {
     it('should revert if calling depositUnderlying with no value', async () => {
       await expect(vault.connect(depositor1).depositUnderlying('0', depositAmount)).to.be.revertedWith('O6');
     });
-    it('p1 deposits wETH', async () => {
+    it('p1 deposits AAVE', async () => {
 
       const shares1Before = await vault.balanceOf(depositor1.address)
       const expectedShares = await vault.getSharesByDepositAmount(depositAmount)
@@ -159,8 +159,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await weth.connect(depositor1).deposit({value: depositAmount});
-      await weth.connect(depositor1).approve(vault.address, depositAmount);
+      await ecrv.connect(depositor1).mint(depositor1.address, depositAmount);
+      await ecrv.connect(depositor1).approve(vault.address, depositAmount);
       await vault.connect(depositor1).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
@@ -175,15 +175,15 @@ describe('OpynPerpVault Tests', function () {
       expect(expectedShares).to.be.equal(depositAmount);
     });
 
-    it('p1 deposits more wETH', async () => {
+    it('p1 deposits more AAVE', async () => {
       const shares1Before = await vault.balanceOf(depositor1.address)
       const expectedShares = await vault.getSharesByDepositAmount(depositAmount)
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 1 deposit 10 eth
-      await weth.connect(depositor1).deposit({value: depositAmount});
-      await weth.connect(depositor1).approve(vault.address, depositAmount);
+      await ecrv.connect(depositor1).mint(depositor1.address, depositAmount);
+      await ecrv.connect(depositor1).approve(vault.address, depositAmount);
       await vault.connect(depositor1).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
@@ -198,15 +198,15 @@ describe('OpynPerpVault Tests', function () {
       expect(expectedShares).to.be.equal(depositAmount);
     });
 
-    it('p2 deposits wETH', async() => {
+    it('p2 deposits AAVE', async() => {
       const shares2Before = await vault.balanceOf(depositor2.address)
       const expectedShares = await vault.getSharesByDepositAmount(depositAmount)
       const vaultTotalBefore = await vault.totalStakedaoAsset();
       const vaultBalanceBefore = await sdecrv.balanceOf(vault.address);
 
       // depositor 2 deposit 10 eth
-      await weth.connect(depositor2).deposit({value: depositAmount});
-      await weth.connect(depositor2).approve(vault.address, depositAmount);
+      await ecrv.connect(depositor2).mint(depositor2.address, depositAmount);
+      await ecrv.connect(depositor2).approve(vault.address, depositAmount);
       await vault.connect(depositor2).depositUnderlying(depositAmount, depositAmount);
 
       const vaultTotalAfter = await vault.totalStakedaoAsset();
@@ -230,7 +230,8 @@ describe('OpynPerpVault Tests', function () {
       // depositor 1 deposit 10 eth
       await ecrv.connect(depositor1).mint(depositor1.address, depositAmount);
       await ecrv.connect(depositor1).approve(vault.address, depositAmount);
-      await vault.connect(depositor1).depositCrvLP(depositAmount);
+      // await vault.connect(depositor1).depositCrvLP(depositAmount);
+      await vault.connect(depositor1).depositUnderlying(depositAmount, depositAmount);
 
       // const vaultTotalAfter = await vault.totalStakedaoAsset();
       // const vaultBalanceAfter = await sdecrv.balanceOf(vault.address);
