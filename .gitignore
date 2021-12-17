@@ -4,4 +4,8 @@ coverage
 node_modules
 typechain
 coverage.json
+settings.json
 .secret
+.husky
+.git
+.gitignore
