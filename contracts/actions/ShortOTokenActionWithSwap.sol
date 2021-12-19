@@ -80,11 +80,11 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     stakedaoStrategy = IStakeDao(_sdTokenAddress);
     crvLPToken = stakedaoStrategy.token();
 
-    // enable vault to take all the sdToken back and re-distribute.
-    IERC20(_sdTokenAddress).safeApprove(_vault, uint256(-1));
+    // enable vault to take all the underlying back and re-distribute.
+    underlying.safeApprove(_vault, uint256(-1));
 
-    // enable pool contract to pull sdToken from this contract to mint options.
-    IERC20(_sdTokenAddress).safeApprove(controller.pool(), uint256(-1));
+    // enable pool contract to pull underlying from this contract to mint options.
+    underlying.safeApprove(controller.pool(), uint256(-1));
 
     _initSwapContract(_swap);
     _initRollOverBase(_opynWhitelist);
@@ -101,7 +101,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    * if the action has an opened gamma vault, see if there's any short position
    */
   function currentValue() external view override returns (uint256) {
-    return stakedaoStrategy.balanceOf(address(this)).add(lockedAsset);
+    return underlying.balanceOf(address(this)).add(lockedAsset);
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -136,7 +136,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev owner only function to mint options with "crvLPToken" and sell otokens in this contract 
+   * @dev owner only function to mint options with underlying and sell otokens in this contract 
    * by filling an order on AirSwap.
    * this can only be done in "activated" state. which is achievable by calling `rolloverPosition`
    */
@@ -147,27 +147,23 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     require(_order.signer.token == address(underlying), 'S5');
     require(_order.sender.amount == _otokenAmount, 'S6');
 
-    // mint options
+    // mint options & lock asset
     _mintOTokens(_collateralAmount, _otokenAmount);
-
     lockedAsset = lockedAsset.add(_collateralAmount);
 
-    // this order matters a lot because we need to get the balance before selling otokens, after minting. 
-    uint256 sdTokenBalanceBefore = stakedaoStrategy.balanceOf(address(this));
+    // underlying before minting
+    uint256 underlyingBalanceBefore = underlying.balanceOf(address(this));
 
     // sell options on airswap for underlying
     IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
     _fillAirswapOrder(_order);
 
-    // convert the underlying received as premium to sdToken
-    _underlyingToSdToken();
-
     // check that minimum premium is received 
-    uint256 sdTokenBalanceAfter = stakedaoStrategy.balanceOf(address(this));
-    uint256 sdTokenEarned = sdTokenBalanceAfter.sub(sdTokenBalanceBefore);
-    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= sdTokenEarned, 'S7');
+    uint256 underlyingBalanceAfter = underlying.balanceOf(address(this));
+    uint256 underlyingTokenEarned = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+    require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= underlyingTokenEarned, 'S7');
 
-    emit MintAndSellOToken(_collateralAmount, _otokenAmount, sdTokenEarned);
+    emit MintAndSellOToken(_collateralAmount, _otokenAmount, underlyingTokenEarned);
   }
 
   /**
@@ -237,14 +233,14 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   function _mintOTokens(uint256 _collateralAmount, uint256 _otokenAmount) internal {
     // this action will always use vault id 0
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
-
+    
     actions[0] = IController.ActionArgs(
         IController.ActionType.DepositCollateral,
         address(this), // vault owner is this address
         address(this), // deposit from this address
-        address(stakedaoStrategy), // collateral is sdToken
+        address(underlying), // collateral is the underlying
         1, // vaultId is 1
-        _collateralAmount, // amount of sdToken to deposit
+        _collateralAmount, // amount of underlying to deposit
         0, // index
         "" // data
     );
@@ -259,7 +255,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
         0, // index
         "" // data
     );
-
+    
     controller.operate(actions);
   }
 

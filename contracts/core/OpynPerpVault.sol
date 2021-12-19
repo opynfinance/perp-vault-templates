@@ -176,7 +176,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /**
    * @notice total sdToken controlled by this vault
    */
-  function totalStakedaoAsset() public view returns (uint256) {
+  function totalUnderlyingAsset() public view returns (uint256) {
     uint256 debt = 0;
     uint256 length = actions.length;
 
@@ -192,7 +192,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function totalUnderlyingControlled() external view returns (uint256) { 
     // hard coded to 36 because crv LP token and sdToken are both 18 decimals. 
-    return totalStakedaoAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
+    return totalUnderlyingAsset().mul(stakedaoStrategy.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
   }
 
   /**
@@ -207,61 +207,64 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @notice Deposits underlying into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
    * @param amount amount of underlying to deposit 
-   * @param minCrvLPToken minimum amount of curveLPToken to get out from adding liquidity. 
    */
-  function depositUnderlying(uint256 amount, uint256 minCrvLPToken) external nonReentrant {
+  function depositUnderlying(uint256 amount) external nonReentrant {
     notEmergency();
     actionsInitialized();
     require(amount > 0, 'O6');
 
-    // the sdToken is already deposited into the contract at this point, need to substract it from total
-    uint256[3] memory amounts;
-    amounts[0] = 0; // not depositing any rebBTC
-    amounts[1] = amount; 
-    amounts[2] = 0; 
+    // keep track of underlying balance before
+    uint256 totalUnderlyingBeforeDeposit = totalUnderlyingAsset();
 
-    // deposit underlying to curvePool
+    // deposit underlying to vault
     IERC20 underlyingToken = IERC20(underlying);
     underlyingToken.safeTransferFrom(msg.sender, address(this), amount);
-    underlyingToken.approve(address(curvePool), amount);
-    curvePool.add_liquidity(amounts, minCrvLPToken);
-    _depositToStakedaoAndMint();
-  }
+  
+    // keep track of underlying balance after
+    uint256 totalUnderlyingAfterDeposit = totalUnderlyingAsset();
+    require(totalUnderlyingAfterDeposit < cap, 'O7');
+    require(totalUnderlyingAfterDeposit.sub(totalUnderlyingBeforeDeposit) == amount);
 
-  /**
-   * @notice Deposits curve LP into the contract and mint vault shares. 
-   * @dev deposit into stakedao, then mint the shares to depositor, and emit the deposit event
-   * @param amount amount of curveLP to deposit 
-   */
-  function depositCrvLP(uint256 amount) external nonReentrant {
-    notEmergency();
-    actionsInitialized();
-    require(amount > 0, 'O6');
+    // mint shares and emit event
+    uint256 share = _getSharesByDepositAmount(amount, totalUnderlyingBeforeDeposit);
 
-    // deposit underlying to curvePool
-    curveLPToken.safeTransferFrom(msg.sender, address(this), amount);
-    _depositToStakedaoAndMint();
+    emit Deposit(msg.sender, amount, share);
+
+    _mint(msg.sender, share);   
   }
 
   /**
    * @notice Withdraws underlying from vault using vault shares
-   * @dev burns shares, withdraws curveLPToken from stakdao, withdraws underlying from curvePool
+   * @dev burns shares, sends underlying to user
    * @param _share is the number of vault shares to be burned
    */
-  function withdrawUnderlying(uint256 _share, uint256 _minUnderlying) external nonReentrant {
+  function withdrawUnderlying(uint256 _share) external nonReentrant {
 
-    // withdraw from curve 
+    // keep track of underlying balance before
     IERC20 underlyingToken = IERC20(underlying);
-    uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
-    uint256 curveLPTokenBalance = _withdrawFromStakedao(_share);
-    curvePool.remove_liquidity_one_coin(curveLPTokenBalance, 1, _minUnderlying);
-    uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(this));
-    uint256 underlyingOwedToUser = underlyingBalanceAfter.sub(underlyingBalanceBefore);
+    uint256 totalUnderlyingBeforeWithdrawal = totalUnderlyingAsset();
+
+    // withdraw underlying from vault
+    uint256 underlyingShareOfRecipient = _getWithdrawAmountByShares(_share);
+    uint256 fee = _getWithdrawFee(underlyingShareOfRecipient);
+    uint256 underlyingToWithdraw = underlyingShareOfRecipient.sub(fee);
+    require(underlyingToWithdraw <= underlyingShareOfRecipient, 'O8');
+
+    // burn shares
+    _burn(msg.sender, _share);
+
+    // transfer fee to recipient 
+    underlyingToken.safeTransfer(feeRecipient, fee);
+    emit FeeSent(fee, feeRecipient);
 
     // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, underlyingOwedToUser);
+    underlyingToken.safeTransfer(msg.sender, underlyingToWithdraw);
 
-    emit Withdraw(msg.sender, underlyingOwedToUser, _share);
+    // keep track of underlying balance after
+    uint256 totalUnderlyingAfterWithdrawal = totalUnderlyingAsset();
+    require(totalUnderlyingBeforeWithdrawal.sub(totalUnderlyingAfterWithdrawal) == underlyingShareOfRecipient);
+
+    emit Withdraw(msg.sender, underlyingToWithdraw, _share);
   }
 
   /**
@@ -284,13 +287,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Locked, "O11");
     state = VaultState.Unlocked;
 
-    address cacheAddress = sdTokenAddress;
+    address cacheAddress = underlying;
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
 
-      // 2. withdraw sdTokens from the action
+      // 2. withdraw underlying from the action
       uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
       if (actionBalance > 0)
         IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
@@ -308,11 +311,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Unlocked, "O13");
     state = VaultState.Locked;
 
-    address cacheAddress = sdTokenAddress;
+    address cacheAddress = underlying;
     address[] memory cacheActions = actions;
 
     uint256 cacheBase = BASE;
-    uint256 cacheTotalAsset = totalStakedaoAsset();
+    uint256 cacheTotalAsset = totalUnderlyingAsset();
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage = withdrawReserve;
 
@@ -382,7 +385,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @param _amount amount of token depositing
    */
   function getSharesByDepositAmount(uint256 _amount) external view returns (uint256) {
-    return _getSharesByDepositAmount(_amount, totalStakedaoAsset());
+    return _getSharesByDepositAmount(_amount, totalUnderlyingAsset());
   }
 
   /*=====================
@@ -391,7 +394,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   function _depositToStakedaoAndMint() internal {
     // keep track of balance before
-    uint256 totalSdTokenBalanceBeforeDeposit = totalStakedaoAsset();
+    uint256 totalSdTokenBalanceBeforeDeposit = totalUnderlyingAsset();
 
     // deposit curveLPToken to stakedao
     uint256 curveLPTokenToDeposit = curveLPToken.balanceOf(address(this));
@@ -400,7 +403,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     stakedaoStrategy.deposit(curveLPTokenToDeposit);
 
     // mint shares and emit event 
-    uint256 totalSdTokenWithDepositedAmount = totalStakedaoAsset();
+    uint256 totalSdTokenWithDepositedAmount = totalUnderlyingAsset();
     require(totalSdTokenWithDepositedAmount < cap, 'O7');
     uint256 sdTokenDeposited = totalSdTokenWithDepositedAmount.sub(totalSdTokenBalanceBeforeDeposit);
     uint256 share = _getSharesByDepositAmount(sdTokenDeposited, totalSdTokenBalanceBeforeDeposit);
@@ -435,16 +438,16 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev returns remaining sdToken balance in the vault.
+   * @dev returns remaining underlying balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(sdTokenAddress).balanceOf(address(this));
+    return IERC20(underlying).balanceOf(address(this));
   }
 
   /**
-   * @dev return how many shares you can get if you deposit {_amount} sdToken
-   * @param _amount amount of token depositing
-   * @param _totalAssetAmount amont of sdToken already in the pool before deposit
+   * @dev return how many shares you can get if you deposit {_amount} underlying
+   * @param _amount amount of underlying depositing
+   * @param _totalAssetAmount amount of underlying already in the pool before deposit
    */
   function _getSharesByDepositAmount(uint256 _amount, uint256 _totalAssetAmount) internal view returns (uint256) {
     uint256 shareSupply = totalSupply();
@@ -454,15 +457,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev return how many sdToken you can get if you burn the number of shares
+   * @dev return how much underlying you can get if you burn the number of shares
    */
   function _getWithdrawAmountByShares(uint256 _share) internal view returns (uint256) {
     // withdrawal amount
-    return _share.mul(totalStakedaoAsset()).div(totalSupply());
+    return _share.mul(totalUnderlyingAsset()).div(totalSupply());
   }
 
   /**
-   * @dev get amount of fee charged based on total amount of wunderlying withdrawing.
+   * @dev get amount of fee charged based on total amount of underlying withdrawing.
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
