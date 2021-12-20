@@ -239,7 +239,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share) external nonReentrant {
-
+    notEmergency();
+    actionsInitialized();
+    
     // keep track of underlying balance before
     IERC20 underlyingToken = IERC20(underlying);
     uint256 totalUnderlyingBeforeWithdrawal = totalUnderlyingAsset();
