@@ -8,12 +8,9 @@ import {
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
-  StakedaoPricer,
   IOracle,
   IWhitelist,
-  MockPricer,
-  IStakeDao,
-  ICurve
+  MockPricer
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
@@ -46,8 +43,6 @@ describe('Mainnet Fork Tests', function() {
   // asset used by this action: in this case, wbtc
   let wbtc: IERC20;
   let usdc: IERC20;
-  let crvRenWsbtc: IERC20;
-  let sdcrvRenWsbtc: IERC20;
 
   let accounts: SignerWithAddress[] = [];
 
@@ -58,11 +53,8 @@ describe('Mainnet Fork Tests', function() {
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let sbtcPricer: StakedaoPricer;
   let wbtcPricer: MockPricer;
   let oracle: IOracle;
-  let stakedaoSdcrvRenWsbtcStrategy: IStakeDao;
-  let curvePool: ICurve;
   let provider: typeof ethers.provider;
 
   /**
@@ -79,9 +71,6 @@ describe('Mainnet Fork Tests', function() {
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-  const sdcrvRenWsbtcAddress = '0x24129B935AfF071c4f0554882C0D9573F4975fEd';
-  const curvePoolAddress = '0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714';
-  const crvRenWsbtcAddress = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef'
 
@@ -124,26 +113,14 @@ describe('Mainnet Fork Tests', function() {
   this.beforeAll('Connect to mainnet contracts', async () => {
     wbtc = (await ethers.getContractAt('IERC20', wbtcAddress)) as IERC20;
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
-    crvRenWsbtc = (await ethers.getContractAt('IERC20', crvRenWsbtcAddress)) as IERC20;
-    sdcrvRenWsbtc = (await ethers.getContractAt(
-      'IERC20',
-      sdcrvRenWsbtcAddress
-    )) as IERC20;
-    otokenFactory = (await ethers.getContractAt(
-      'IOtokenFactory',
-      otokenFactoryAddress
-    )) as IOtokenFactory;
+    otokenFactory = (await ethers.getContractAt('IOtokenFactory',otokenFactoryAddress)) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
-    stakedaoSdcrvRenWsbtcStrategy = (await ethers.getContractAt('IStakeDao', sdcrvRenWsbtcAddress)) as IStakeDao;
-    curvePool = (await ethers.getContractAt('ICurve', curvePoolAddress)) as ICurve;
   });
 
-  this.beforeAll('Deploy vault and sell wBTC calls action', async () => {
+  this.beforeAll('Deploy vault and sell calls action', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
     vault = (await VaultContract.deploy(
       wbtc.address,
-      sdcrvRenWsbtcAddress,
-      curvePoolAddress,
       feeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS',
@@ -155,11 +132,9 @@ describe('Mainnet Fork Tests', function() {
     );
     action1 = (await ShortActionContract.deploy(
       vault.address,
-      sdcrvRenWsbtcAddress,
       swapAddress,
       whitelistAddress,
       controllerAddress,
-      curvePoolAddress,
       0, // type 0 vault
       wbtc.address,
       20 // 0.2%
@@ -171,25 +146,16 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll(
-    "Deploy sbtcPricer, wbtcPricer and update sbtcPricer in opyn's oracle",
+    "Deploy the underlying pricer and update in opyn's oracle",
     async () => {
       provider = ethers.provider;
 
-      const PricerContract = await ethers.getContractFactory(
-        'StakedaoPricer'
-      );
-      sbtcPricer = (await PricerContract.deploy(
-        sdcrvRenWsbtc.address,
-        wbtc.address,
-        oracleAddress,
-        curvePoolAddress
-      )) as StakedaoPricer;
       const MockPricerContract = await ethers.getContractFactory('MockPricer');
       wbtcPricer = (await MockPricerContract.deploy(
         oracleAddress
       )) as MockPricer;
 
-      // impersonate owner and change the sbtcPricer
+      // impersonate owner and change the pricer
       await owner.sendTransaction({
         to: opynOwner,
         value: utils.parseEther('2.0')
@@ -198,22 +164,19 @@ describe('Mainnet Fork Tests', function() {
       const signer = await ethers.provider.getSigner(opynOwner);
       await oracle
         .connect(signer)
-        .setAssetPricer(sdcrvRenWsbtc.address, sbtcPricer.address);
-      await oracle
-        .connect(signer)
         .setAssetPricer(wbtc.address, wbtcPricer.address);
       await provider.send('evm_mine', []);
       await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
     }
   );
 
-  this.beforeAll('whitelist sdcrvRenWsbtc in the Opyn system', async () => {
+  this.beforeAll('whitelist collateral & product in the Opyn system', async () => {
     const whitelist = (await ethers.getContractAt(
       'IWhitelist',
       otokenWhitelistAddress
     )) as IWhitelist;
 
-    // impersonate owner and change the sbtcPricer
+    // impersonate owner and change the whitelist
     await owner.sendTransaction({
       to: opynOwner,
       value: utils.parseEther('1.0')
@@ -233,18 +196,18 @@ describe('Mainnet Fork Tests', function() {
     await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
   });
 
-  this.beforeAll('send everyone wbtc', async () => { 
-    const wbtcWhale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
+  this.beforeAll('send everyone underlying', async () => { 
+    const whale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
 
-    // send everyone wbtc
-    await provider.send('hardhat_impersonateAccount', [wbtcWhale]);
-    const signer = await ethers.provider.getSigner(wbtcWhale);
+    // send everyone underlying
+    await provider.send('hardhat_impersonateAccount', [whale]);
+    const signer = await ethers.provider.getSigner(whale);
     await wbtc.connect(signer).transfer(counterpartyWallet.address, premium);
     await wbtc.connect(signer).transfer(depositor1.address, p1DepositAmount);
     await wbtc.connect(signer).transfer(depositor2.address, p2DepositAmount);
     await wbtc.connect(signer).transfer(depositor3.address, p3DepositAmount);
     await provider.send('evm_mine', []);
-    await provider.send('hardhat_stopImpersonatingAccount', [wbtcWhale]);
+    await provider.send('hardhat_stopImpersonatingAccount', [whale]);
   })
 
   this.beforeAll('prepare counterparty wallet', async () => { 
@@ -255,7 +218,7 @@ describe('Mainnet Fork Tests', function() {
       value: utils.parseEther('3000')
     });
 
-    // approve wbtc to be spent by counterparty 
+    // approve underlying to be spent by counterparty
     await wbtc.connect(counterpartyWallet).approve(swapAddress, premium);
   })
   
@@ -276,7 +239,6 @@ describe('Mainnet Fork Tests', function() {
   });
 
   describe('profitable scenario', async () => {
-    let actualAmountInVault;
     let otoken: IOToken;
     let expiry: number;
     const reserveFactor = 10;

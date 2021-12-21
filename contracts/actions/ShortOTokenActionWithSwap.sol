@@ -8,10 +8,8 @@ import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import { IAction } from '../interfaces/IAction.sol';
 import { IController } from '../interfaces/IController.sol';
-import { ICurve } from '../interfaces/ICurve.sol';
 import { IOracle } from '../interfaces/IOracle.sol';
 import { IOToken } from '../interfaces/IOToken.sol';
-import { IStakeDao } from '../interfaces/IStakeDao.sol';
 import { IWETH } from '../interfaces/IWETH.sol'; 
 import { SwapTypes } from '../libraries/SwapTypes.sol';
 import { AirswapBase } from '../utils/AirswapBase.sol';
@@ -50,21 +48,16 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   uint256 public rolloverTime;
 
   IController public controller;
-  ICurve public curvePool;
-  IERC20 crvLPToken;
   IOracle public oracle;
-  IStakeDao public stakedaoStrategy;
   IERC20 underlying;
 
   event MintAndSellOToken(uint256 collateralAmount, uint256 otokenAmount, uint256 premium);
 
   constructor(
     address _vault,
-    address _sdTokenAddress,
     address _swap,
     address _opynWhitelist,
     address _controller,
-    address _curvePoolAddress,
     uint256 _vaultType,
     address _underlying,
     uint256 _min_profits
@@ -74,11 +67,8 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     underlying = IERC20(_underlying);
 
     controller = IController(_controller);
-    curvePool = ICurve(_curvePoolAddress);
 
     oracle = IOracle(controller.oracle());
-    stakedaoStrategy = IStakeDao(_sdTokenAddress);
-    crvLPToken = stakedaoStrategy.token();
 
     // enable vault to take all the underlying back and re-distribute.
     underlying.safeApprove(_vault, uint256(-1));
@@ -158,7 +148,7 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     IERC20(otoken).safeIncreaseAllowance(address(airswap), _order.sender.amount);
     _fillAirswapOrder(_order);
 
-    // check that minimum premium is received 
+    // check that minimum premium is received & that it is higher than min threshold
     uint256 underlyingBalanceAfter = underlying.balanceOf(address(this));
     uint256 underlyingTokenEarned = underlyingBalanceAfter.sub(underlyingBalanceBefore);
     require(_collateralAmount.mul(MIN_PROFITS).div(BASE) <= underlyingTokenEarned, 'S7');
@@ -203,28 +193,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
     );
 
     controller.operate(actions);
-  }
-
-  /**
-   * @dev add liquidity to curve, deposit into stakedao.
-   */
-  function _underlyingToSdToken() internal {
-    uint256 underlyingBalance = underlying.balanceOf(address(this));
-
-    uint256[3] memory amounts;
-    amounts[0] = 0;
-    amounts[1] = underlyingBalance;
-    amounts[2] = 0;
-
-    // deposit underlying to curve
-    underlying.approve(address(curvePool), underlyingBalance);
-    curvePool.add_liquidity(amounts, 0); // minimum amount of crvLPToken to receive is 0
-    uint256 crvLPTokenToDeposit = crvLPToken.balanceOf(address(this));
-
-    // deposit crvLPToken to stakedao
-    crvLPToken.safeApprove(address(stakedaoStrategy), 0);
-    crvLPToken.safeApprove(address(stakedaoStrategy), crvLPTokenToDeposit);
-    stakedaoStrategy.deposit(crvLPTokenToDeposit);
   }
 
   /**
@@ -289,7 +257,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
 
     return false; 
   }
-
   
   /**
    * @dev funtion to add some custom logic to check the next otoken is valid to this strategy
