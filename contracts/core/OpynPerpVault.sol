@@ -33,6 +33,8 @@ import "hardhat/console.sol";
  * O16: withdraw reserve percentage must be less than 50% (5000)
  * O17: cannot call emergencyPause, vault is already in emergency state
  * O18: cannot call resumeFromPause, vault is not in emergency state
+ * O19: cannot accept underlying deposit, accounting before and after deposit does not match
+ * O20: unable to withdraw underlying, accounting before and after withdrawal does not match
  */
 
 /** 
@@ -190,7 +192,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     // keep track of underlying balance after
     uint256 totalUnderlyingAfterDeposit = totalUnderlyingAsset();
     require(totalUnderlyingAfterDeposit < cap, 'O7');
-    require(totalUnderlyingAfterDeposit.sub(totalUnderlyingBeforeDeposit) == amount);
+    require(totalUnderlyingAfterDeposit.sub(totalUnderlyingBeforeDeposit) == amount, 'O19');
 
     // mint shares and emit event
     uint256 share = _getSharesByDepositAmount(amount, totalUnderlyingBeforeDeposit);
@@ -214,10 +216,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 totalUnderlyingBeforeWithdrawal = totalUnderlyingAsset();
 
     // withdraw underlying from vault
-    uint256 underlyingShareOfRecipient = _getWithdrawAmountByShares(_share);
-    uint256 fee = _getWithdrawFee(underlyingShareOfRecipient);
-    uint256 underlyingToWithdraw = underlyingShareOfRecipient.sub(fee);
-    require(underlyingToWithdraw <= _balance(), 'O8');
+    uint256 underlyingToRecipientBeforeFees = _getWithdrawAmountByShares(_share);
+    uint256 fee = _getWithdrawFee(underlyingToRecipientBeforeFees);
+    uint256 underlyingToRecipientAfterFees = underlyingToRecipientBeforeFees.sub(fee);
+    require(underlyingToRecipientBeforeFees <= _balance(), 'O8');
 
     // burn shares
     _burn(msg.sender, _share);
@@ -227,13 +229,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     emit FeeSent(fee, feeRecipient);
 
     // send underlying to user
-    underlyingToken.safeTransfer(msg.sender, underlyingToWithdraw);
+    underlyingToken.safeTransfer(msg.sender, underlyingToRecipientAfterFees);
 
     // keep track of underlying balance after
     uint256 totalUnderlyingAfterWithdrawal = totalUnderlyingAsset();
-    require(totalUnderlyingBeforeWithdrawal.sub(totalUnderlyingAfterWithdrawal) == underlyingShareOfRecipient);
+    require(totalUnderlyingBeforeWithdrawal.sub(totalUnderlyingAfterWithdrawal) == underlyingToRecipientBeforeFees, 'O20');
 
-    emit Withdraw(msg.sender, underlyingToWithdraw, _share);
+    emit Withdraw(msg.sender, underlyingToRecipientAfterFees, _share);
   }
 
   /**

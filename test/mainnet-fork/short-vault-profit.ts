@@ -197,7 +197,7 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll('send everyone underlying', async () => { 
-    const whale = '0xF977814e90dA44bFA03b6295A0616a897441aceC'
+    const whale = '0x6262998ced04146fa42253a5c0af90ca02dfd2a3' //'0xdfd5293d8e347dfe59e90efd55b2956a1343963d' //'0xF977814e90dA44bFA03b6295A0616a897441aceC'
 
     // send everyone underlying
     await provider.send('hardhat_impersonateAccount', [whale]);
@@ -302,6 +302,9 @@ describe('Mainnet Fork Tests', function() {
       // check the minted share balances
       expect((await vault.balanceOf(depositor1.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
+
+      // manual checks
+      expect(vaultTotal).to.be.equal(await wbtc.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
     });
 
     it('p2 deposits', async () => {
@@ -330,6 +333,9 @@ describe('Mainnet Fork Tests', function() {
       // check the minted share balances
       expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
+
+      // manual checks
+      expect(vaultTotal).to.be.equal(await wbtc.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
     });
 
     it('owner commits to the option', async () => {
@@ -393,6 +399,7 @@ describe('Mainnet Fork Tests', function() {
       
       expect((await action1.lockedAsset()).eq(underlyingExpectedBeforeMintInActionLocked),'collateral should not be locked').to.be.true;
       expect((await wbtc.balanceOf(action1.address)).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
+      expect((await action1.currentValue()).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
 
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
@@ -450,6 +457,9 @@ describe('Mainnet Fork Tests', function() {
       // check the minted share balances
       expect((await vault.balanceOf(depositor3.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
+
+      // manual checks
+      expect(await wbtc.balanceOf(vault.address)).to.be.equal(((await vault.withdrawReserve()).mul(p1DepositAmount.add(p2DepositAmount)).div(10000)).add(p3DepositAmount), 'internal underlying balance is incorrect'); //true after rollover
     });
 
     it('p1 withdraws', async () => {
@@ -497,8 +507,11 @@ describe('Mainnet Fork Tests', function() {
       const underlyingOfDepositorExpectedAfter = underlyingOfDepositorBefore.add(amountToUser);
       const underlyingOfFeeRecipientExpectedAfter = underlyingOfFeeRecipientBefore.add(fee);
 
-      // check shares
+      // check total vault shares
       expect(sharesAfter, 'incorrect amount of shares withdrawn').to.be.equal(sharesExpectedAfter);
+
+      // check user shares
+      expect(await vault.balanceOf(depositor1.address), 'user should not have any shares left').to.be.equal('0');
 
       // check vault balance 
       expect(underlyingAfterWithdrawal, 'incorrect underlying remained in the vault').to.be.eq(underlyingExpectedAfterWithdrawal);
@@ -508,6 +521,11 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(underlyingOfFeeRecipientAfter, 'incorrect fee paid out to fee recipient').to.be.eq(underlyingOfFeeRecipientExpectedAfter);
+
+      // manual checks on profitability
+      expect(underlyingOfDepositorAfter, 'Depositor 1 should be in Profit').gte(p1DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
+      expect(underlyingOfDepositorAfter, 'Depositor 1 profit calculations do not match').to.be.eq((p1DepositAmount.sub(fee)).add(p1DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))));
+
     });
 
     it('option expires', async () => {
@@ -592,8 +610,11 @@ describe('Mainnet Fork Tests', function() {
       const underlyingOfDepositorExpectedAfter = underlyingOfDepositorBefore.add(amountToUser);
       const underlyingOfFeeRecipientExpectedAfter = underlyingOfFeeRecipientBefore.add(fee);
 
-      // check shares
+      // check total vault shares
       expect(sharesAfter, 'incorrect amount of shares withdrawn').to.be.equal(sharesExpectedAfter);
+
+      // check user shares
+      expect(await vault.balanceOf(depositor2.address), 'user should not have any shares left').to.be.equal('0');
 
       // check vault balance 
       expect(underlyingAfterWithdrawal, 'incorrect underlying remained in the vault').to.be.eq(underlyingExpectedAfterWithdrawal);
@@ -603,6 +624,11 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(underlyingOfFeeRecipientAfter, 'incorrect fee paid out to fee recipient').to.be.eq(underlyingOfFeeRecipientExpectedAfter);
+
+      // manual checks on profitability
+      expect(underlyingOfDepositorAfter, 'Depositor 2 should be in Profit').gte(p2DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
+      expect(underlyingOfDepositorAfter, 'Depositor 2 profit calculations do not match').to.be.eq((p2DepositAmount.sub(fee)).add(p2DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))));
+
     });
 
     it('p3 withdraws', async () => {
@@ -650,8 +676,11 @@ describe('Mainnet Fork Tests', function() {
       const underlyingOfDepositorExpectedAfter = underlyingOfDepositorBefore.add(amountToUser);
       const underlyingOfFeeRecipientExpectedAfter = underlyingOfFeeRecipientBefore.add(fee);
 
-      // check shares
+      // check total vault shares
       expect(sharesAfter, 'incorrect amount of shares withdrawn').to.be.equal(sharesExpectedAfter);
+
+      // check user shares
+      expect(await vault.balanceOf(depositor3.address), 'user should not have any shares left').to.be.equal('0');
 
       // check vault balance 
       expect(underlyingAfterWithdrawal, 'incorrect underlying remained in the vault').to.be.eq(underlyingExpectedAfterWithdrawal);
@@ -661,6 +690,11 @@ describe('Mainnet Fork Tests', function() {
 
       // check fee 
       expect(underlyingOfFeeRecipientAfter, 'incorrect fee paid out to fee recipient').to.be.eq(underlyingOfFeeRecipientExpectedAfter);
+
+      // manual checks on profitability
+      expect(underlyingOfDepositorAfter, 'Depositor 3 should NOT be in Profit').lte(p3DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
+      expect(underlyingOfDepositorAfter, 'Depositor 3 profit -loss in this case- calculations do not match').to.be.eq(p3DepositAmount.sub(fee));
+      
     });
   });
 });
