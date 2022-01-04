@@ -5,6 +5,7 @@ import {expect} from 'chai';
 import {
   OpynPerpVault,
   IERC20,
+  ERC20,
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
@@ -40,8 +41,8 @@ describe('Mainnet Fork Tests', function() {
     "m/44'/60'/0'/0/30"
   );
   let action1: ShortOTokenActionWithSwap;
-  // asset used by this action: in this case, wbtc
-  let wbtc: IERC20;
+  // asset used by this action: in this case, underlying
+  let underlying: IERC20;
   let usdc: IERC20;
 
   let accounts: SignerWithAddress[] = [];
@@ -53,9 +54,15 @@ describe('Mainnet Fork Tests', function() {
   let feeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
   let otokenFactory: IOtokenFactory;
-  let wbtcPricer: MockPricer;
+  let underlyingPricer: MockPricer;
   let oracle: IOracle;
   let provider: typeof ethers.provider;
+
+  let p1DepositAmount : BigNumber;
+  let p2DepositAmount : BigNumber;
+  let p3DepositAmount : BigNumber;
+  let premium : BigNumber;
+  let underlyingDecimals : any;
 
   /**
    *
@@ -70,15 +77,19 @@ describe('Mainnet Fork Tests', function() {
   const opynOwner = '0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB';
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
-  const wbtcAddress = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const marginPoolAddess = '0x5934807cC0654d46755eBd2848840b616256C6Ef'
+  
+  /** Vault Params Chosen */
+  const underlyingAddress = '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9';  // i.e. WBTC:0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599, AAVE:0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9
+  const reserveFactor = 10;  //as a %
+  const feePercentage = 0.5;  //as a %
 
   /** Test Scenario Params */
-  const p1DepositAmount = BigNumber.from('1000000000')
-  const p2DepositAmount = BigNumber.from('7000000000')
-  const p3DepositAmount = BigNumber.from('2000000000')
-  const premium = BigNumber.from('600000000')
+  const p1Amount = '10';
+  const p2Amount = '70';
+  const p3Amount = '20';
+  const premiumAmount = '6';
 
   /**
    *
@@ -111,16 +122,26 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll('Connect to mainnet contracts', async () => {
-    wbtc = (await ethers.getContractAt('IERC20', wbtcAddress)) as IERC20;
+    underlying = (await ethers.getContractAt('IERC20', underlyingAddress)) as IERC20;
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
     otokenFactory = (await ethers.getContractAt('IOtokenFactory',otokenFactoryAddress)) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
   });
 
+  this.beforeAll('Scale Params', async () => {
+    underlyingDecimals = await(await ethers.getContractAt('ERC20', underlyingAddress)).decimals();
+    p1DepositAmount = ethers.utils.parseUnits(p1Amount, underlyingDecimals);
+    p2DepositAmount = ethers.utils.parseUnits(p2Amount, underlyingDecimals);
+    p3DepositAmount = ethers.utils.parseUnits(p3Amount, underlyingDecimals);
+    premium =ethers.utils.parseUnits(premiumAmount, underlyingDecimals);
+    console.log(p1DepositAmount.toString());
+    console.log(premium.toString());
+  });
+
   this.beforeAll('Deploy vault and sell calls action', async () => {
     const VaultContract = await ethers.getContractFactory('OpynPerpVault');
     vault = (await VaultContract.deploy(
-      wbtc.address,
+      underlying.address,
       feeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS',
@@ -136,7 +157,7 @@ describe('Mainnet Fork Tests', function() {
       whitelistAddress,
       controllerAddress,
       0, // type 0 vault
-      wbtc.address,
+      underlying.address,
       20 // 0.2%
     )) as ShortOTokenActionWithSwap;
 
@@ -151,7 +172,7 @@ describe('Mainnet Fork Tests', function() {
       provider = ethers.provider;
 
       const MockPricerContract = await ethers.getContractFactory('MockPricer');
-      wbtcPricer = (await MockPricerContract.deploy(
+      underlyingPricer = (await MockPricerContract.deploy(
         oracleAddress
       )) as MockPricer;
 
@@ -164,7 +185,7 @@ describe('Mainnet Fork Tests', function() {
       const signer = await ethers.provider.getSigner(opynOwner);
       await oracle
         .connect(signer)
-        .setAssetPricer(wbtc.address, wbtcPricer.address);
+        .setAssetPricer(underlying.address, underlyingPricer.address);
       await provider.send('evm_mine', []);
       await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
     }
@@ -183,13 +204,13 @@ describe('Mainnet Fork Tests', function() {
     });
     await provider.send('hardhat_impersonateAccount', [opynOwner]);
     const signer = await ethers.provider.getSigner(opynOwner);
-    await whitelist.connect(signer).whitelistCollateral(wbtc.address);
+    await whitelist.connect(signer).whitelistCollateral(underlying.address);
     await whitelist
       .connect(signer)
       .whitelistProduct(
-        wbtc.address,
+        underlying.address,
         usdc.address,
-        wbtc.address,
+        underlying.address,
         false
       );
     await provider.send('evm_mine', []);
@@ -197,15 +218,15 @@ describe('Mainnet Fork Tests', function() {
   });
 
   this.beforeAll('send everyone underlying', async () => { 
-    const whale = '0x6262998ced04146fa42253a5c0af90ca02dfd2a3' //'0xdfd5293d8e347dfe59e90efd55b2956a1343963d' //'0xF977814e90dA44bFA03b6295A0616a897441aceC'
+    const whale = '0x6262998ced04146fa42253a5c0af90ca02dfd2a3'; //'0xdfd5293d8e347dfe59e90efd55b2956a1343963d' //'0xF977814e90dA44bFA03b6295A0616a897441aceC'
 
     // send everyone underlying
     await provider.send('hardhat_impersonateAccount', [whale]);
     const signer = await ethers.provider.getSigner(whale);
-    await wbtc.connect(signer).transfer(counterpartyWallet.address, premium);
-    await wbtc.connect(signer).transfer(depositor1.address, p1DepositAmount);
-    await wbtc.connect(signer).transfer(depositor2.address, p2DepositAmount);
-    await wbtc.connect(signer).transfer(depositor3.address, p3DepositAmount);
+    await underlying.connect(signer).transfer(counterpartyWallet.address, premium);
+    await underlying.connect(signer).transfer(depositor1.address, p1DepositAmount);
+    await underlying.connect(signer).transfer(depositor2.address, p2DepositAmount);
+    await underlying.connect(signer).transfer(depositor3.address, p3DepositAmount);
     await provider.send('evm_mine', []);
     await provider.send('hardhat_stopImpersonatingAccount', [whale]);
   })
@@ -219,7 +240,7 @@ describe('Mainnet Fork Tests', function() {
     });
 
     // approve underlying to be spent by counterparty
-    await wbtc.connect(counterpartyWallet).approve(swapAddress, premium);
+    await underlying.connect(counterpartyWallet).approve(swapAddress, premium);
   })
   
 
@@ -231,17 +252,22 @@ describe('Mainnet Fork Tests', function() {
         .to.be.true;
     });
 
-    it('should set fee reserve', async () => {
-      // 10% reserve
-      await vault.connect(owner).setWithdrawReserve(1000);
-      expect((await vault.withdrawReserve()).toNumber() == 1000).to.be.true;
+    it('should set withdraw reserve', async () => {
+      // 10% reserve default
+      await vault.connect(owner).setWithdrawReserve((reserveFactor * 100));
+      expect((await vault.withdrawReserve()).toNumber() == (reserveFactor * 100)).to.be.true;
+    });
+
+    it('should set withdrawal fee', async () => {
+      // 0.5% reserve default
+      await vault.connect(owner).setWithdrawalFeePercentage((feePercentage * 100));
+      expect((await vault.withdrawalFeePercentage()).toNumber() == (feePercentage * 100)).to.be.true;
     });
   });
 
   describe('profitable scenario', async () => {
     let otoken: IOToken;
     let expiry: number;
-    const reserveFactor = 10;
     this.beforeAll(
       'deploy otoken that will be sold',
       async () => {
@@ -252,18 +278,18 @@ describe('Mainnet Fork Tests', function() {
         expiry = (Math.floor(currentTimestamp / day) + 10) * day + 28800;
 
         await otokenFactory.createOtoken(
-          wbtc.address,
+          underlying.address,
           usdc.address,
-          wbtc.address,
+          underlying.address,
           otokenStrikePrice,
           expiry,
           false
         );
 
         const otokenAddress = await otokenFactory.getOtoken(
-          wbtc.address,
+          underlying.address,
           usdc.address,
-          wbtc.address,
+          underlying.address,
           otokenStrikePrice,
           expiry,
           false
@@ -278,68 +304,68 @@ describe('Mainnet Fork Tests', function() {
 
     it('p1 deposits', async () => {
       // keep track of underlying & shares before deposit
-      const UnderlyingBeforeDeposit = await vault.totalUnderlyingAsset(); //await wbtc.balanceOf(vault.address);
+      const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("UnderlyingBeforeDeposit:",UnderlyingBeforeDeposit.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("p1DepositAmount:",p1DepositAmount.toNumber());
+      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("p1DepositAmount:",p1DepositAmount.toString());
 
       // approve and deposit underlying
-      await wbtc.connect(depositor1).approve(vault.address, p1DepositAmount);
+      await underlying.connect(depositor1).approve(vault.address, p1DepositAmount);
       await vault.connect(depositor1).depositUnderlying(p1DepositAmount);
 
       // check underlying & shares deposited by depositor1
       const vaultTotal = await vault.totalUnderlyingAsset();
       const totalSharesMinted = p1DepositAmount;
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toNumber());
-      console.log("totalSharesMinted:",totalSharesMinted.toNumber());
-      console.log("totalSharesExisting:",totalSharesExisting.toNumber());
+      console.log("vaultTotal:",vaultTotal.toString());
+      console.log("totalSharesMinted:",totalSharesMinted.toString());
+      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
-      expect(vaultTotal).to.be.equal(UnderlyingBeforeDeposit.add(p1DepositAmount), 'internal underlying balance is incorrect');
+      expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p1DepositAmount), 'internal underlying balance is incorrect');
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor1.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
 
       // manual checks
-      expect(vaultTotal).to.be.equal(await wbtc.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
+      expect(vaultTotal).to.be.equal(await underlying.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
     });
 
     it('p2 deposits', async () => {
       // keep track of underlying & shares before deposit
-      const UnderlyingBeforeDeposit = await vault.totalUnderlyingAsset(); //await wbtc.balanceOf(vault.address);
+      const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("UnderlyingBeforeDeposit:",UnderlyingBeforeDeposit.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("p2DepositAmount:",p2DepositAmount.toNumber());
+      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("p2DepositAmount:",p2DepositAmount.toString());
 
       // approve and deposit underlying
-      await wbtc.connect(depositor2).approve(vault.address, p2DepositAmount);
+      await underlying.connect(depositor2).approve(vault.address, p2DepositAmount);
       await vault.connect(depositor2).depositUnderlying(p2DepositAmount);
 
       // check underlying & shares deposited by depositor2
       const vaultTotal = await vault.totalUnderlyingAsset();
-      const totalSharesMinted = sharesBefore.mul(p2DepositAmount).div(UnderlyingBeforeDeposit);
+      const totalSharesMinted = sharesBefore.mul(p2DepositAmount).div(underlyingBeforeDeposit);
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toNumber());
-      console.log("totalSharesMinted:",totalSharesMinted.toNumber());
-      console.log("totalSharesExisting:",totalSharesExisting.toNumber());
+      console.log("vaultTotal:",vaultTotal.toString());
+      console.log("totalSharesMinted:",totalSharesMinted.toString());
+      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
-      expect(vaultTotal).to.be.equal(UnderlyingBeforeDeposit.add(p2DepositAmount), 'internal underlying balance is incorrect');
+      expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p2DepositAmount), 'internal underlying balance is incorrect');
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor2.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
 
       // manual checks
-      expect(vaultTotal).to.be.equal(await wbtc.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
+      expect(vaultTotal).to.be.equal(await underlying.balanceOf(vault.address), 'internal underlying balance is incorrect'); //true before rollover
     });
 
     it('owner commits to the option', async () => {
-      await wbtcPricer.setPrice('4000000000000');
+      await underlyingPricer.setPrice('4000000000000');
       expect(await action1.state()).to.be.equal(ActionState.Idle);
       await action1.commitOToken(otoken.address);
       expect(await action1.state()).to.be.equal(ActionState.Committed);
@@ -361,29 +387,29 @@ describe('Mainnet Fork Tests', function() {
       const underlyingExpectedAfterMintInActionLocked = underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault);
       const underlyingExpectedAfterMintInActionUnlocked = premium;
       const underlyingExpectedAfterMintInActionTotal = underlyingExpectedAfterMintInActionUnlocked.add(underlyingExpectedAfterMintInActionLocked);
-      console.log("premium:",premium.toNumber());
-      console.log("underlyingBeforeRollOverTotal:",underlyingBeforeRollOverTotal.toNumber());
-      console.log("underlyingExpectedAfterMintTotal:",underlyingExpectedAfterMintTotal.toNumber());
-      console.log("underlyingExpectedAfterMintInVault:",underlyingExpectedAfterMintInVault.toNumber());
+      console.log("premium:",premium.toString());
+      console.log("underlyingBeforeRollOverTotal:",underlyingBeforeRollOverTotal.toString());
+      console.log("underlyingExpectedAfterMintTotal:",underlyingExpectedAfterMintTotal.toString());
+      console.log("underlyingExpectedAfterMintInVault:",underlyingExpectedAfterMintInVault.toString());
       console.log("underlyingExpectedBeforeMintInActionLocked:",underlyingExpectedBeforeMintInActionLocked);
-      console.log("underlyingExpectedBeforeMintInActionUnlocked:",underlyingExpectedBeforeMintInActionUnlocked.toNumber());
-      console.log("underlyingExpectedBeforeMintInActionTotal:",underlyingExpectedBeforeMintInActionTotal.toNumber());
-      console.log("underlyingExpectedAfterMintInActionLocked:",underlyingExpectedAfterMintInActionLocked.toNumber());
-      console.log("underlyingExpectedAfterMintInActionUnlocked:",underlyingExpectedAfterMintInActionUnlocked.toNumber());
-      console.log("underlyingExpectedAfterMintInActionTotal:",underlyingExpectedAfterMintInActionTotal.toNumber());
+      console.log("underlyingExpectedBeforeMintInActionUnlocked:",underlyingExpectedBeforeMintInActionUnlocked.toString());
+      console.log("underlyingExpectedBeforeMintInActionTotal:",underlyingExpectedBeforeMintInActionTotal.toString());
+      console.log("underlyingExpectedAfterMintInActionLocked:",underlyingExpectedAfterMintInActionLocked.toString());
+      console.log("underlyingExpectedAfterMintInActionUnlocked:",underlyingExpectedAfterMintInActionUnlocked.toString());
+      console.log("underlyingExpectedAfterMintInActionTotal:",underlyingExpectedAfterMintInActionTotal.toString());
 
       // rollover
       await vault.rollOver([(100 - reserveFactor) * 100]);
 
       // keep track after rollover and before mint
-      const collateralAmount = await wbtc.balanceOf(action1.address);
+      const collateralAmount = await underlying.balanceOf(action1.address);
       expect((underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault)), 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
-      const marginPoolUnderlyingBeforeMint = await wbtc.balanceOf(marginPoolAddess);
-      console.log("collateralAmount:",collateralAmount.toNumber());
-      console.log("marginPoolUnderlyingBeforeMint:",marginPoolUnderlyingBeforeMint.toNumber());
+      const marginPoolUnderlyingBeforeMint = await underlying.balanceOf(marginPoolAddess);
+      console.log("collateralAmount:",collateralAmount.toString());
+      console.log("marginPoolUnderlyingBeforeMint:",marginPoolUnderlyingBeforeMint.toString());
 
       // mint and sell oTokens
-      const sellAmount = (collateralAmount).toString(); //.div(10000000000)
+      const sellAmount = (collateralAmount).div(10**(underlyingDecimals-8)).toString();
       console.log("sellAmount:",sellAmount);
       
       const order = await getOrder(
@@ -391,31 +417,31 @@ describe('Mainnet Fork Tests', function() {
         otoken.address,
         sellAmount,
         counterpartyWallet.address,
-        wbtc.address,
+        underlying.address,
         premium.toString(),
         swapAddress,
         counterpartyWallet.privateKey
       );
       
       expect((await action1.lockedAsset()).eq(underlyingExpectedBeforeMintInActionLocked),'collateral should not be locked').to.be.true;
-      expect((await wbtc.balanceOf(action1.address)).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
+      expect((await underlying.balanceOf(action1.address)).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
       expect((await action1.currentValue()).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
 
       await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
 
       // keep track after rollover and mint
-      const underlyingAfterMintInVault = await wbtc.balanceOf(vault.address);
+      const underlyingAfterMintInVault = await underlying.balanceOf(vault.address);
       const underlyingAfterMintInActionTotal = await action1.currentValue();
-      const underlyingAfterMintInActionUnlocked = await wbtc.balanceOf(action1.address);
+      const underlyingAfterMintInActionUnlocked = await underlying.balanceOf(action1.address);
       const underlyingAfterMintInActionLocked = await action1.lockedAsset();
       const underlyingAfterMintTotal = await vault.totalUnderlyingAsset();
-      const marginPoolUnderlyingAfterMint = await wbtc.balanceOf(marginPoolAddess);
-      console.log("underlyingAfterMintInVault:",underlyingAfterMintInVault.toNumber());
-      console.log("underlyingAfterMintInActionTotal:",underlyingAfterMintInActionTotal.toNumber());
-      console.log("underlyingAfterMintInActionLocked:",underlyingAfterMintInActionLocked.toNumber());
-      console.log("underlyingAfterMintInActionUnlocked:",underlyingAfterMintInActionUnlocked.toNumber());
-      console.log("underlyingAfterMintTotal:",underlyingAfterMintTotal.toNumber());
-      console.log("marginPoolUnderlyingAfterMint:",marginPoolUnderlyingAfterMint.toNumber());
+      const marginPoolUnderlyingAfterMint = await underlying.balanceOf(marginPoolAddess);
+      console.log("underlyingAfterMintInVault:",underlyingAfterMintInVault.toString());
+      console.log("underlyingAfterMintInActionTotal:",underlyingAfterMintInActionTotal.toString());
+      console.log("underlyingAfterMintInActionLocked:",underlyingAfterMintInActionLocked.toString());
+      console.log("underlyingAfterMintInActionUnlocked:",underlyingAfterMintInActionUnlocked.toString());
+      console.log("underlyingAfterMintTotal:",underlyingAfterMintTotal.toString());
+      console.log("marginPoolUnderlyingAfterMint:",marginPoolUnderlyingAfterMint.toString());
 
       // check underlying balance in action and vault
       expect((underlyingAfterMintInVault), 'incorrect accounting in vault').to.be.equal(underlyingExpectedAfterMintInVault);
@@ -434,32 +460,32 @@ describe('Mainnet Fork Tests', function() {
 
     it('p3 deposits', async () => {
       // keep track of underlying & shares before deposit
-      const UnderlyingBeforeDeposit = await vault.totalUnderlyingAsset();
+      const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("UnderlyingBeforeDeposit:",UnderlyingBeforeDeposit.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("p3DepositAmount:",p3DepositAmount.toNumber());
+      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("p3DepositAmount:",p3DepositAmount.toString());
       // approve and deposit underlying
-      await wbtc.connect(depositor3).approve(vault.address, p3DepositAmount);
+      await underlying.connect(depositor3).approve(vault.address, p3DepositAmount);
       await vault.connect(depositor3).depositUnderlying(p3DepositAmount);
 
       // check underlying & shares deposited by depositor3
       const vaultTotal = await vault.totalUnderlyingAsset();
-      const totalSharesMinted = sharesBefore.mul(p3DepositAmount).div(UnderlyingBeforeDeposit);
+      const totalSharesMinted = sharesBefore.mul(p3DepositAmount).div(underlyingBeforeDeposit);
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toNumber());
-      console.log("totalSharesMinted:",totalSharesMinted.toNumber());
-      console.log("totalSharesExisting:",totalSharesExisting.toNumber());
+      console.log("vaultTotal:",vaultTotal.toString());
+      console.log("totalSharesMinted:",totalSharesMinted.toString());
+      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
-      expect(vaultTotal).to.be.equal(UnderlyingBeforeDeposit.add(p3DepositAmount), 'internal underlying balance is incorrect');
+      expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p3DepositAmount), 'internal underlying balance is incorrect');
 
       // check the minted share balances
       expect((await vault.balanceOf(depositor3.address)), 'incorrect amount of shares minted').to.be.equal(totalSharesMinted);
       expect(totalSharesExisting, 'incorrect amount of shares existing').to.be.equal(sharesBefore.add(totalSharesMinted));
 
       // manual checks
-      expect(await wbtc.balanceOf(vault.address)).to.be.equal(((await vault.withdrawReserve()).mul(p1DepositAmount.add(p2DepositAmount)).div(10000)).add(p3DepositAmount), 'internal underlying balance is incorrect'); //true after rollover
+      expect(await underlying.balanceOf(vault.address)).to.be.equal(((await vault.withdrawReserve()).mul(p1DepositAmount.add(p2DepositAmount)).div(10000)).add(p3DepositAmount), 'internal underlying balance is incorrect'); //true after rollover
     });
 
     it('p1 withdraws', async () => {
@@ -467,23 +493,23 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toNumber());
+      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const amountWithdrawn = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore)
       const fee = amountWithdrawn.mul(5).div(1000);
       const amountToUser = amountWithdrawn.sub(fee);
-      console.log("amountWithdrawn:",amountWithdrawn.toNumber());
-      console.log("fee:",fee.toNumber());
-      console.log("amountToUser:",amountToUser.toNumber());
+      console.log("amountWithdrawn:",amountWithdrawn.toString());
+      console.log("fee:",fee.toString());
+      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
-      const underlyingOfDepositorBefore = await wbtc.balanceOf(depositor1.address);
-      const underlyingOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toNumber());
-      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toNumber());
+      const underlyingOfDepositorBefore = await underlying.balanceOf(depositor1.address);
+      const underlyingOfFeeRecipientBefore = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
+      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toString());
 
       await vault
         .connect(depositor1)
@@ -492,14 +518,14 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toNumber());
-      console.log("sharesAfter:",sharesAfter.toNumber());
+      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
+      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
-      const underlyingOfDepositorAfter = await wbtc.balanceOf(depositor1.address);
-      const underlyingOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toNumber());
-      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toNumber());
+      const underlyingOfDepositorAfter = await underlying.balanceOf(depositor1.address);
+      const underlyingOfFeeRecipientAfter = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
+      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toString());
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawn);
@@ -534,7 +560,7 @@ describe('Mainnet Fork Tests', function() {
       await provider.send('evm_mine', []);
 
       // set settlement price
-      await wbtcPricer.setExpiryPriceInOracle(wbtc.address, expiry, '3000000000000');
+      await underlyingPricer.setExpiryPriceInOracle(underlying.address, expiry, '3000000000000');
 
       // increase time
       await provider.send('evm_increaseTime', [day]); // increase time
@@ -542,18 +568,18 @@ describe('Mainnet Fork Tests', function() {
 
       // keep track before closing positions
       const underlyingBeforeCloseInActionTotal = await action1.currentValue();
-      const underlyingBeforeCloseInVaultTotal = await wbtc.balanceOf(vault.address);
-      console.log("underlyingBeforeCloseInActionTotal:",underlyingBeforeCloseInActionTotal.toNumber());
-      console.log("underlyingBeforeCloseInVaultTotal:",underlyingBeforeCloseInVaultTotal.toNumber());
+      const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
+      console.log("underlyingBeforeCloseInActionTotal:",underlyingBeforeCloseInActionTotal.toString());
+      console.log("underlyingBeforeCloseInVaultTotal:",underlyingBeforeCloseInVaultTotal.toString());
       // close positions
       await vault.closePositions();
 
       // keep track after closing positions
       const underlyingAfterCloseInActionTotal = await action1.currentValue();
-      const underlyingAfterCloseInVaultTotal = await wbtc.balanceOf(vault.address);
+      const underlyingAfterCloseInVaultTotal = await underlying.balanceOf(vault.address);
       const vaultTotal = await vault.totalUnderlyingAsset();
-      console.log("underlyingAfterCloseInActionTotal:",underlyingAfterCloseInActionTotal.toNumber());
-      console.log("underlyingAfterCloseInVaultTotal:",underlyingAfterCloseInVaultTotal.toNumber());
+      console.log("underlyingAfterCloseInActionTotal:",underlyingAfterCloseInActionTotal.toString());
+      console.log("underlyingAfterCloseInVaultTotal:",underlyingAfterCloseInVaultTotal.toString());
 
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(underlyingAfterCloseInVaultTotal);
@@ -561,7 +587,7 @@ describe('Mainnet Fork Tests', function() {
 
       // check action balances
       expect((await action1.lockedAsset()).eq('0'),'no underlying should be locked').to.be.true;
-      expect((await wbtc.balanceOf(action1.address)), 'no underlying should be left in action').to.be.equal('0');
+      expect((await underlying.balanceOf(action1.address)), 'no underlying should be left in action').to.be.equal('0');
       expect(underlyingAfterCloseInActionTotal, 'no underlying should be controlled by action').to.be.equal('0');
     });
 
@@ -570,23 +596,23 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor2.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toNumber());
+      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const amountWithdrawn = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore)
       const fee = amountWithdrawn.mul(5).div(1000);
       const amountToUser = amountWithdrawn.sub(fee);
-      console.log("amountWithdrawn:",amountWithdrawn.toNumber());
-      console.log("fee:",fee.toNumber());
-      console.log("amountToUser:",amountToUser.toNumber());
+      console.log("amountWithdrawn:",amountWithdrawn.toString());
+      console.log("fee:",fee.toString());
+      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
-      const underlyingOfDepositorBefore = await wbtc.balanceOf(depositor2.address);
-      const underlyingOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toNumber());
-      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toNumber());
+      const underlyingOfDepositorBefore = await underlying.balanceOf(depositor2.address);
+      const underlyingOfFeeRecipientBefore = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
+      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toString());
 
       await vault
         .connect(depositor2)
@@ -595,14 +621,14 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toNumber());
-      console.log("sharesAfter:",sharesAfter.toNumber());
+      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
+      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
-      const underlyingOfDepositorAfter = await wbtc.balanceOf(depositor2.address);
-      const underlyingOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toNumber());
-      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toNumber());
+      const underlyingOfDepositorAfter = await underlying.balanceOf(depositor2.address);
+      const underlyingOfFeeRecipientAfter = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
+      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toString());
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawn);
@@ -636,23 +662,23 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor3.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toNumber());
-      console.log("sharesBefore:",sharesBefore.toNumber());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toNumber());
+      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
+      console.log("sharesBefore:",sharesBefore.toString());
+      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const amountWithdrawn = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore)
       const fee = amountWithdrawn.mul(5).div(1000);
       const amountToUser = amountWithdrawn.sub(fee);
-      console.log("amountWithdrawn:",amountWithdrawn.toNumber());
-      console.log("fee:",fee.toNumber());
-      console.log("amountToUser:",amountToUser.toNumber());
+      console.log("amountWithdrawn:",amountWithdrawn.toString());
+      console.log("fee:",fee.toString());
+      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
-      const underlyingOfDepositorBefore = await wbtc.balanceOf(depositor3.address);
-      const underlyingOfFeeRecipientBefore = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toNumber());
-      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toNumber());
+      const underlyingOfDepositorBefore = await underlying.balanceOf(depositor3.address);
+      const underlyingOfFeeRecipientBefore = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
+      console.log("underlyingOfFeeRecipientBefore:",underlyingOfFeeRecipientBefore.toString());
 
       await vault
         .connect(depositor3)
@@ -661,14 +687,14 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toNumber());
-      console.log("sharesAfter:",sharesAfter.toNumber());
+      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
+      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
-      const underlyingOfDepositorAfter = await wbtc.balanceOf(depositor3.address);
-      const underlyingOfFeeRecipientAfter = await wbtc.balanceOf(feeRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toNumber());
-      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toNumber());
+      const underlyingOfDepositorAfter = await underlying.balanceOf(depositor3.address);
+      const underlyingOfFeeRecipientAfter = await underlying.balanceOf(feeRecipient.address);
+      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
+      console.log("underlyingOfFeeRecipientAfter:",underlyingOfFeeRecipientAfter.toString());
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawn);

@@ -304,7 +304,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev set the percentage that should be reserved in vault for withdraw
+   * @dev set the percentage fee that should be applied upon withdrawal
    */
   function setWithdrawalFeePercentage(uint256 _newWithdrawalFeePercentage) external onlyOwner {
     withdrawalFeePercentage = _newWithdrawalFeePercentage;
