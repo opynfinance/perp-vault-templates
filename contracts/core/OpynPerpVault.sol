@@ -73,6 +73,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
 
+   /// @dev performance fee percentage. 1000 being 10%
+  uint256 public performanceFeePercentage = 1000;
+
   VaultState public state;
   VaultState public stateBeforePause;
 
