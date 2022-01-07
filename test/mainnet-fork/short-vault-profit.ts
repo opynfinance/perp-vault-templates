@@ -84,12 +84,15 @@ describe('Mainnet Fork Tests', function() {
   const underlyingAddress = '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9';  // i.e. WBTC:0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599, AAVE:0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9
   const reserveFactor = 10;  //as a %
   const feePercentage = 0.5;  //as a %
+  const perfromanceFeePercentage = 1000; //as 10 %
+  const BASE = 10000
 
   /** Test Scenario Params */
   const p1Amount = '10';
   const p2Amount = '70';
   const p3Amount = '20';
   const premiumAmount = '6';
+
 
   /**
    *
@@ -569,21 +572,41 @@ describe('Mainnet Fork Tests', function() {
       // keep track before closing positions
       const underlyingBeforeCloseInActionTotal = await action1.currentValue();
       const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
+      const lockedAssetBeforeCloseInActionTotal = await action1.currentLockedAsset();
       console.log("underlyingBeforeCloseInActionTotal:",underlyingBeforeCloseInActionTotal.toString());
       console.log("underlyingBeforeCloseInVaultTotal:",underlyingBeforeCloseInVaultTotal.toString());
+      console.log("lockedAssetBeforeCloseInActionTotal: %d",lockedAssetBeforeCloseInActionTotal);
+      
+      
+      // balance profit calculations
+      const amountToSettleInVault = underlyingBeforeCloseInActionTotal;
+      const profit = underlyingBeforeCloseInActionTotal.sub(lockedAssetBeforeCloseInActionTotal);
+      const performanceFee = profit.mul(perfromanceFeePercentage).div(BASE);
+      const amountToVault = amountToSettleInVault.sub(performanceFee);
+      console.log("amountToSettleInVault: %d",amountToSettleInVault);
+      console.log("profit: %d",profit);
+      console.log("performanceFee: %d",performanceFee);
+      console.log("amountToVault: %d",amountToVault);
+
+      // keep track of underlying of other parties before close position
+      //todo
+
+      
       // close positions
       await vault.closePositions();
 
       // keep track after closing positions
       const underlyingAfterCloseInActionTotal = await action1.currentValue();
       const underlyingAfterCloseInVaultTotal = await underlying.balanceOf(vault.address);
-      const vaultTotal = await vault.totalUnderlyingAsset();
+      const vaultTotal =  await vault.totalUnderlyingAsset();
+      const lockedAssetAfterCloseInActionTotal = await action1.currentLockedAsset();
       console.log("underlyingAfterCloseInActionTotal:",underlyingAfterCloseInActionTotal.toString());
       console.log("underlyingAfterCloseInVaultTotal:",underlyingAfterCloseInVaultTotal.toString());
+      console.log("lockedAssetAfterCloseInActionTotal: %d",lockedAssetAfterCloseInActionTotal);
 
       // check vault balances
       expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(underlyingAfterCloseInVaultTotal);
-      expect(underlyingAfterCloseInVaultTotal, 'incorrect balances in vault').to.be.equal(underlyingBeforeCloseInVaultTotal.add(underlyingBeforeCloseInActionTotal));
+      expect(underlyingAfterCloseInVaultTotal, 'incorrect balances in vault').to.be.equal(underlyingBeforeCloseInVaultTotal.add(underlyingBeforeCloseInActionTotal).sub(performanceFee));
 
       // check action balances
       expect((await action1.lockedAsset()).eq('0'),'no underlying should be locked').to.be.true;

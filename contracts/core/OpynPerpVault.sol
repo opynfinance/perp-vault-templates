@@ -254,13 +254,24 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     address cacheAddress = underlying;
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
+
+      // asset amount used in minting options for cycle
+      uint256 lockedAsset = IAction(cacheActions[i]).currentLockedAsset();
+
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
 
       // 2. withdraw underlying from the action
       uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
-      if (actionBalance > 0)
-        IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
+      if (actionBalance > 0){
+
+          // check profit
+          actionBalance = _getActionNetBalance(actionBalance, lockedAsset, cacheAddress, cacheActions[i]);
+        
+          // underlying back to vault 
+          IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
+      }
+       
     }
 
     emit StateUpdated(VaultState.Unlocked);
@@ -293,6 +304,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       IAction(cacheActions[i]).rolloverPosition();
     }
 
+
+
     require(sumPercentage == cacheBase, 'O15');
 
     emit Rollover(_allocationPercentages);
@@ -300,10 +313,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev set the vault withdrawal fee recipient
+   * @dev set the vault fee recipient
    */
-  function setWithdrawalFeeRecipient(address _newWithdrawalFeeRecipient) external onlyOwner {
-    feeRecipient = _newWithdrawalFeeRecipient;
+  function setFeeRecipient(address _newFeeRecipient) external onlyOwner {
+    feeRecipient = _newFeeRecipient;
   }
 
   /**
@@ -311,6 +324,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function setWithdrawalFeePercentage(uint256 _newWithdrawalFeePercentage) external onlyOwner {
     withdrawalFeePercentage = _newWithdrawalFeePercentage;
+  }
+
+  /**
+   * @dev set the percentage fee that should be applied on profits at the end of cycles 
+   */
+  function setPerformanceFeePercentage(uint256 _newPerformanceFeePercentage) external onlyOwner {
+    performanceFeePercentage = _newPerformanceFeePercentage;
   }
 
   /**
@@ -387,6 +407,38 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
+  }
+
+  /**
+   * @dev get amount of fee charged based on total profit amount earned in a cycle.
+   */
+  function _getPerformanceFee(uint256 _profitAmount) internal view returns (uint256) {
+    return _profitAmount.mul(performanceFeePercentage).div(BASE);
+  }
+
+  /**
+   * @dev get net balance for a strategy when closing it's position.
+   */
+  function _getActionNetBalance(uint256 _actionBalance, uint256 _lockedAsset, address _underlying, address _actionAddress) internal  returns (uint256){
+
+    uint256 netBalance = _actionBalance;
+    
+    // check if performance fee applies and strategy was profitable
+    if(performanceFeePercentage > 0 && _actionBalance > _lockedAsset){
+      
+      // get profit 
+      uint256 profit = _actionBalance.sub(_lockedAsset);
+      uint256 fee = _getPerformanceFee(profit);
+      
+      // transfer performance fee
+      IERC20(_underlying).safeTransferFrom(_actionAddress, feeRecipient, fee);
+      emit FeeSent(fee, feeRecipient);
+
+      // update action net balance 
+      netBalance = _actionBalance.sub(fee);
+    }
+
+    return netBalance;
   }
 
 }
