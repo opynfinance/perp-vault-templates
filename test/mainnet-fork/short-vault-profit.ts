@@ -588,7 +588,7 @@ describe('Mainnet Fork Tests', function() {
 
 
       // get expected profit 
-      const callPayOff = Math.max(Number((await (await underlyingPricer.getPrice()).sub(await otoken.strikePrice())).mul(10**5).div(await underlyingPricer.getPrice()).mul(10**(underlyingDecimals-5))),0); 
+      const callPayOff =(await (await underlyingPricer.getPrice()).sub(await otoken.strikePrice())).mul(10**underlyingDecimals).div(await underlyingPricer.getPrice()); 
       const profit = (premium.sub(callPayOff));
       console.log("1:",await (await underlyingPricer.getPrice()).toString());
       console.log("2:", await (await otoken.strikePrice()).toString());
@@ -599,8 +599,10 @@ describe('Mainnet Fork Tests', function() {
        // keep track before closing positions
        const underlyingBeforeCloseInActionTotal = await action1.currentValue();
        const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
+       const lockedAsset = await action1.currentLockedAsset();
        console.log("underlyingBeforeCloseInActionTotal:",underlyingBeforeCloseInActionTotal.toString());
        console.log("underlyingBeforeCloseInVaultTotal:",underlyingBeforeCloseInVaultTotal.toString());
+       console.log("lockedAsset:",lockedAsset.toString());
        // close positions
        await vault.closePositions();
  
@@ -621,7 +623,7 @@ describe('Mainnet Fork Tests', function() {
        expect(underlyingAfterCloseInActionTotal, 'no underlying should be controlled by action').to.be.equal('0');
 
        // check profit 
-       expect(profit, '').to.be.equal(underlyingAfterCloseInVaultTotal.sub(underlyingBeforeCloseInVaultTotal.add(underlyingBeforeCloseInActionTotal)));
+       expect(profit.mul(1-perfromanceFeePercentage).div(100), 'profit calculations do not match').to.be.equal(underlyingAfterCloseInVaultTotal.sub(underlyingBeforeCloseInVaultTotal.add(lockedAsset)));
     });
 
     it('p2 withdraws', async () => {
