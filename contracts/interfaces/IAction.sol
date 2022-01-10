@@ -2,6 +2,7 @@
 pragma solidity >=0.7.2;
 
 interface IAction {
+
   /**
    * The function used to determin how much asset the current action is controlling.
    * this will impact the withdraw and deposit amount calculated from the vault.

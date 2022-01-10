@@ -56,8 +56,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev actions that build up this strategy (vault)
   address[] public actions;
 
-  /// @dev address to which all fees are sent
-  address public feeRecipient;
+  /// @dev address to which all withdrawal fees are sent
+  address public feeWithdrawalRecipient;
+
+  /// @dev address to which all performance fees are sent
+  address public feePerformanceRecipient;
 
   /// @dev address of the underlying address
   address public underlying;
@@ -119,12 +122,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   constructor (
     address _underlying,
-    address _feeRecipient,
+    address _feeWithdrawalRecipient,
+    address _feePerformanceRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
     ) ERC20(_tokenName, _tokenSymbol) {
     underlying = _underlying;
-    feeRecipient = _feeRecipient;
+    feeWithdrawalRecipient = _feeWithdrawalRecipient;
+    feePerformanceRecipient = _feePerformanceRecipient;
     state = VaultState.Unlocked;
   }
 
@@ -224,12 +229,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 underlyingToRecipientAfterFees = underlyingToRecipientBeforeFees.sub(fee);
     require(underlyingToRecipientBeforeFees <= _balance(), 'O8');
 
+    console.log("Fee Recipient: %s",feeWithdrawalRecipient);
+
     // burn shares
     _burn(msg.sender, _share);
 
     // transfer fee to recipient 
-    underlyingToken.safeTransfer(feeRecipient, fee);
-    emit FeeSent(fee, feeRecipient);
+    underlyingToken.safeTransfer(feeWithdrawalRecipient, fee);
+    emit FeeSent(fee, feeWithdrawalRecipient);
 
     // send underlying to user
     underlyingToken.safeTransfer(msg.sender, underlyingToRecipientAfterFees);
@@ -263,13 +270,28 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
       // 2. withdraw underlying from the action
       uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
-      if (actionBalance > 0){
+      uint256 netActionBalance;
 
-          // check profit
-          actionBalance = _getActionNetBalance(actionBalance, lockedAsset, cacheAddress, cacheActions[i]);
+      if (actionBalance > 0){
+          netActionBalance = actionBalance;
+              
+          // check if performance fee applies and strategy was profitable
+          if(performanceFeePercentage > 0 && actionBalance > lockedAsset){
+            
+            // get profit 
+            uint256 profit = actionBalance.sub(lockedAsset);
+            uint256 performanceFee = _getPerformanceFee(profit);
+            
+            // transfer performance fee
+            IERC20(cacheAddress).safeTransferFrom(cacheActions[i], feePerformanceRecipient, performanceFee);
+            emit FeeSent(performanceFee, feePerformanceRecipient);
+
+            // update action net balance 
+            netActionBalance = actionBalance.sub(performanceFee);
+          }
         
           // underlying back to vault 
-          IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
+          IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), netActionBalance);
       }
        
     }
@@ -312,11 +334,26 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     emit StateUpdated(VaultState.Locked);
   }
 
+   /**
+   * @dev set the vault withdrawal fee recipient
+   */
+  function setWithdrawalFeeRecipient(address _newWithdrawalFeeRecipient) external onlyOwner {
+    feeWithdrawalRecipient = _newWithdrawalFeeRecipient;
+  }
+
+   /**
+   * @dev set the vault performance fee recipient
+   */
+  function setPerformanceFeeRecipient(address _newPerformanceFeeRecipient) external onlyOwner {
+    feePerformanceRecipient = _newPerformanceFeeRecipient;
+  }
+
   /**
-   * @dev set the vault fee recipient
+   * @dev set the vault fee recipient - use when performance fee and withdrawal fee is sent to the same recipient
    */
   function setFeeRecipient(address _newFeeRecipient) external onlyOwner {
-    feeRecipient = _newFeeRecipient;
+    feeWithdrawalRecipient = _newFeeRecipient;
+    feePerformanceRecipient = _newFeeRecipient;
   }
 
   /**
@@ -416,29 +453,5 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return _profitAmount.mul(performanceFeePercentage).div(BASE);
   }
 
-  /**
-   * @dev get net balance for a strategy when closing it's position.
-   */
-  function _getActionNetBalance(uint256 _actionBalance, uint256 _lockedAsset, address _underlying, address _actionAddress) internal  returns (uint256){
-
-    uint256 netBalance = _actionBalance;
-    
-    // check if performance fee applies and strategy was profitable
-    if(performanceFeePercentage > 0 && _actionBalance > _lockedAsset){
-      
-      // get profit 
-      uint256 profit = _actionBalance.sub(_lockedAsset);
-      uint256 fee = _getPerformanceFee(profit);
-      
-      // transfer performance fee
-      IERC20(_underlying).safeTransferFrom(_actionAddress, feeRecipient, fee);
-      emit FeeSent(fee, feeRecipient);
-
-      // update action net balance 
-      netBalance = _actionBalance.sub(fee);
-    }
-
-    return netBalance;
-  }
 
 }
