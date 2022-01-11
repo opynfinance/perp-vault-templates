@@ -588,7 +588,7 @@ describe('Mainnet Fork Tests', function() {
 
 
       // get expected profit 
-      const callPayOff =(await (await underlyingPricer.getPrice()).sub(await otoken.strikePrice())).mul(10**underlyingDecimals).div(await underlyingPricer.getPrice()); 
+      const callPayOff =( (await underlyingPricer.getPrice()).sub(await otoken.strikePrice())).mul(1000).div(await underlyingPricer.getPrice()).mul(1000000000000000); 
       const profit = (premium.sub(callPayOff));
       console.log("1:",await (await underlyingPricer.getPrice()).toString());
       console.log("2:", await (await otoken.strikePrice()).toString());
