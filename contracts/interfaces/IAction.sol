@@ -2,6 +2,7 @@
 pragma solidity >=0.7.2;
 
 interface IAction {
+
   /**
    * The function used to determin how much asset the current action is controlling.
    * this will impact the withdraw and deposit amount calculated from the vault.
@@ -23,4 +24,11 @@ interface IAction {
    * is not ready to go into the next round.
    */
   function rolloverPosition() external;
+
+  /**
+   * The function used to determine how much asset is locked in the current action.
+   * this will impact the closeposition  amount calculated from the vault.
+   */
+  function currentLockedAsset() external view returns (uint256);
+
 }

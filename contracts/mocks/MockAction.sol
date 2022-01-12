@@ -9,6 +9,7 @@ contract MockAction is IAction() {
 
   address public vault;
   address public asset;
+  uint256 public lockedAsset;
 
   uint8 public rolloverCounter;
 
@@ -51,4 +52,16 @@ contract MockAction is IAction() {
     require(msg.sender == vault, "MockAction: sender is not vault");
     rolloverCounter = rolloverCounter + 1;
   }
+
+   /**
+   * The function used to determine how much asset is locked in the current action.
+   * this will impact the closeposition  amount calculated from the vault.
+   */
+  function currentLockedAsset() external view override returns (uint256){
+    require(msg.sender == vault, "MockAction: sender is not vault");
+    return lockedAsset;
+  }
+  
+
+  
 }

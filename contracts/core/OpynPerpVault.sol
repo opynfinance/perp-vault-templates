@@ -56,8 +56,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev actions that build up this strategy (vault)
   address[] public actions;
 
-  /// @dev address to which all fees are sent
-  address public feeRecipient;
+  /// @dev address to which all withdrawal fees are sent
+  address public feeWithdrawalRecipient;
+
+  /// @dev address to which all performance fees are sent
+  address public feePerformanceRecipient;
 
   /// @dev address of the underlying address
   address public underlying;
@@ -72,6 +75,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
+
+   /// @dev performance fee percentage. 1000 being 10%
+  uint256 public performanceFeePercentage = 1000;
 
   VaultState public state;
   VaultState public stateBeforePause;
@@ -116,12 +122,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   constructor (
     address _underlying,
-    address _feeRecipient,
+    address _feeWithdrawalRecipient,
+    address _feePerformanceRecipient,
     string memory _tokenName,
     string memory _tokenSymbol
     ) ERC20(_tokenName, _tokenSymbol) {
     underlying = _underlying;
-    feeRecipient = _feeRecipient;
+    feeWithdrawalRecipient = _feeWithdrawalRecipient;
+    feePerformanceRecipient = _feePerformanceRecipient;
     state = VaultState.Unlocked;
   }
 
@@ -221,12 +229,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 underlyingToRecipientAfterFees = underlyingToRecipientBeforeFees.sub(fee);
     require(underlyingToRecipientBeforeFees <= _balance(), 'O8');
 
+    console.log("Fee Recipient: %s",feeWithdrawalRecipient);
+
     // burn shares
     _burn(msg.sender, _share);
 
     // transfer fee to recipient 
-    underlyingToken.safeTransfer(feeRecipient, fee);
-    emit FeeSent(fee, feeRecipient);
+    underlyingToken.safeTransfer(feeWithdrawalRecipient, fee);
+    emit FeeSent(fee, feeWithdrawalRecipient);
 
     // send underlying to user
     underlyingToken.safeTransfer(msg.sender, underlyingToRecipientAfterFees);
@@ -251,13 +261,39 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     address cacheAddress = underlying;
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
+
+      // asset amount used in minting options for cycle
+      uint256 lockedAsset = IAction(cacheActions[i]).currentLockedAsset();
+
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
 
       // 2. withdraw underlying from the action
       uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
-      if (actionBalance > 0)
-        IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
+      uint256 netActionBalance;
+
+      if (actionBalance > 0){
+          netActionBalance = actionBalance;
+              
+          // check if performance fee applies and strategy was profitable
+          if(performanceFeePercentage > 0 && actionBalance > lockedAsset){
+            
+            // get profit 
+            uint256 profit = actionBalance.sub(lockedAsset);
+            uint256 performanceFee = _getPerformanceFee(profit);
+            
+            // transfer performance fee
+            IERC20(cacheAddress).safeTransferFrom(cacheActions[i], feePerformanceRecipient, performanceFee);
+            emit FeeSent(performanceFee, feePerformanceRecipient);
+
+            // update action net balance 
+            netActionBalance = actionBalance.sub(performanceFee);
+          }
+        
+          // underlying back to vault 
+          IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), netActionBalance);
+      }
+       
     }
 
     emit StateUpdated(VaultState.Unlocked);
@@ -290,17 +326,34 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       IAction(cacheActions[i]).rolloverPosition();
     }
 
+
+
     require(sumPercentage == cacheBase, 'O15');
 
     emit Rollover(_allocationPercentages);
     emit StateUpdated(VaultState.Locked);
   }
 
-  /**
+   /**
    * @dev set the vault withdrawal fee recipient
    */
   function setWithdrawalFeeRecipient(address _newWithdrawalFeeRecipient) external onlyOwner {
-    feeRecipient = _newWithdrawalFeeRecipient;
+    feeWithdrawalRecipient = _newWithdrawalFeeRecipient;
+  }
+
+   /**
+   * @dev set the vault performance fee recipient
+   */
+  function setPerformanceFeeRecipient(address _newPerformanceFeeRecipient) external onlyOwner {
+    feePerformanceRecipient = _newPerformanceFeeRecipient;
+  }
+
+  /**
+   * @dev set the vault fee recipient - use when performance fee and withdrawal fee is sent to the same recipient
+   */
+  function setFeeRecipient(address _newFeeRecipient) external onlyOwner {
+    feeWithdrawalRecipient = _newFeeRecipient;
+    feePerformanceRecipient = _newFeeRecipient;
   }
 
   /**
@@ -308,6 +361,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function setWithdrawalFeePercentage(uint256 _newWithdrawalFeePercentage) external onlyOwner {
     withdrawalFeePercentage = _newWithdrawalFeePercentage;
+  }
+
+  /**
+   * @dev set the percentage fee that should be applied on profits at the end of cycles 
+   */
+  function setPerformanceFeePercentage(uint256 _newPerformanceFeePercentage) external onlyOwner {
+    performanceFeePercentage = _newPerformanceFeePercentage;
   }
 
   /**
@@ -385,5 +445,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   function _getWithdrawFee(uint256 _withdrawAmount) internal view returns (uint256) {
     return _withdrawAmount.mul(withdrawalFeePercentage).div(BASE);
   }
+
+  /**
+   * @dev get amount of fee charged based on total profit amount earned in a cycle.
+   */
+  function _getPerformanceFee(uint256 _profitAmount) internal view returns (uint256) {
+    return _profitAmount.mul(performanceFeePercentage).div(BASE);
+  }
+
 
 }

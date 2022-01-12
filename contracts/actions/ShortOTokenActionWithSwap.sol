@@ -97,6 +97,13 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
+   * @dev return the amount of locked asset in the action.
+   */
+  function currentLockedAsset() external view override returns (uint256) {
+    return lockedAsset;
+  }
+
+  /**
    * @dev the function that the vault will call when the round is over
    */
   function closePosition() external override {
