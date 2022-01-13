@@ -168,8 +168,6 @@ describe('Mainnet Fork Tests', function() {
     p2DepositAmount = ethers.utils.parseUnits(p2Amount, underlyingDecimals);
     p3DepositAmount = ethers.utils.parseUnits(p3Amount, underlyingDecimals);
     premium =ethers.utils.parseUnits(premiumAmount, underlyingDecimals);
-    console.log(p1DepositAmount.toString());
-    console.log(premium.toString());
   });
 
   this.beforeAll('Deploy vault and sell calls action', async () => {
@@ -341,9 +339,6 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares before deposit
       const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("p1DepositAmount:",p1DepositAmount.toString());
 
       // approve and deposit underlying
       await underlying.connect(depositor1).approve(vault.address, p1DepositAmount);
@@ -353,9 +348,6 @@ describe('Mainnet Fork Tests', function() {
       const vaultTotal = await vault.totalUnderlyingAsset();
       const totalSharesMinted = p1DepositAmount;
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toString());
-      console.log("totalSharesMinted:",totalSharesMinted.toString());
-      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
       expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p1DepositAmount), 'internal underlying balance is incorrect');
@@ -372,9 +364,6 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares before deposit
       const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("p2DepositAmount:",p2DepositAmount.toString());
 
       // approve and deposit underlying
       await underlying.connect(depositor2).approve(vault.address, p2DepositAmount);
@@ -384,9 +373,6 @@ describe('Mainnet Fork Tests', function() {
       const vaultTotal = await vault.totalUnderlyingAsset();
       const totalSharesMinted = sharesBefore.mul(p2DepositAmount).div(underlyingBeforeDeposit);
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toString());
-      console.log("totalSharesMinted:",totalSharesMinted.toString());
-      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
       expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p2DepositAmount), 'internal underlying balance is incorrect');
@@ -422,16 +408,6 @@ describe('Mainnet Fork Tests', function() {
       const underlyingExpectedAfterMintInActionLocked = underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault);
       const underlyingExpectedAfterMintInActionUnlocked = premium;
       const underlyingExpectedAfterMintInActionTotal = underlyingExpectedAfterMintInActionUnlocked.add(underlyingExpectedAfterMintInActionLocked);
-      console.log("premium:",premium.toString());
-      console.log("underlyingBeforeRollOverTotal:",underlyingBeforeRollOverTotal.toString());
-      console.log("underlyingExpectedAfterMintTotal:",underlyingExpectedAfterMintTotal.toString());
-      console.log("underlyingExpectedAfterMintInVault:",underlyingExpectedAfterMintInVault.toString());
-      console.log("underlyingExpectedBeforeMintInActionLocked:",underlyingExpectedBeforeMintInActionLocked);
-      console.log("underlyingExpectedBeforeMintInActionUnlocked:",underlyingExpectedBeforeMintInActionUnlocked.toString());
-      console.log("underlyingExpectedBeforeMintInActionTotal:",underlyingExpectedBeforeMintInActionTotal.toString());
-      console.log("underlyingExpectedAfterMintInActionLocked:",underlyingExpectedAfterMintInActionLocked.toString());
-      console.log("underlyingExpectedAfterMintInActionUnlocked:",underlyingExpectedAfterMintInActionUnlocked.toString());
-      console.log("underlyingExpectedAfterMintInActionTotal:",underlyingExpectedAfterMintInActionTotal.toString());
 
       // rollover
       await vault.rollOver([(BASE - reserveFactor)]);
@@ -440,12 +416,9 @@ describe('Mainnet Fork Tests', function() {
       const collateralAmount = await underlying.balanceOf(action1.address);
       expect((underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault)), 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
       const marginPoolUnderlyingBeforeMint = await underlying.balanceOf(marginPoolAddess);
-      console.log("collateralAmount:",collateralAmount.toString());
-      console.log("marginPoolUnderlyingBeforeMint:",marginPoolUnderlyingBeforeMint.toString());
 
       // mint and sell oTokens
       const sellAmount = (collateralAmount).div(10**(underlyingDecimals-8)).toString();
-      console.log("sellAmount:",sellAmount);
       
       const order = await getOrder(
         action1.address,
@@ -471,12 +444,6 @@ describe('Mainnet Fork Tests', function() {
       const underlyingAfterMintInActionLocked = await action1.lockedAsset();
       const underlyingAfterMintTotal = await vault.totalUnderlyingAsset();
       const marginPoolUnderlyingAfterMint = await underlying.balanceOf(marginPoolAddess);
-      console.log("underlyingAfterMintInVault:",underlyingAfterMintInVault.toString());
-      console.log("underlyingAfterMintInActionTotal:",underlyingAfterMintInActionTotal.toString());
-      console.log("underlyingAfterMintInActionLocked:",underlyingAfterMintInActionLocked.toString());
-      console.log("underlyingAfterMintInActionUnlocked:",underlyingAfterMintInActionUnlocked.toString());
-      console.log("underlyingAfterMintTotal:",underlyingAfterMintTotal.toString());
-      console.log("marginPoolUnderlyingAfterMint:",marginPoolUnderlyingAfterMint.toString());
 
       // check underlying balance in action and vault
       expect((underlyingAfterMintInVault), 'incorrect accounting in vault').to.be.equal(underlyingExpectedAfterMintInVault);
@@ -497,9 +464,7 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares before deposit
       const underlyingBeforeDeposit = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
-      console.log("underlyingBeforeDeposit:",underlyingBeforeDeposit.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("p3DepositAmount:",p3DepositAmount.toString());
+
       // approve and deposit underlying
       await underlying.connect(depositor3).approve(vault.address, p3DepositAmount);
       await vault.connect(depositor3).depositUnderlying(p3DepositAmount);
@@ -508,9 +473,6 @@ describe('Mainnet Fork Tests', function() {
       const vaultTotal = await vault.totalUnderlyingAsset();
       const totalSharesMinted = sharesBefore.mul(p3DepositAmount).div(underlyingBeforeDeposit);
       const totalSharesExisting = await vault.totalSupply();
-      console.log("vaultTotal:",vaultTotal.toString());
-      console.log("totalSharesMinted:",totalSharesMinted.toString());
-      console.log("totalSharesExisting:",totalSharesExisting.toString());
 
       // check the underlying token balances
       expect(vaultTotal).to.be.equal(underlyingBeforeDeposit.add(p3DepositAmount), 'internal underlying balance is incorrect');
@@ -528,9 +490,6 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
@@ -538,17 +497,10 @@ describe('Mainnet Fork Tests', function() {
       const amountWithdrawnAfterPerformanceFees = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore);
       const withdrawalFee = amountWithdrawnAfterPerformanceFees.mul(withdrawalFeePercentage).div(BASE);
       const amountToUser = amountWithdrawnAfterPerformanceFees.sub(withdrawalFee);
-      console.log("profit:",profit.toString());
-      console.log("performanceFee:",performanceFee.toString());
-      console.log("amountWithdrawnAfterPerformanceFees:",amountWithdrawnAfterPerformanceFees.toString());
-      console.log("withdrawalFee:",withdrawalFee.toString());
-      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
       const underlyingOfDepositorBefore = await underlying.balanceOf(depositor1.address);
       const underlyingOfFeeWithdrawalRecipientBefore = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientBefore:",underlyingOfFeeWithdrawalRecipientBefore.toString());
 
       await vault
         .connect(depositor1)
@@ -557,15 +509,10 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
-      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
       const underlyingOfDepositorAfter = await underlying.balanceOf(depositor1.address);
       const underlyingOfFeeWithdrawalRecipientAfter = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientAfter:",underlyingOfFeeWithdrawalRecipientAfter.toString());
-
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawnAfterPerformanceFees);
@@ -614,10 +561,6 @@ describe('Mainnet Fork Tests', function() {
        const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const lockedAsset = await action1.currentLockedAsset();
        const underlyingOfFeePerformanceRecipientBefore = await underlying.balanceOf(feePerformanceRecipient.address);
-       console.log("underlyingBeforeCloseInActionTotal:",underlyingBeforeCloseInActionTotal.toString());
-       console.log("underlyingBeforeCloseInVaultTotal:",underlyingBeforeCloseInVaultTotal.toString());
-       console.log("lockedAsset:",lockedAsset.toString());
-       console.log("underlyingOfFeePerformanceRecipientBefore:",underlyingOfFeePerformanceRecipientBefore.toString());
 
       // get expected profit 
       const callPayOff = (maxBN((((await oracle.getExpiryPrice(underlying.address, expiry))[0]).sub(await otoken.strikePrice())).mul(BigNumber.from('10').pow(underlyingDecimals)).div(((await oracle.getExpiryPrice(underlying.address, expiry))[0])),BigNumber.from("0")));
@@ -626,17 +569,7 @@ describe('Mainnet Fork Tests', function() {
       profit = maxBN(realProfit ,BigNumber.from('0'));
       const netProfit = profit.mul(BASE-perfromanceFeePercentage).div(BASE);
       const realNetProfit = minBN(netProfit ,realProfit);
-      
-      console.log("1:",await (await oracle.getExpiryPrice(underlying.address, expiry))[0].toString());
-      console.log("2:", await (await otoken.strikePrice()).toString());
-      console.log("callPayOff:",callPayOff.toString());
-      console.log("callPayOffActual",callPayOffActual.toString());
-      console.log("premium:", premium.toString());
-      console.log("realprofit:",realProfit.toString())
-      console.log("profit:",profit.toString())
-      console.log("realNetProfit:", realNetProfit.toString());
-      console.log("netprofit:", netProfit.toString());
- 
+
        // close positions
        await vault.closePositions();
  
@@ -645,9 +578,6 @@ describe('Mainnet Fork Tests', function() {
        const underlyingAfterCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const vaultTotal = await vault.totalUnderlyingAsset();
        const underlyingOfFeePerformanceRecipientAfter = await underlying.balanceOf(feePerformanceRecipient.address);
-       console.log("underlyingAfterCloseInActionTotal:",underlyingAfterCloseInActionTotal.toString());
-       console.log("underlyingAfterCloseInVaultTotal:",underlyingAfterCloseInVaultTotal.toString());
-       console.log("underlyingOfFeePerformanceRecipientAfter:",underlyingOfFeePerformanceRecipientAfter.toString());
  
        // check vault balances
        expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(underlyingAfterCloseInVaultTotal);
@@ -670,9 +600,6 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor2.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
@@ -680,17 +607,10 @@ describe('Mainnet Fork Tests', function() {
       const amountWithdrawnAfterPerformanceFees = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore);
       const withdrawalFee = amountWithdrawnAfterPerformanceFees.mul(withdrawalFeePercentage).div(BASE);
       const amountToUser = amountWithdrawnAfterPerformanceFees.sub(withdrawalFee);
-      console.log("profit:",profit.toString());
-      console.log("performanceFee:",performanceFee.toString());
-      console.log("amountWithdrawnAfterPerformanceFees:",amountWithdrawnAfterPerformanceFees.toString());
-      console.log("withdrawalFee:",withdrawalFee.toString());
-      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
       const underlyingOfDepositorBefore = await underlying.balanceOf(depositor2.address);
       const underlyingOfFeeWithdrawalRecipientBefore = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientBefore:",underlyingOfFeeWithdrawalRecipientBefore.toString());
 
       await vault
         .connect(depositor2)
@@ -699,14 +619,10 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
-      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
       const underlyingOfDepositorAfter = await underlying.balanceOf(depositor2.address);
       const underlyingOfFeeWithdrawalRecipientAfter = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientAfter:",underlyingOfFeeWithdrawalRecipientAfter.toString());
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawnAfterPerformanceFees);
@@ -742,9 +658,6 @@ describe('Mainnet Fork Tests', function() {
       const underlyingBeforeWithdrawal = await vault.totalUnderlyingAsset();
       const sharesBefore = await vault.totalSupply();
       const sharesToWithdraw = await vault.balanceOf(depositor3.address);
-      console.log("UnderlyingBeforeWithdrawal:",underlyingBeforeWithdrawal.toString());
-      console.log("sharesBefore:",sharesBefore.toString());
-      console.log("sharesToWithdraw:",sharesToWithdraw.toString());
 
       // balance calculations
       const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
@@ -752,17 +665,10 @@ describe('Mainnet Fork Tests', function() {
       const amountWithdrawnAfterPerformanceFees = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore);
       const withdrawalFee = amountWithdrawnAfterPerformanceFees.mul(withdrawalFeePercentage).div(BASE);
       const amountToUser = amountWithdrawnAfterPerformanceFees.sub(withdrawalFee);
-      console.log("profit:",profit.toString());
-      console.log("performanceFee:",performanceFee.toString());
-      console.log("amountWithdrawnAfterPerformanceFees:",amountWithdrawnAfterPerformanceFees.toString());
-      console.log("withdrawalFee:",withdrawalFee.toString());
-      console.log("amountToUser:",amountToUser.toString());
 
       // keep track of underlying of other parties before withdrawal
       const underlyingOfDepositorBefore = await underlying.balanceOf(depositor3.address);
       const underlyingOfFeeWithdrawalRecipientBefore = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorBefore:",underlyingOfDepositorBefore.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientBefore:",underlyingOfFeeWithdrawalRecipientBefore.toString());
 
       await vault
         .connect(depositor3)
@@ -771,14 +677,10 @@ describe('Mainnet Fork Tests', function() {
       // keep track of underlying & shares after withdrawal
       const underlyingAfterWithdrawal = await vault.totalUnderlyingAsset();
       const sharesAfter = await vault.totalSupply();
-      console.log("underlyingAfterWithdrawal:",underlyingAfterWithdrawal.toString());
-      console.log("sharesAfter:",sharesAfter.toString());
 
       // keep track of underlying of other parties after withdrawal
       const underlyingOfDepositorAfter = await underlying.balanceOf(depositor3.address);
       const underlyingOfFeeWithdrawalRecipientAfter = await underlying.balanceOf(feeWithdrawalRecipient.address);
-      console.log("underlyingOfDepositorAfter:",underlyingOfDepositorAfter.toString());
-      console.log("underlyingOfFeeWithdrawalRecipientAfter:",underlyingOfFeeWithdrawalRecipientAfter.toString());
 
       // created expected values
       const underlyingExpectedAfterWithdrawal = underlyingBeforeWithdrawal.sub(amountWithdrawnAfterPerformanceFees);
@@ -815,14 +717,13 @@ describe('Mainnet Fork Tests', function() {
       //counterparty would redeem only if option is ITM to get their profit but checking also on OTM that they get 0 if they would try
       //input needed
       const optionsSold = (await otoken.balanceOf(counterpartyWallet.address)).toString();
-      console.log("optionsSold:",optionsSold.toString());
 
       // keep track of underlying before counterparty redeems
       const underlyingOfCounterpartyBefore = await underlying.balanceOf(counterpartyWallet.address);
-      console.log("underlyingOfCounterpartyBefore:",underlyingOfCounterpartyBefore.toString());
+
       // created expected values
       const underlyingOfCounterpartyExpectedAfter = underlyingOfCounterpartyBefore.add(callPayOffActual);
-      console.log("underlyingOfCounterpartyExpectedAfter:",underlyingOfCounterpartyExpectedAfter.toString());
+
       //counterparty redeems
       const actionArgs = [
         {
@@ -841,7 +742,7 @@ describe('Mainnet Fork Tests', function() {
       
       // keep track of underlying after counterparty redeems
       const underlyingOfCounterpartyAfter = await underlying.balanceOf(counterpartyWallet.address); //0 change if OTM, callPayoff if it is ITM
-      console.log("underlyingOfCounterpartyAfter:",underlyingOfCounterpartyAfter.toString());
+
       // check user balance 
       expect(underlyingOfCounterpartyAfter, 'incorrect underlying of counterparty').to.be.eq(underlyingOfCounterpartyExpectedAfter);
     })
