@@ -11,7 +11,8 @@ import {
   IOToken,
   IOracle,
   IWhitelist,
-  MockPricer
+  MockPricer,
+  IController
 } from '../../typechain';
 import * as fs from 'fs';
 import {getOrder} from '../utils/orders';
@@ -33,6 +34,20 @@ enum ActionState {
   Activated,
   Committed,
   Idle,
+}
+
+enum ActionType {
+  OpenVault,
+  MintShortOption,
+  BurnShortOption,
+  DepositLongOption,
+  WithdrawLongOption,
+  DepositCollateral,
+  WithdrawCollateral,
+  SettleVault,
+  Redeem,
+  Call,
+  InvalidAction,
 }
 
 describe('Mainnet Fork Tests', function() {
@@ -57,6 +72,7 @@ describe('Mainnet Fork Tests', function() {
   let otokenFactory: IOtokenFactory;
   let underlyingPricer: MockPricer;
   let oracle: IOracle;
+  let controller: IController;
   let provider: typeof ethers.provider;
 
   let p1DepositAmount : BigNumber;
@@ -65,6 +81,7 @@ describe('Mainnet Fork Tests', function() {
   let premium : BigNumber;
   let underlyingDecimals : any;
   let profit = BigNumber.from('0');  //represents remaining profit to be claimed
+  let callPayOffActual : BigNumber;
 
   /**
    *
@@ -72,6 +89,7 @@ describe('Mainnet Fork Tests', function() {
    *
    */
   const day = 86400;
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
   const controllerAddress = '0x4ccc2339F87F6c59c6893E1A678c2266cA58dC72';
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
@@ -141,6 +159,7 @@ describe('Mainnet Fork Tests', function() {
     usdc = (await ethers.getContractAt('IERC20', usdcAddress)) as IERC20;
     otokenFactory = (await ethers.getContractAt('IOtokenFactory',otokenFactoryAddress)) as IOtokenFactory;
     oracle = (await ethers.getContractAt('IOracle', oracleAddress)) as IOracle;
+    controller = (await ethers.getContractAt('IController',controllerAddress)) as IController;
   });
 
   this.beforeAll('Scale Params', async () => {
@@ -602,13 +621,13 @@ describe('Mainnet Fork Tests', function() {
 
       // get expected profit 
       const callPayOff = (maxBN((((await oracle.getExpiryPrice(underlying.address, expiry))[0]).sub(await otoken.strikePrice())).mul(BigNumber.from('10').pow(underlyingDecimals)).div(((await oracle.getExpiryPrice(underlying.address, expiry))[0])),BigNumber.from("0")));
-      const callPayOffActual = callPayOff.mul(lockedAsset.div(BigNumber.from('10').pow(underlyingDecimals)));
+      callPayOffActual = callPayOff.mul(lockedAsset.div(BigNumber.from('10').pow(underlyingDecimals)));
       const realProfit = (premium.sub(callPayOffActual)).add(profit)
       profit = maxBN(realProfit ,BigNumber.from('0'));
       const netProfit = profit.mul(BASE-perfromanceFeePercentage).div(BASE);
       const realNetProfit = minBN(netProfit ,realProfit);
       
-      console.log("1:",await (await underlyingPricer.getPrice()).toString());
+      console.log("1:",await (await oracle.getExpiryPrice(underlying.address, expiry))[0].toString());
       console.log("2:", await (await otoken.strikePrice()).toString());
       console.log("callPayOff:",callPayOff.toString());
       console.log("callPayOffActual",callPayOffActual.toString());
@@ -712,7 +731,7 @@ describe('Mainnet Fork Tests', function() {
 
       // manual checks on profitability
       expect(underlyingOfDepositorAfter, 'Depositor 2 should be in Profit').gte(p2DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
-      expect(underlyingOfDepositorAfter, 'Depositor 2 profit calculations do not match').to.be.eq((p2DepositAmount.sub(withdrawalFee)).add(p2DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))).sub(performanceFee).sub(1)); //to fix rounding error   
+      expect(underlyingOfDepositorAfter, 'Depositor 2 profit calculations do not match').to.be.eq((p2DepositAmount.sub(withdrawalFee)).add(p2DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(sharesBefore)).sub(1)); // -also may fail due to rounding error (why the sub 1 is added) need to find where this happens
 
       //update profit
       profit = (sharesBefore.sub(sharesToWithdraw)).mul(profit).div(sharesBefore);
@@ -784,12 +803,47 @@ describe('Mainnet Fork Tests', function() {
 
       // manual checks on profitability
       expect(underlyingOfDepositorAfter, 'Depositor 3 should NOT be in Profit').lte(p3DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
-      expect(underlyingOfDepositorAfter, 'Depositor 3 profit -loss in this case- calculations do not match').to.be.eq(p3DepositAmount.sub(withdrawalFee).sub(performanceFee));
+      expect(underlyingOfDepositorAfter, 'Depositor 3 profit -loss in this case- calculations do not match').to.be.eq(p3DepositAmount.sub(withdrawalFee).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(p2DepositAmount.add(sharesToWithdraw)))); //not well generalizable if needed but works for now -also may fail due to rounding error need to find where this happens
 
       //update profit
       profit = (sharesBefore.sub(sharesToWithdraw)).mul(profit).div(sharesBefore);
       expect(profit,'incorrect profit / performance fees allocation').to.be.equal('0');
 
     });
+
+    it('counterparty redeems and gets underlying if needed', async () => {
+      //counterparty would redeem only if option is ITM to get their profit but checking also on OTM that they get 0 if they would try
+      //input needed
+      const optionsSold = (await otoken.balanceOf(counterpartyWallet.address)).toString();
+      console.log("optionsSold:",optionsSold.toString());
+
+      // keep track of underlying before counterparty redeems
+      const underlyingOfCounterpartyBefore = await underlying.balanceOf(counterpartyWallet.address);
+      console.log("underlyingOfCounterpartyBefore:",underlyingOfCounterpartyBefore.toString());
+      // created expected values
+      const underlyingOfCounterpartyExpectedAfter = underlyingOfCounterpartyBefore.add(callPayOffActual);
+      console.log("underlyingOfCounterpartyExpectedAfter:",underlyingOfCounterpartyExpectedAfter.toString());
+      //counterparty redeems
+      const actionArgs = [
+        {
+          actionType: ActionType.Redeem,
+          owner: ZERO_ADDR,
+          secondAddress: counterpartyWallet.address,
+          asset: otoken.address,
+          vaultId: '1',
+          amount: optionsSold,
+          index: '0',
+          data: ZERO_ADDR,
+        },
+      ]
+    
+      await controller.connect(counterpartyWallet).operate(actionArgs);
+      
+      // keep track of underlying after counterparty redeems
+      const underlyingOfCounterpartyAfter = await underlying.balanceOf(counterpartyWallet.address); //0 change if OTM, callPayoff if it is ITM
+      console.log("underlyingOfCounterpartyAfter:",underlyingOfCounterpartyAfter.toString());
+      // check user balance 
+      expect(underlyingOfCounterpartyAfter, 'incorrect underlying of counterparty').to.be.eq(underlyingOfCounterpartyExpectedAfter);
+    })
   });
 });
