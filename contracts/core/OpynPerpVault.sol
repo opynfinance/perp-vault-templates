@@ -73,7 +73,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev withdrawal fee percentage. 50 being 0.5%
   uint256 public withdrawalFeePercentage = 50;
 
-  /// @dev how many percentage should be reserved in vault for withdraw. 1000 being 10%
+  /// @dev what percentage should be reserved in vault for withdraw. 1000 being 10%
   uint256 public withdrawReserve = 0;
 
    /// @dev performance fee percentage. 1000 being 10%
@@ -173,7 +173,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev return how much underlying you can get if you burn the number of shares, after charging the fee.
+   * @dev return how much underlying you can get if you burn the number of shares, after charging the withdrawal fee.
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
     uint256 withdrawAmount = _getWithdrawAmountByShares(_shares);
@@ -212,7 +212,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   /**
    * @notice withdraws underlying from vault using vault shares
-   * @dev burns shares, sends underlying to user, sends fee to fee recepient
+   * @dev burns shares, sends underlying to user, sends withdrawal fee to withdrawal fee recepient
    * @param _share is the number of vault shares to be burned
    */
   function withdrawUnderlying(uint256 _share) external nonReentrant {
@@ -229,12 +229,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 underlyingToRecipientAfterFees = underlyingToRecipientBeforeFees.sub(fee);
     require(underlyingToRecipientBeforeFees <= _balance(), 'O8');
 
-    console.log("Fee Recipient: %s",feeWithdrawalRecipient);
-
     // burn shares
     _burn(msg.sender, _share);
 
-    // transfer fee to recipient 
+    // transfer withdrawal fee to recipient 
     underlyingToken.safeTransfer(feeWithdrawalRecipient, fee);
     emit FeeSent(fee, feeWithdrawalRecipient);
 
@@ -325,9 +323,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
       if (newAmount > 0) IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
       IAction(cacheActions[i]).rolloverPosition();
     }
-
-
-
+    
     require(sumPercentage == cacheBase, 'O15');
 
     emit Rollover(_allocationPercentages);

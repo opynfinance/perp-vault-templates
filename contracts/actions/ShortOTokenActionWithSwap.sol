@@ -203,10 +203,10 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
   }
 
   /**
-   * @dev mint otoken in vault 0
+   * @dev mint otoken in vault 1
    */
   function _mintOTokens(uint256 _collateralAmount, uint256 _otokenAmount) internal {
-    // this action will always use vault id 0
+    // this action will always use vault id 1
     IController.ActionArgs[] memory actions = new IController.ActionArgs[](2);
     
     actions[0] = IController.ActionArgs(

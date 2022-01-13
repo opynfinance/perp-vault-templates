@@ -28,7 +28,7 @@ contract RollOverBase is Ownable {
   address public otoken;
   address public nextOToken;
 
-  uint256 constant public MIN_COMMIT_PERIOD = 4 hours;
+  uint256 constant public MIN_COMMIT_PERIOD = 0 hours; // was 4 but after request reduced it to 0
   uint256 public commitStateStart;
 
 /**
