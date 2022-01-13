@@ -229,6 +229,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 underlyingToRecipientAfterFees = underlyingToRecipientBeforeFees.sub(fee);
     require(underlyingToRecipientBeforeFees <= _balance(), 'O8');
 
+    console.log("Fee Recipient: %s",feeWithdrawalRecipient);
+
     // burn shares
     _burn(msg.sender, _share);
 
