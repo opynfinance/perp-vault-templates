@@ -65,7 +65,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   /// @dev stake dao sdecrvAddress
   address public sdecrvAddress;
 
-  uint256 public constant BASE = 10000; // 100%
+  uint32 public constant BASE = 10000; // 100%
 
   /// @dev Cap for the vault. hardcoded at 1000 for initial release
   uint256 public cap = 1000 ether;
@@ -78,6 +78,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
   /// @dev curvePool ETH/sETH stableswap 
   ICurve public curvePool;
+
+  /// @dev ecrv lp token that is received from depositng into the curve pool
+  IERC20 ecrv;
+
+  /// @dev sdecrv 
+  IStakeDao sdecrv;
 
   VaultState public state;
   VaultState public stateBeforePause;
@@ -128,6 +134,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     sdecrvAddress = _sdecrvAddress;
     feeRecipient = _feeRecipient;
     curvePool = ICurve(_curvePool);
+    sdecrv = IStakeDao(sdecrvAddress);
+    ecrv = sdecrv.token();
     state = VaultState.Unlocked;
   }
 
@@ -161,9 +169,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    */
   function totalStakedaoAsset() public view returns (uint256) {
     uint256 debt = 0;
-    uint256 length = actions.length;
 
-    for (uint256 i = 0; i < length; i++) {
+    for (uint256 i = 0; i < actions.length; i++) {
       debt = debt.add(IAction(actions[i]).currentValue());
     }
 
@@ -174,7 +181,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * total eth value of the sdecrv controlled by this vault
    */
   function totalETHControlled() external view returns (uint256) { 
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
     // hard coded to 36 because ecrv and sdecrv are both 18 decimals. 
     return totalStakedaoAsset().mul(sdecrv.getPricePerFullShare()).mul(curvePool.get_virtual_price()).div(10**36);
   }
@@ -209,12 +215,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
 
     // deposit ecrv to stakedao
-    address cacheSdecrvAddress = sdecrvAddress;
-    IStakeDao sdecrv = IStakeDao(cacheSdecrvAddress);
-    IERC20 ecrv = sdecrv.token();
     uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
 
-    ecrv.safeIncreaseAllowance(cacheSdecrvAddress, ecrvToDeposit);
+    ecrv.safeIncreaseAllowance(sdecrvAddress, ecrvToDeposit);
     sdecrv.deposit(ecrvToDeposit);
 
     // mint shares and emit event 
@@ -243,9 +246,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     _burn(msg.sender, _share);
 
     // withdraw from stakedao and curvePool
-    IStakeDao sdecrv = IStakeDao(sdecrvAddress);
     sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ecrvBalance = sdecrv.token().balanceOf(address(this));
+    uint256 ecrvBalance = ecrv.balanceOf(address(this));
     uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
 
     // calculate fees
@@ -272,16 +274,15 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Locked, "O11");
     state = VaultState.Unlocked;
 
-    address cacheAddress = sdecrvAddress;
-    address[] memory cacheActions = actions;
-    for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
+    for (uint256 i = 0; i < actions.length; i = i + 1) {
       // 1. close position. this should revert if any position is not ready to be closed.
-      IAction(cacheActions[i]).closePosition();
+      IAction(actions[i]).closePosition();
 
       // 2. withdraw sdecrv
-      uint256 actionBalance = IERC20(cacheAddress).balanceOf(cacheActions[i]);
-      if (actionBalance > 0)
-        IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), actionBalance);
+      uint256 actionBalance = IERC20(sdecrvAddress).balanceOf(actions[i]);
+      if (actionBalance > 0) { 
+        IERC20(sdecrvAddress).safeTransferFrom(actions[i], address(this), actionBalance);
+      }
     }
 
     emit StateUpdated(VaultState.Unlocked);
@@ -296,25 +297,21 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     require(state == VaultState.Unlocked, "O13");
     state = VaultState.Locked;
 
-    address cacheAddress = sdecrvAddress;
-    address[] memory cacheActions = actions;
-
-    uint256 cacheBase = BASE;
-    uint256 cacheTotalAsset = totalStakedaoAsset();
+    uint256 totalAsset = totalStakedaoAsset();
     // keep track of total percentage to make sure we're summing up to 100%
     uint256 sumPercentage = withdrawReserve;
 
     for (uint256 i = 0; i < _allocationPercentages.length; i = i + 1) {
       sumPercentage = sumPercentage.add(_allocationPercentages[i]);
-      require(sumPercentage <= cacheBase, 'O14');
+      require(sumPercentage <= BASE, 'O14');
 
-      uint256 newAmount = cacheTotalAsset.mul(_allocationPercentages[i]).div(cacheBase);
+      uint256 newAmount = totalAsset.mul(_allocationPercentages[i]).div(BASE);
 
-      if (newAmount > 0) IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
-      IAction(cacheActions[i]).rolloverPosition();
+      if (newAmount > 0) IERC20(sdecrvAddress).safeTransfer(actions[i], newAmount);
+      IAction(actions[i]).rolloverPosition();
     }
 
-    require(sumPercentage == cacheBase, 'O15');
+    require(sumPercentage == BASE, 'O15');
 
     emit Rollover(_allocationPercentages);
     emit StateUpdated(VaultState.Locked);
