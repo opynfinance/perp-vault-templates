@@ -104,8 +104,6 @@ contract ShortOTokenActionWithSwap is IAction, AirswapBase, RollOverBase {
    */
   function currentValue() external view override returns (uint256) {
     return stakedao.balanceOf(address(this)).add(lockedAsset);
-    
-    // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
 
   /**
