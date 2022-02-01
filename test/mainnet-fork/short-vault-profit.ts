@@ -94,7 +94,7 @@ describe('Mainnet Fork Tests', function() {
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
   const oracleAddress = '0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833';
-  const opynOwner = '0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB';
+  const opynWhitelister = '0x2FCb2fc8dD68c48F406825255B4446EDFbD3e140';
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
@@ -142,7 +142,7 @@ describe('Mainnet Fork Tests', function() {
     ] = accounts;
 
     await network.provider.send("hardhat_setBalance", [
-      opynOwner,
+      opynWhitelister,
       "0x1000000000000000000000000000000",
     ]);
 
@@ -211,16 +211,16 @@ describe('Mainnet Fork Tests', function() {
 
       // impersonate owner and change the pricer
       await owner.sendTransaction({
-        to: opynOwner,
+        to: opynWhitelister,
         value: utils.parseEther('2.0')
       });
-      await provider.send('hardhat_impersonateAccount', [opynOwner]);
-      const signer = await ethers.provider.getSigner(opynOwner);
+      await provider.send('hardhat_impersonateAccount', [opynWhitelister]);
+      const signer = await ethers.provider.getSigner(opynWhitelister);
       await oracle
         .connect(signer)
         .setAssetPricer(underlying.address, underlyingPricer.address);
       await provider.send('evm_mine', []);
-      await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
+      await provider.send('hardhat_stopImpersonatingAccount', [opynWhitelister]);
     }
   );
 
@@ -232,11 +232,11 @@ describe('Mainnet Fork Tests', function() {
 
     // impersonate owner and change the whitelist
     await owner.sendTransaction({
-      to: opynOwner,
+      to: opynWhitelister,
       value: utils.parseEther('1.0')
     });
-    await provider.send('hardhat_impersonateAccount', [opynOwner]);
-    const signer = await ethers.provider.getSigner(opynOwner);
+    await provider.send('hardhat_impersonateAccount', [opynWhitelister]);
+    const signer = await ethers.provider.getSigner(opynWhitelister);
     await whitelist.connect(signer).whitelistCollateral(underlying.address);
     await whitelist
       .connect(signer)
@@ -247,7 +247,7 @@ describe('Mainnet Fork Tests', function() {
         false
       );
     await provider.send('evm_mine', []);
-    await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
+    await provider.send('hardhat_stopImpersonatingAccount', [opynWhitelister]);
   });
 
   this.beforeAll('send everyone underlying', async () => { 
