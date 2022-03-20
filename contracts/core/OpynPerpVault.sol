@@ -79,6 +79,9 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    /// @dev performance fee percentage. 1000 being 10%
   uint256 public performanceFeePercentage = 1000;
 
+  /// @dev mapping between action addresses and underlying amount used for strategies(action)
+  mapping(address => mapping(address => uint256)) public cycleInvestmentAmounts;
+
   VaultState public state;
   VaultState public stateBeforePause;
 
@@ -173,6 +176,16 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   }
 
   /**
+   * @dev return the net worth of this strategy, in terms of underlying.
+   * if the action has an opened gamma vault, see if there's any short position
+   */
+  function totalUnderlyingInvestedInAction(address _actionAddress) external view  returns (uint256) {
+    return cycleInvestmentAmounts[_actionAddress][underlying];
+    
+    // todo: caclulate cash value to avoid not early withdraw to avoid loss.
+  }
+
+  /**
    * @dev return how much underlying you can get if you burn the number of shares, after charging the withdrawal fee.
    */
   function getWithdrawAmountByShares(uint256 _shares) external view returns (uint256) {
@@ -260,8 +273,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     address[] memory cacheActions = actions;
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
 
-      // asset amount used in minting options for cycle
-      uint256 lockedAsset = IAction(cacheActions[i]).currentLockedAsset();
+      // asset amount used for cycle
+      uint amountBeforeCycle = cycleInvestmentAmounts[cacheActions[i]][cacheAddress];
 
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
@@ -272,12 +285,12 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
       if (actionBalance > 0){
           netActionBalance = actionBalance;
-              
+              console.log('action %d  amountBeforeCycle: %d ',actionBalance,amountBeforeCycle);
           // check if performance fee applies and strategy was profitable
-          if(performanceFeePercentage > 0 && actionBalance > lockedAsset){
+          if(performanceFeePercentage > 0 && actionBalance > amountBeforeCycle){
             
             // get profit 
-            uint256 profit = actionBalance.sub(lockedAsset);
+            uint256 profit = actionBalance.sub(amountBeforeCycle);
             uint256 performanceFee = _getPerformanceFee(profit);
             
             // transfer performance fee
@@ -290,6 +303,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
         
           // underlying back to vault 
           IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), netActionBalance);
+
+          // reset action cycle balance to zero
+          cycleInvestmentAmounts[cacheActions[i]][cacheAddress] = 0;
+
       }
        
     }
@@ -320,7 +337,14 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
       uint256 newAmount = cacheTotalAsset.mul(_allocationPercentages[i]).div(cacheBase);
 
-      if (newAmount > 0) IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
+      if (newAmount > 0) {
+
+        IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
+
+        //update underlying amount used for strategy
+        cycleInvestmentAmounts[cacheActions[i]][cacheAddress] = newAmount;
+
+      }
       IAction(cacheActions[i]).rolloverPosition();
     }
     
