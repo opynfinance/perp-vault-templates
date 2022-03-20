@@ -24,15 +24,16 @@ describe('OpynPerpVault Tests', function () {
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
+  let performanceFeeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
 
   this.beforeAll('Set accounts', async () => {
     accounts = await ethers.getSigners();
-    const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3] = accounts;
+    const [_owner, _feeRecipient,_performanceFeeRecipient, _depositor1, _depositor2, _depositor3] = accounts;
 
     owner = _owner;
     feeRecipient = _feeRecipient;
-
+    performanceFeeRecipient = _performanceFeeRecipient;
     depositor1 = _depositor1;
     depositor2 = _depositor2;
     depositor3 = _depositor3;
@@ -54,6 +55,7 @@ describe('OpynPerpVault Tests', function () {
     vault = (await VaultContract.deploy(
       underlying.address,
       feeRecipient.address,
+      performanceFeeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS'
     )) as OpynPerpVault;
