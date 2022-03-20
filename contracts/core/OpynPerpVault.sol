@@ -285,7 +285,6 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
       if (actionBalance > 0){
           netActionBalance = actionBalance;
-              console.log('action %d  amountBeforeCycle: %d ',actionBalance,amountBeforeCycle);
           // check if performance fee applies and strategy was profitable
           if(performanceFeePercentage > 0 && actionBalance > amountBeforeCycle){
             
