@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 import { utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { MockAction, MockERC20, OpynPerpVault, MockWETH, MockStakedao, MockCurve } from '../../typechain';
+import { MockAction, MockERC20, OpynPerpVault, MockWETH } from '../../typechain';
 
 enum VaultState {
   Emergency,

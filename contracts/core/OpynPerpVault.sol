@@ -80,7 +80,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
   uint256 public performanceFeePercentage = 1000;
 
   /// @dev mapping between action addresses and underlying amount used for strategies(action)
-  mapping(address => mapping(address => uint256)) public cycleInvestmentAmounts;
+  mapping(address => mapping(address => uint256)) public cycleActionAmounts;
 
   VaultState public state;
   VaultState public stateBeforePause;
@@ -179,8 +179,8 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev return the net worth of this strategy, in terms of underlying.
    * if the action has an opened gamma vault, see if there's any short position
    */
-  function totalUnderlyingInvestedInAction(address _actionAddress) external view  returns (uint256) {
-    return cycleInvestmentAmounts[_actionAddress][underlying];
+  function totalUnderlyingMovedToAction(address _actionAddress) external view  returns (uint256) {
+    return cycleActionAmounts[_actionAddress][underlying];
     
     // todo: caclulate cash value to avoid not early withdraw to avoid loss.
   }
@@ -274,7 +274,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     for (uint256 i = 0; i < cacheActions.length; i = i + 1) {
 
       // asset amount used for cycle
-      uint amountBeforeCycle = cycleInvestmentAmounts[cacheActions[i]][cacheAddress];
+      uint256 amountBeforeCycle = cycleActionAmounts[cacheActions[i]][cacheAddress];
 
       // 1. close position. this should revert if any position is not ready to be closed.
       IAction(cacheActions[i]).closePosition();
@@ -303,10 +303,10 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
           // underlying back to vault 
           IERC20(cacheAddress).safeTransferFrom(cacheActions[i], address(this), netActionBalance);
 
-          // reset action cycle balance to zero
-          cycleInvestmentAmounts[cacheActions[i]][cacheAddress] = 0;
-
       }
+
+      // reset action cycle balance to zero
+      cycleActionAmounts[cacheActions[i]][cacheAddress] = 0;
        
     }
 
@@ -341,7 +341,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
         IERC20(cacheAddress).safeTransfer(cacheActions[i], newAmount);
 
         //update underlying amount used for strategy
-        cycleInvestmentAmounts[cacheActions[i]][cacheAddress] = newAmount;
+        cycleActionAmounts[cacheActions[i]][cacheAddress] = newAmount;
 
       }
       IAction(cacheActions[i]).rolloverPosition();

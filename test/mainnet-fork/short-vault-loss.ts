@@ -1,11 +1,10 @@
 import {ethers, network} from 'hardhat';
-import {BigNumber, Signer, utils} from 'ethers';
+import {BigNumber, utils} from 'ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {
   OpynPerpVault,
   IERC20,
-  ERC20,
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
@@ -408,20 +407,20 @@ describe('Mainnet Fork Tests', function() {
       const underlyingExpectedAfterMintInVault = underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE);
       const underlyingExpectedBeforeMintInActionLocked = 0;
       const underlyingExpectedBeforeMintInActionUnlocked = underlyingBeforeRollOverTotal.sub(underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE));
-      const underlyingExpectedBeforeMintInActionTotal = underlyingExpectedBeforeMintInActionUnlocked.add(underlyingExpectedBeforeMintInActionLocked);
+     // const underlyingExpectedBeforeMintInActionTotal = underlyingExpectedBeforeMintInActionUnlocked.add(underlyingExpectedBeforeMintInActionLocked);
       const underlyingExpectedAfterMintInActionLocked =  underlyingExpectedAfterRolloverInAction.mul(mintPercentage).div(BASE); 
       const underlyingPercentageNotMinted = BASE -mintPercentage;
       const underlyingNotMintedExpectedAfterMintInActionUnlocked = await underlyingExpectedAfterRolloverInAction.mul(underlyingPercentageNotMinted).div(BASE);
       const underlyingExpectedAfterMintInActionUnlocked = premium.add(underlyingNotMintedExpectedAfterMintInActionUnlocked);
       const underlyingExpectedAfterMintInActionTotal = underlyingExpectedAfterMintInActionUnlocked.add(underlyingExpectedAfterMintInActionLocked);
-      const underlyingUsedForStrategyBeforeCloseInVaultTotal = await vault.totalUnderlyingInvestedInAction(action1.address);
+      const underlyingMovedToActionBeforeRollover = await vault.totalUnderlyingMovedToAction(action1.address);
 
       // rollover
       await vault.rollOver([(BASE - reserveFactor)]);
 
       // keep track after rollover and before mint
       const collateralAmount = await underlying.balanceOf(action1.address);
-      const collateralAmountToMint = await (await underlying.balanceOf(action1.address)).mul(mintPercentage).div(BASE);
+      const collateralAmountToMint = await (collateralAmount).mul(mintPercentage).div(BASE);
       expect((underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterRolloverInVault)), 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
       const marginPoolUnderlyingBeforeMint = await underlying.balanceOf(marginPoolAddess);
 
@@ -452,7 +451,7 @@ describe('Mainnet Fork Tests', function() {
       const underlyingAfterMintInActionLocked = await action1.lockedAsset();
       const underlyingAfterMintTotal = await vault.totalUnderlyingAsset();
       const marginPoolUnderlyingAfterMint = await underlying.balanceOf(marginPoolAddess);
-      const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingInvestedInAction(action1.address);
+      const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingMovedToAction(action1.address);
 
       // check underlying balance in action and vault
       expect((underlyingAfterMintInVault), 'incorrect accounting in vault').to.be.equal(underlyingExpectedAfterMintInVault);
@@ -461,7 +460,7 @@ describe('Mainnet Fork Tests', function() {
       expect(underlyingAfterMintInActionLocked, 'incorrect accounting in locked asset').to.be.equal(collateralAmountToMint);
       expect(underlyingAfterMintInActionLocked, 'incorrect accounting in locked asset').to.be.equal(underlyingExpectedAfterMintInActionLocked);
       expect(underlyingAfterMintInActionUnlocked, 'incorrect accounting in locked asset').to.be.equal(underlyingExpectedAfterMintInActionUnlocked);
-      expect(underlyingUsedForStrategyAfterCloseInVaultTotal, 'incorrect accounting for action underlying being tracked in vault').to.be.equal(underlyingUsedForStrategyBeforeCloseInVaultTotal.add(collateralAmount));
+      expect(underlyingUsedForStrategyAfterCloseInVaultTotal, 'incorrect accounting for action underlying being tracked in vault').to.be.equal(underlyingMovedToActionBeforeRollover.add(collateralAmount));
       
       // check the otoken balance of counterparty
       expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(sellAmount);
@@ -502,7 +501,7 @@ describe('Mainnet Fork Tests', function() {
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
       // balance calculations
-      const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
+    //  const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
       //if PerfFees=0 no substraction, if PerfFees>0 already happened in ClosePosition() so always no substraction
       const amountWithdrawnAfterPerformanceFees = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore);
       const withdrawalFee = amountWithdrawnAfterPerformanceFees.mul(withdrawalFeePercentage).div(BASE);
@@ -570,7 +569,7 @@ describe('Mainnet Fork Tests', function() {
        const underlyingBeforeCloseInActionTotal = await action1.currentValue();
        const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const lockedAsset = await action1.currentLockedAsset();
-       const underlyingUsedForStrategyBeforeCloseInVaultTotal = await vault.totalUnderlyingInvestedInAction(action1.address);
+       const underlyingMovedToActionBeforeRollover = await vault.totalUnderlyingMovedToAction(action1.address);
        const underlyingOfFeePerformanceRecipientBefore = await underlying.balanceOf(feePerformanceRecipient.address);
 
       // get expected profit 
@@ -579,7 +578,7 @@ describe('Mainnet Fork Tests', function() {
      
     //  const realProfit = (premium.sub(callPayOffActual)).add(profit)
       const actionBalance = underlyingBeforeCloseInActionTotal.sub(callPayOffActual)
-      const realProfit = actionBalance.sub(underlyingUsedForStrategyBeforeCloseInVaultTotal);
+      const realProfit = actionBalance.sub(underlyingMovedToActionBeforeRollover);
       profit = maxBN(realProfit ,BigNumber.from('0'));
       const performanceFee = profit.mul(perfromanceFeePercentage).div(BASE);
       const netProfit = profit.mul(BASE-perfromanceFeePercentage).div(BASE);
@@ -593,7 +592,7 @@ describe('Mainnet Fork Tests', function() {
        const underlyingAfterCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const vaultTotal = await vault.totalUnderlyingAsset();
        const underlyingOfFeePerformanceRecipientAfter = await underlying.balanceOf(feePerformanceRecipient.address);
-       const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingInvestedInAction(action1.address);
+       const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingMovedToAction(action1.address);
 
        // check vault balances
        expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(underlyingAfterCloseInVaultTotal);
@@ -605,7 +604,7 @@ describe('Mainnet Fork Tests', function() {
        expect(underlyingAfterCloseInActionTotal, 'no underlying should be controlled by action').to.be.equal('0');
 
        // check profit 
-       expect(realNetProfit, 'profit calculations do not match').to.be.equal(actionBalance.sub(underlyingUsedForStrategyBeforeCloseInVaultTotal));
+       expect(realNetProfit, 'profit calculations do not match').to.be.equal(actionBalance.sub(underlyingMovedToActionBeforeRollover));
 
       // check performance fee
       expect(underlyingOfFeePerformanceRecipientAfter, 'incorrect performance fee paid out to fee recipient').to.be.eq(underlyingOfFeePerformanceRecipientBefore.add(profit.mul(perfromanceFeePercentage).div(BASE)));
