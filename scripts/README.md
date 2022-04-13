@@ -29,7 +29,7 @@ ShortOTokenActionWithSwap ownership transferred to 0x364ae680071b81BE368A5AF20A4
 **Input**
 
 ```sh
-npx hardhat verify 0x1F89774f01A2786bccCFbA9AF92E53b04XXXXXX --constructor-args arguments.js --network avalanche;
+npx hardhat verify 0x1F89774f01A2786bccCFbA9AF92E53b04XXXXXX --constructor-args scripts/arguments-opyn-perp-vault.ts --network avalanche;
 ```
 
 **Output**
@@ -41,10 +41,13 @@ https://snowtrace.io/address/0x1F89774f01A2786bccCFbA9AF92E53b0B4XXXXXX#code
 
 ## Verify  ShortOtokenActionWithSwap
 
+**Prequisite**
+Replace opynPerpVaultAddress address with the perpvault address just deployed in the `deploy-arguements.ts`
+
 **Input**
 
 ```sh
-npx hardhat verify 0xc88Bd7eD473b7F6F10e71894C66EBEbd467Eba93 --constructor-args arguments2.js --network avalanche;
+npx hardhat verify 0xc88Bd7eD473b7F6F10e71894C66EBEbd467Eba93 --constructor-args scripts/arguments-short-otoken-action-with-swap.ts --network avalanche;
 ```
 
 **Output**

@@ -19,8 +19,8 @@ const mnemonic = fs.existsSync('.secret')
 
 
 const infuraKey = process.env.INFURA_KEY;
-const explorerApiKey = process.env.ETHERSCAN_KEY;
-//const explorerApiKey = process.env.SNOWTRACE_KEY;
+//const explorerApiKey = process.env.ETHERSCAN_KEY;
+const explorerApiKey = process.env.SNOWTRACE_KEY;
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
