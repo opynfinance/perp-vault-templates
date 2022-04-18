@@ -15,11 +15,11 @@ export const DeploymentParams = {
 
   // strategy constants 
   underlyingAddress: '0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB',
-  vaultStrategyName: 'StakeDAO ETH Covered Call Strategy', //change the name based on strategy deployed
-  vaultStrategyShortName: 'sdETHCoveredCall',  //change the short name based on strategy deployed
+  vaultStrategyName: 'SampleBusiness ETH Covered Call Strategy', //change the name based on strategy deployed i.e BusinessName + Token + Covered Call Stategy 
+  vaultStrategyShortName: 'sbETHCoveredCall',  //change the short name based on strategy deployed i.e where sb is business abbreviation
 
   // owner constants
-  newOwnerAddress: '0x364ae680071b81BE368A5AF20A48d154EFf0661a', // multisig or ...
+  newOwnerAddress: '0x364ae680071b81BE368A5AF20A48d154EFXXXXXX', // multisig or ...
 
 
   /*

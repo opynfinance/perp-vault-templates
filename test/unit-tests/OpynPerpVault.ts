@@ -153,8 +153,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
       expect(shares1After.sub(shares1Before).eq(expectedShares)).to.be.true
@@ -175,8 +175,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual  balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
       expect(shares1After.sub(shares1Before).eq(expectedShares)).to.be.true
@@ -197,8 +197,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual  balance should update').to.be.true;
 
       const shares2After = await vault.balanceOf(depositor2.address)
       expect(shares2After.sub(shares2Before).eq(expectedShares)).to.be.true

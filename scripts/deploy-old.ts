@@ -25,8 +25,8 @@ async function deployContracts() {
         underlyingAddress,
         newOwnerAddress, // Owner is withdrawal fee recipient 
         newOwnerAddress, // Owner is performance fee recipient
-        "StakeDAO ETH Covered Call Strategy",  //change the name based on who it is deployed for
-        "sdETHCoveredCall", {gasPrice: 200000000000} //change the name based on who it is deployed for
+        "SampleBusiness ETH Covered Call Strategy",  //change the name based on who it is deployed for
+        "sbETHCoveredCall", {gasPrice: 200000000000} //change the name based on who it is deployed for
     ) as OpynPerpVault;
   //  const opynPerpVault = (await ethers.getContractAt('OpynPerpVault', '0xD7f7D613183EF8F10a900982dBf241a4605dE89A')) as OpynPerpVault
  

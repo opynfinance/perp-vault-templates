@@ -1,16 +1,15 @@
 {
-  "name": "@stakedao/opyn-perp-vault",
+  "name": "opyn-perp-vault",
   "version": "0.1.0",
   "private": "true",
-  "description": "StakeDao Opyn Perpetual Vault smart contracts",
+  "description": "Opyn Perpetual Vault smart contracts",
   "keywords": [
     "defi",
     "ethereum",
     "options",
     "opyn",
     "solidity",
-    "smart contracts",
-    "stakeDAO"
+    "smart contracts"
   ],
   "license": "MIT",
   "scripts": {
@@ -23,8 +22,7 @@
     "test:profit": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/short-vault-profit.ts",
     "test:loss": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/short-vault-loss.ts",
     "test:integrations": "FORK=true hardhat test --network hardhat ./test/mainnet-fork/unit-tests.ts",
-    "test": "hardhat test --network hardhat ./test/unit-tests/*.ts",
-    "hh": "scripts/arguments-opyn-perp-vault.js"
+    "test": "hardhat test --network hardhat ./test/unit-tests/*.ts"
   },
   "lint-staged": {
     "*.{js,ts}": [

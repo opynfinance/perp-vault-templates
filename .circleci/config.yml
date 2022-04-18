@@ -1,12 +1,13 @@
 version: 2.1
 
 orbs:
-  node: circleci/node@4.5.2
+  node: circleci/node@5.0.2
 
 jobs:
   compile:
     executor:
       name: node/default
+       tag: '16.13.1'
     steps:
       - checkout
       - node/install-packages
@@ -32,6 +33,7 @@ jobs:
   lint:
     executor:
       name: node/default
+      tag: '16.13.1'
     steps:
       - checkout
       # Install the latest npm - the node Orb takes care of it
@@ -50,6 +52,7 @@ jobs:
   test:
     executor:
       name: node/default
+      tag: '16.13.1'
     steps:
       - checkout
       - node/install-packages
