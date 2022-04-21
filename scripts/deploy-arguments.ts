@@ -1,13 +1,13 @@
 export const DeploymentParams = {
   
   /*
-  * Contract Deployment Variables
+  * CONTRACT DEPLOYMENT VARIABLES
   */
 
   // chain constants
-  airswapAddress: '0x62069Ff3b5127742B0D86b5fF5C6c21cF5e44154',
-  gammaControllerAddress: '0x9e3b94819aaF6de606C4Aa844E3215725b997064',
-  gammaWhitelistAddress: '0xe9963AFfc9a53e293c9bB547c52902071e6087c9',
+  airswapAddress: '0x62069Ff3b5127742B0D86b5fF5C6c21cF5XXXXXX',
+  gammaControllerAddress: '0x9e3b94819aaF6de606C4Aa844E3215725bXXXXXX',
+  gammaWhitelistAddress: '0xe9963AFfc9a53e293c9bB547c52902071eXXXXXX',
 
   // vault contants
   vaultType: 0, // type 0 vault
@@ -23,7 +23,7 @@ export const DeploymentParams = {
 
 
   /*
-  * Contract Verification variables
+  * CONTRACT VERIFICATION VARIABLES
   */
   opynPerpVaultAddress: "0x1F89774f01A2786bccCFbA9AF92E53b0B4XXXXXX"
 
