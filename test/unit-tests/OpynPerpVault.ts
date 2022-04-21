@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 import { utils } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { MockAction, MockERC20, OpynPerpVault, MockWETH, MockStakedao, MockCurve } from '../../typechain';
+import { MockAction, MockERC20, OpynPerpVault, MockWETH } from '../../typechain';
 
 enum VaultState {
   Emergency,
@@ -24,15 +24,16 @@ describe('OpynPerpVault Tests', function () {
   let depositor2: SignerWithAddress;
   let depositor3: SignerWithAddress;
   let feeRecipient: SignerWithAddress;
+  let performanceFeeRecipient: SignerWithAddress;
   let vault: OpynPerpVault;
 
   this.beforeAll('Set accounts', async () => {
     accounts = await ethers.getSigners();
-    const [_owner, _feeRecipient, _depositor1, _depositor2, _depositor3] = accounts;
+    const [_owner, _feeRecipient,_performanceFeeRecipient, _depositor1, _depositor2, _depositor3] = accounts;
 
     owner = _owner;
     feeRecipient = _feeRecipient;
-
+    performanceFeeRecipient = _performanceFeeRecipient;
     depositor1 = _depositor1;
     depositor2 = _depositor2;
     depositor3 = _depositor3;
@@ -54,6 +55,7 @@ describe('OpynPerpVault Tests', function () {
     vault = (await VaultContract.deploy(
       underlying.address,
       feeRecipient.address,
+      performanceFeeRecipient.address,
       'OpynPerpShortVault share',
       'sOPS'
     )) as OpynPerpVault;
@@ -151,8 +153,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
       expect(shares1After.sub(shares1Before).eq(expectedShares)).to.be.true
@@ -173,8 +175,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+      expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual  balance should update').to.be.true;
 
       const shares1After = await vault.balanceOf(depositor1.address)
       expect(shares1After.sub(shares1Before).eq(expectedShares)).to.be.true
@@ -195,8 +197,8 @@ describe('OpynPerpVault Tests', function () {
       const vaultTotalAfter = await vault.totalUnderlyingAsset();
       const vaultBalanceAfter = await underlying.balanceOf(vault.address);
 
-      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total stakedao asset should update').to.be.true;
-       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual stakedao balance should update').to.be.true;
+      expect(vaultTotalAfter.eq(vaultTotalBefore.add(depositAmount)), 'total  asset should update').to.be.true;
+       expect(vaultBalanceAfter.eq(vaultBalanceBefore.add(depositAmount)), 'actual  balance should update').to.be.true;
 
       const shares2After = await vault.balanceOf(depositor2.address)
       expect(shares2After.sub(shares2Before).eq(expectedShares)).to.be.true

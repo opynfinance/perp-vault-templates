@@ -1,6 +1,6 @@
-# @stakedao/opyn-perp-vault
+# @generalized_cc_vault
 
-StakeDaoPerpVault Solidity smart contracts
+Generalized PerpVault Solidity smart contracts
 
 
 ## Prerequisites

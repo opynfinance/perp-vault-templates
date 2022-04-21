@@ -1,11 +1,10 @@
 import {ethers, network} from 'hardhat';
-import {BigNumber, Signer, utils} from 'ethers';
+import {BigNumber, utils} from 'ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {
   OpynPerpVault,
   IERC20,
-  ERC20,
   ShortOTokenActionWithSwap,
   IOtokenFactory,
   IOToken,
@@ -94,7 +93,7 @@ describe('Mainnet Fork Tests', function() {
   const whitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
   const swapAddress = '0x4572f2554421Bd64Bef1c22c8a81840E8D496BeA';
   const oracleAddress = '0x789cD7AB3742e23Ce0952F6Bc3Eb3A73A0E08833';
-  const opynOwner = '0x638E5DA0EEbbA58c67567bcEb4Ab2dc8D34853FB';
+  const opynWhitelister = '0x2FCb2fc8dD68c48F406825255B4446EDFbD3e140';
   const otokenFactoryAddress = '0x7C06792Af1632E77cb27a558Dc0885338F4Bdf8E';
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
   const otokenWhitelistAddress = '0xa5EA18ac6865f315ff5dD9f1a7fb1d41A30a6779';
@@ -113,7 +112,9 @@ describe('Mainnet Fork Tests', function() {
   const reserveFactor = 1000;  //w.r.t. BASE so 1000: 10%
   const withdrawalFeePercentage = 50;  //w.r.t. BASE so 50: 0.5%
   const perfromanceFeePercentage = 1000; //w.r.t. BASE so 1000: 10%
-  const BASE = 10000
+  const BASE = 10000;
+  const mintPercentage = 9000; // w.r.t BASE so 10000: 90% - Percentage of underlying in the action to mint and sell
+  
   
 
   /** Test Scenario Params */
@@ -142,7 +143,7 @@ describe('Mainnet Fork Tests', function() {
     ] = accounts;
 
     await network.provider.send("hardhat_setBalance", [
-      opynOwner,
+      opynWhitelister,
       "0x1000000000000000000000000000000",
     ]);
 
@@ -211,16 +212,16 @@ describe('Mainnet Fork Tests', function() {
 
       // impersonate owner and change the pricer
       await owner.sendTransaction({
-        to: opynOwner,
+        to: opynWhitelister,
         value: utils.parseEther('2.0')
       });
-      await provider.send('hardhat_impersonateAccount', [opynOwner]);
-      const signer = await ethers.provider.getSigner(opynOwner);
+      await provider.send('hardhat_impersonateAccount', [opynWhitelister]);
+      const signer = await ethers.provider.getSigner(opynWhitelister);
       await oracle
         .connect(signer)
         .setAssetPricer(underlying.address, underlyingPricer.address);
       await provider.send('evm_mine', []);
-      await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
+      await provider.send('hardhat_stopImpersonatingAccount', [opynWhitelister]);
     }
   );
 
@@ -232,11 +233,11 @@ describe('Mainnet Fork Tests', function() {
 
     // impersonate owner and change the whitelist
     await owner.sendTransaction({
-      to: opynOwner,
+      to: opynWhitelister,
       value: utils.parseEther('1.0')
     });
-    await provider.send('hardhat_impersonateAccount', [opynOwner]);
-    const signer = await ethers.provider.getSigner(opynOwner);
+    await provider.send('hardhat_impersonateAccount', [opynWhitelister]);
+    const signer = await ethers.provider.getSigner(opynWhitelister);
     await whitelist.connect(signer).whitelistCollateral(underlying.address);
     await whitelist
       .connect(signer)
@@ -247,7 +248,7 @@ describe('Mainnet Fork Tests', function() {
         false
       );
     await provider.send('evm_mine', []);
-    await provider.send('hardhat_stopImpersonatingAccount', [opynOwner]);
+    await provider.send('hardhat_stopImpersonatingAccount', [opynWhitelister]);
   });
 
   this.beforeAll('send everyone underlying', async () => { 
@@ -298,7 +299,7 @@ describe('Mainnet Fork Tests', function() {
     });
   });
 
-  describe('profitable scenario', async () => {
+  describe('loss scenario', async () => {
     let otoken: IOToken;
     let expiry: number;
     this.beforeAll(
@@ -401,24 +402,30 @@ describe('Mainnet Fork Tests', function() {
       // keep track before rollover and create expected values
       const underlyingBeforeRollOverTotal = await vault.totalUnderlyingAsset();
       const underlyingExpectedAfterMintTotal = underlyingBeforeRollOverTotal.add(premium);
+      const underlyingExpectedAfterRolloverInAction = underlyingBeforeRollOverTotal.sub(underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE));
+      const underlyingExpectedAfterRolloverInVault = underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE);
       const underlyingExpectedAfterMintInVault = underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE);
       const underlyingExpectedBeforeMintInActionLocked = 0;
-      const underlyingExpectedBeforeMintInActionUnlocked = underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault);
-      const underlyingExpectedBeforeMintInActionTotal = underlyingExpectedBeforeMintInActionUnlocked.add(underlyingExpectedBeforeMintInActionLocked);
-      const underlyingExpectedAfterMintInActionLocked = underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault);
-      const underlyingExpectedAfterMintInActionUnlocked = premium;
+      const underlyingExpectedBeforeMintInActionUnlocked = underlyingBeforeRollOverTotal.sub(underlyingBeforeRollOverTotal.mul(reserveFactor).div(BASE));
+     // const underlyingExpectedBeforeMintInActionTotal = underlyingExpectedBeforeMintInActionUnlocked.add(underlyingExpectedBeforeMintInActionLocked);
+      const underlyingExpectedAfterMintInActionLocked =  underlyingExpectedAfterRolloverInAction.mul(mintPercentage).div(BASE); 
+      const underlyingPercentageNotMinted = BASE -mintPercentage;
+      const underlyingNotMintedExpectedAfterMintInActionUnlocked = await underlyingExpectedAfterRolloverInAction.mul(underlyingPercentageNotMinted).div(BASE);
+      const underlyingExpectedAfterMintInActionUnlocked = premium.add(underlyingNotMintedExpectedAfterMintInActionUnlocked);
       const underlyingExpectedAfterMintInActionTotal = underlyingExpectedAfterMintInActionUnlocked.add(underlyingExpectedAfterMintInActionLocked);
+      const underlyingMovedToActionBeforeRollover = await vault.totalUnderlyingMovedToAction(action1.address);
 
       // rollover
       await vault.rollOver([(BASE - reserveFactor)]);
 
       // keep track after rollover and before mint
       const collateralAmount = await underlying.balanceOf(action1.address);
-      expect((underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterMintInVault)), 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
+      const collateralAmountToMint = await (collateralAmount).mul(mintPercentage).div(BASE);
+      expect((underlyingBeforeRollOverTotal.sub(underlyingExpectedAfterRolloverInVault)), 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
       const marginPoolUnderlyingBeforeMint = await underlying.balanceOf(marginPoolAddess);
 
       // mint and sell oTokens
-      const sellAmount = (collateralAmount).div(10**(underlyingDecimals-8)).toString();
+      const sellAmount = (collateralAmountToMint).div(10**(underlyingDecimals-8)).toString();
       
       const order = await getOrder(
         action1.address,
@@ -435,7 +442,7 @@ describe('Mainnet Fork Tests', function() {
       expect((await underlying.balanceOf(action1.address)).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
       expect((await action1.currentValue()).eq(underlyingExpectedBeforeMintInActionUnlocked),'collateral should all be unlocked').to.be.true;
 
-      await action1.mintAndSellOToken(collateralAmount, sellAmount, order);
+      await action1.mintAndSellOToken(collateralAmountToMint, sellAmount, order);
 
       // keep track after rollover and mint
       const underlyingAfterMintInVault = await underlying.balanceOf(vault.address);
@@ -444,20 +451,22 @@ describe('Mainnet Fork Tests', function() {
       const underlyingAfterMintInActionLocked = await action1.lockedAsset();
       const underlyingAfterMintTotal = await vault.totalUnderlyingAsset();
       const marginPoolUnderlyingAfterMint = await underlying.balanceOf(marginPoolAddess);
+      const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingMovedToAction(action1.address);
 
       // check underlying balance in action and vault
       expect((underlyingAfterMintInVault), 'incorrect accounting in vault').to.be.equal(underlyingExpectedAfterMintInVault);
       expect((underlyingAfterMintInActionTotal), 'incorrect accounting in action total').to.be.equal(underlyingExpectedAfterMintInActionTotal);
       expect((underlyingAfterMintTotal), 'incorrect accounting in totals').to.be.equal(underlyingExpectedAfterMintTotal);
-      expect(underlyingAfterMintInActionLocked, 'incorrect accounting in locked asset').to.be.equal(collateralAmount);
+      expect(underlyingAfterMintInActionLocked, 'incorrect accounting in locked asset').to.be.equal(collateralAmountToMint);
       expect(underlyingAfterMintInActionLocked, 'incorrect accounting in locked asset').to.be.equal(underlyingExpectedAfterMintInActionLocked);
       expect(underlyingAfterMintInActionUnlocked, 'incorrect accounting in locked asset').to.be.equal(underlyingExpectedAfterMintInActionUnlocked);
-
+      expect(underlyingUsedForStrategyAfterCloseInVaultTotal, 'incorrect accounting for action underlying being tracked in vault').to.be.equal(underlyingMovedToActionBeforeRollover.add(collateralAmount));
+      
       // check the otoken balance of counterparty
       expect(await otoken.balanceOf(counterpartyWallet.address), 'incorrect otoken balance sent to counterparty').to.be.equal(sellAmount);
 
       // check underlying balance in opyn
-      expect(marginPoolUnderlyingAfterMint, 'incorrect balance in Opyn').to.be.equal(marginPoolUnderlyingBeforeMint.add(collateralAmount));
+      expect(marginPoolUnderlyingAfterMint, 'incorrect balance in Opyn').to.be.equal(marginPoolUnderlyingBeforeMint.add(collateralAmountToMint));
     });
 
     it('p3 deposits', async () => {
@@ -492,7 +501,7 @@ describe('Mainnet Fork Tests', function() {
       const sharesToWithdraw = await vault.balanceOf(depositor1.address);
 
       // balance calculations
-      const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
+    //  const performanceFee = sharesToWithdraw.mul(profit).mul(perfromanceFeePercentage).div(sharesBefore).div(BASE);
       //if PerfFees=0 no substraction, if PerfFees>0 already happened in ClosePosition() so always no substraction
       const amountWithdrawnAfterPerformanceFees = sharesToWithdraw.mul(underlyingBeforeWithdrawal).div(sharesBefore);
       const withdrawalFee = amountWithdrawnAfterPerformanceFees.mul(withdrawalFeePercentage).div(BASE);
@@ -560,16 +569,21 @@ describe('Mainnet Fork Tests', function() {
        const underlyingBeforeCloseInActionTotal = await action1.currentValue();
        const underlyingBeforeCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const lockedAsset = await action1.currentLockedAsset();
+       const underlyingMovedToActionBeforeRollover = await vault.totalUnderlyingMovedToAction(action1.address);
        const underlyingOfFeePerformanceRecipientBefore = await underlying.balanceOf(feePerformanceRecipient.address);
 
       // get expected profit 
       const callPayOff = (maxBN((((await oracle.getExpiryPrice(underlying.address, expiry))[0]).sub(await otoken.strikePrice())).mul(BigNumber.from('10').pow(underlyingDecimals)).div(((await oracle.getExpiryPrice(underlying.address, expiry))[0])),BigNumber.from("0")));
-      callPayOffActual = callPayOff.mul(lockedAsset.div(BigNumber.from('10').pow(underlyingDecimals)));
-      const realProfit = (premium.sub(callPayOffActual)).add(profit)
+      callPayOffActual = callPayOff.mul(lockedAsset).div(BigNumber.from('10').pow(underlyingDecimals));
+     
+    //  const realProfit = (premium.sub(callPayOffActual)).add(profit)
+      const actionBalance = underlyingBeforeCloseInActionTotal.sub(callPayOffActual)
+      const realProfit = actionBalance.sub(underlyingMovedToActionBeforeRollover);
       profit = maxBN(realProfit ,BigNumber.from('0'));
+      const performanceFee = profit.mul(perfromanceFeePercentage).div(BASE);
       const netProfit = profit.mul(BASE-perfromanceFeePercentage).div(BASE);
       const realNetProfit = minBN(netProfit ,realProfit);
- 
+      
        // close positions
        await vault.closePositions();
  
@@ -578,18 +592,19 @@ describe('Mainnet Fork Tests', function() {
        const underlyingAfterCloseInVaultTotal = await underlying.balanceOf(vault.address);
        const vaultTotal = await vault.totalUnderlyingAsset();
        const underlyingOfFeePerformanceRecipientAfter = await underlying.balanceOf(feePerformanceRecipient.address);
- 
+       const underlyingUsedForStrategyAfterCloseInVaultTotal = await vault.totalUnderlyingMovedToAction(action1.address);
+
        // check vault balances
        expect(vaultTotal, 'incorrect accounting in vault').to.be.equal(underlyingAfterCloseInVaultTotal);
-       expect(underlyingAfterCloseInVaultTotal, 'incorrect balances in vault').to.be.equal(underlyingBeforeCloseInVaultTotal.add(underlyingBeforeCloseInActionTotal).sub(callPayOffActual).sub(profit.sub(netProfit)));
- 
+       expect(underlyingAfterCloseInVaultTotal, 'incorrect balances in vault').to.be.equal(underlyingBeforeCloseInVaultTotal.add(actionBalance).sub(performanceFee));
+       expect(underlyingUsedForStrategyAfterCloseInVaultTotal, 'underlying tracked by vault should be tracked 0').to.be.equal('0');
        // check action balances
        expect((await action1.lockedAsset()).eq('0'),'no underlying should be locked').to.be.true;
        expect((await underlying.balanceOf(action1.address)), 'no underlying should be left in action').to.be.equal('0');
        expect(underlyingAfterCloseInActionTotal, 'no underlying should be controlled by action').to.be.equal('0');
 
        // check profit 
-       expect(realNetProfit, 'profit calculations do not match').to.be.equal(underlyingAfterCloseInVaultTotal.sub(underlyingBeforeCloseInVaultTotal.add(lockedAsset)));
+       expect(realNetProfit, 'profit calculations do not match').to.be.equal(actionBalance.sub(underlyingMovedToActionBeforeRollover));
 
       // check performance fee
       expect(underlyingOfFeePerformanceRecipientAfter, 'incorrect performance fee paid out to fee recipient').to.be.eq(underlyingOfFeePerformanceRecipientBefore.add(profit.mul(perfromanceFeePercentage).div(BASE)));
@@ -647,7 +662,7 @@ describe('Mainnet Fork Tests', function() {
 
       // manual checks on profitability
       expect(underlyingOfDepositorAfter, 'Depositor 2 should be in Profit').lte(p2DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
-      expect(underlyingOfDepositorAfter, 'Depositor 2 profit calculations do not match').to.be.eq((p2DepositAmount.sub(withdrawalFee)).add(p2DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(sharesBefore)).sub(1)); // may fail due to rounding error (why the sub 1 is added) need to find where this happens
+      expect(underlyingOfDepositorAfter, 'Depositor 2 profit calculations do not match').to.be.eq((p2DepositAmount.sub(withdrawalFee)).add(p2DepositAmount.mul(premium).div(p1DepositAmount.add(p2DepositAmount))).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(sharesBefore))); // may fail due to rounding error (why the sub 1 is added) need to find where this happens
 
       //update profit
       profit = (sharesBefore.sub(sharesToWithdraw)).mul(profit).div(sharesBefore);
@@ -705,7 +720,7 @@ describe('Mainnet Fork Tests', function() {
 
       // manual checks on profitability
       expect(underlyingOfDepositorAfter, 'Depositor 3 should NOT be in Profit').lte(p3DepositAmount); //it is true as in this case all the amount of that wallet was deposited for this strategy
-      expect(underlyingOfDepositorAfter, 'Depositor 3 profit -loss in this case- calculations do not match').to.be.eq(p3DepositAmount.sub(withdrawalFee).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(p2DepositAmount.add(sharesToWithdraw)))); //not well generalizable if needed but works for now -also may fail due to rounding error need to find where this happens
+      expect(underlyingOfDepositorAfter, 'Depositor 3 profit -loss in this case- calculations do not match').to.be.eq(p3DepositAmount.sub(withdrawalFee).sub(performanceFee).sub(sharesToWithdraw.mul(callPayOffActual).div(p2DepositAmount.add(sharesToWithdraw))).sub(1)); //not well generalizable if needed but works for now -also may fail due to rounding error need to find where this happens
 
       //update profit
       profit = (sharesBefore.sub(sharesToWithdraw)).mul(profit).div(sharesBefore);
